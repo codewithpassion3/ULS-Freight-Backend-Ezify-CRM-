@@ -9,6 +9,9 @@ export class Address{
     address1!: string;
 
     @Property({nullable: true})
+    address2?: string;
+
+    @Property({nullable: true})
     unit?: string;
 
     @Property()

@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from "@nestjs/common";
+import { ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { SignupDTO } from "../dto/signup.dto";
 import { EntityManager } from "@mikro-orm/postgresql";
 import { User } from "src/entities/user.entity";
@@ -8,6 +8,7 @@ import * as bcrypt from 'bcrypt';
 import { CompanyShippingPreference } from "src/entities/company-shipping-preference.entity";
 import { ShipmentVolume } from "src/common/enum/shipment-volume.enum";
 import { ShippingType } from "src/common/enum/shipping-type.enum";
+import { SigninDTO } from "../dto/signin.dto";
 
 @Injectable()
 export class AuthService{
@@ -32,12 +33,12 @@ export class AuthService{
 
            //5) Create company
            const companyEntity = em.create(Company, {...company, address: addressEntity});
-
+           
            //6) Create company preference
            const companyPreference = shippingPreference.map((pref) => 
             em.create(CompanyShippingPreference, {
                 shippingType: pref.shippingType as ShippingType,
-                shippingVolume: pref.shippingVolume as ShipmentVolume,
+                shippingVolume: pref.shippingVolume as ShipmentVolume ?? null,
                 company: companyEntity
             })
            )
@@ -63,5 +64,27 @@ export class AuthService{
            //10) Return created user
            return userEntity
         })
+    }
+
+    async signin(dto: SigninDTO) {
+        //1) Extract email and password
+        const { email, password } = dto;
+
+        //2) Check user exists and throw error for invalid credentials
+        const user = await this.em.findOne(User, { email });
+
+        if(!user){
+            throw new UnauthorizedException("Invalid credentials")
+        }
+
+        //4) Compare password and throw error for invalid credentials
+        const passwordMatched = await bcrypt.compare(password, user.password);
+
+        if(!passwordMatched){
+            throw new UnauthorizedException("Invalid credentials")
+        }
+
+        //5) return user
+        return user;
     }
 }

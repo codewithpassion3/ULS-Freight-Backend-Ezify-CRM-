@@ -22,8 +22,7 @@ export class User{
     @Property()
     username!: string;
 
-    @Exclude()
-    @Property()
+    @Property({hidden: true})
     password!: string;
 
     @Property({ nullable: true})
