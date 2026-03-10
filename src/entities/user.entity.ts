@@ -1,5 +1,6 @@
 import { Entity, ManyToOne, PrimaryKey, Property } from "@mikro-orm/core";
 import { Company } from "./company.entity";
+import { Exclude } from "class-transformer";
 
 @Entity()
 export class User{
@@ -21,6 +22,7 @@ export class User{
     @Property()
     username!: string;
 
+    @Exclude()
     @Property()
     password!: string;
 

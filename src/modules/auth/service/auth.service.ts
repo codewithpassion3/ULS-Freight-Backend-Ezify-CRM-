@@ -60,12 +60,8 @@ export class AuthService{
             userEntity
            ]).flush();
 
-           //10) Need to setup session here
-           
-           //11) Return created user
-           return {
-            user: userEntity
-           }
+           //10) Return created user
+           return userEntity
         })
     }
 }
