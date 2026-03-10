@@ -5,6 +5,12 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "mikro-orm": {
+    "config-paths": [
+      "./dist/mikro-orm.config.js",
+      "./src/mikro-orm.config.ts"
+    ]
+  },
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -17,21 +23,33 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "migration:create": "node -r ts-node/register -r tsconfig-paths/register ./node_modules/@mikro-orm/cli/bin/mikro-orm.cjs migration:create",
+    "migration:up": "node -r ts-node/register -r tsconfig-paths/register ./node_modules/@mikro-orm/cli/bin/mikro-orm.cjs migration:up",
+    "migration:down": "node -r ts-node/register -r tsconfig-paths/register ./node_modules/@mikro-orm/cli/bin/mikro-orm.cjs migration:down"
   },
   "dependencies": {
+    "@mikro-orm/core": "^6.6.9",
+    "@mikro-orm/migrations": "^6.6.9",
+    "@mikro-orm/nestjs": "^6.1.1",
+    "@mikro-orm/postgresql": "^6.6.9",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "bcrypt": "^6.0.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
     "@eslint/js": "^9.18.0",
+    "@mikro-orm/cli": "^6.6.9",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",
