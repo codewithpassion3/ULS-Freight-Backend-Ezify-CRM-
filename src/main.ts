@@ -35,9 +35,6 @@ async function bootstrap() {
     transform: true,
   }));
 
-  // Run serialization on response object
-  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)))
-
   // Set a global prefix for each api request
   app.setGlobalPrefix(`/api/${process.env.API_VERSION || 'v1'}`);
 
