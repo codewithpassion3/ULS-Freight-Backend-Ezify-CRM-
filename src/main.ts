@@ -5,6 +5,7 @@ import { MikroORM } from '@mikro-orm/postgresql';
 import session from 'express-session';
 import { RedisStore } from 'connect-redis';
 import { connectRedis } from './config/redis.config';
+import { seedRolesAndPermissions } from './utils/seedRolesAndPermissions';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -42,6 +43,7 @@ async function bootstrap() {
   const orm = app.get(MikroORM);
   
   await orm.schema.updateSchema();
+  await seedRolesAndPermissions(orm.em);
   
   // Start server at 3000 port
   await app.listen(process.env.PORT ?? 3000);

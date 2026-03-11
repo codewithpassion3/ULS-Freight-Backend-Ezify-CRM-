@@ -1,6 +1,6 @@
 import { Entity, ManyToOne, PrimaryKey, Property } from "@mikro-orm/core";
 import { Company } from "./company.entity";
-import { Exclude } from "class-transformer";
+import { Role } from "./role.entity";
 
 @Entity()
 export class User{
@@ -39,4 +39,7 @@ export class User{
     
     @ManyToOne(() => Company)
     company!: Company;
+
+    @ManyToOne(() => Role)
+    role!: Role
 }

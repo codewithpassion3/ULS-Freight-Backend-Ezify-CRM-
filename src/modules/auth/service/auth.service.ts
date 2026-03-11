@@ -9,6 +9,7 @@ import { CompanyShippingPreference } from "src/entities/company-shipping-prefere
 import { ShipmentVolume } from "src/common/enum/shipment-volume.enum";
 import { ShippingType } from "src/common/enum/shipping-type.enum";
 import { SigninDTO } from "../dto/signin.dto";
+import { Role } from "src/entities/role.entity";
 
 @Injectable()
 export class AuthService{
@@ -45,15 +46,19 @@ export class AuthService{
 
            //7) Hash user password
            const hashedPassword = await bcrypt.hash(user.password, 10);
+        
+           //8) Fetch admin role and attach it to user
+           const role = await em.findOneOrFail(Role, { name: "admin"});
 
-           //8) Create user
+           //9) Create user
            const userEntity = em.create(User, {
             ...user,
+            role: role,
             password: hashedPassword,
             company: companyEntity
            })
 
-           //9) Persist all changes
+           //10) Persist all changes
            await em.persist([
             addressEntity,
             companyEntity,
@@ -61,7 +66,7 @@ export class AuthService{
             userEntity
            ]).flush();
 
-           //10) Return created user
+           //11) Return created user
            return userEntity
         })
     }

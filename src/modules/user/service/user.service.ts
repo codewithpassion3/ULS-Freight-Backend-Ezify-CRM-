@@ -9,13 +9,13 @@ export class UserService {
     async getProfile(userId: number) {
         //1) Get the user based on userId
         const user = await this.em.findOne(User, { id: userId }, {
-            
-              populate: [
-                  'company',
-                  'company.address',
-                  'company.shippingPreferences',
-                ]
-  
+            populate: [
+                'company',
+                'company.address',
+                'company.shippingPreferences',
+                'role',
+                'role.permissions'
+            ]
         })
 
         //2) Throw exception for no user data
