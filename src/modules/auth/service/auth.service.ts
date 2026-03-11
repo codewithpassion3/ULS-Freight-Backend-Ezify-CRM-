@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { SignupDTO } from "../dto/signup.dto";
 import { EntityManager } from "@mikro-orm/postgresql";
 import { User } from "src/entities/user.entity";
@@ -6,7 +6,7 @@ import { Address } from "src/entities/address.entity";
 import { Company } from "src/entities/company.entity";
 import * as bcrypt from 'bcrypt';
 import { CompanyShippingPreference } from "src/entities/company-shipping-preference.entity";
-import { ShipmentVolume } from "src/common/enum/shipment-volume.enum";
+import { PackageShipmentVolume, PalletShipmentVolume } from "src/common/enum/shipment-volume.enum";
 import { ShippingType } from "src/common/enum/shipping-type.enum";
 import { SigninDTO } from "../dto/signin.dto";
 import { Role } from "src/entities/role.entity";
@@ -39,14 +39,30 @@ export class AuthService{
            //5) Create company
            const companyEntity = em.create(Company, {...company, address: addressEntity});
            
-           //6) Create company preference
-           const companyPreference = shippingPreference.map((pref) => 
-            em.create(CompanyShippingPreference, {
-                shippingType: pref.shippingType as ShippingType,
-                shippingVolume: pref.shippingVolume as ShipmentVolume ?? null,
-                company: companyEntity
-            })
-           )
+            //6) Create company preferences
+            const companyPreference = shippingPreference.map((pref) => {
+                const { shippingType, shippingVolume } = pref;
+
+                if (shippingVolume) {
+
+                    const palletVolumes = Object.values(PalletShipmentVolume);
+                    const packageVolumes = Object.values(PackageShipmentVolume);
+
+                    if (shippingType === ShippingType.PALLET && !palletVolumes.includes(shippingVolume as PalletShipmentVolume))
+                    throw new BadRequestException( "Invalid pallet shipment volume, volume should be one of: 1-5, 6-10, 11-20, 21-50, >50");
+
+                    if (shippingType === ShippingType.PACKAGE && !packageVolumes.includes(shippingVolume as PackageShipmentVolume))
+                    throw new BadRequestException("Invalid package shipment volume, volume should be one of: <25, 26-50, 50-100, 101-300, >300");
+
+                }
+
+                return em.create(CompanyShippingPreference, {
+                    shippingType: shippingType as ShippingType,
+                    shippingVolume: shippingType === ShippingType.PTLORFTL ? null : (shippingVolume as PalletShipmentVolume | PackageShipmentVolume) ?? null,
+                    company: companyEntity
+                });
+
+            });
 
            //7) Hash user password
            const hashedPassword = await bcrypt.hash(user.password, 10);

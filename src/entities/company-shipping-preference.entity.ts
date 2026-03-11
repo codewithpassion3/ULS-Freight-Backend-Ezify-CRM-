@@ -1,8 +1,7 @@
-import { Entity, Enum, ManyToOne, PrimaryKey } from "@mikro-orm/core";
+import { Entity, Enum, ManyToOne, PrimaryKey, Property } from "@mikro-orm/core";
 import { Company } from "./company.entity";
 import { ShippingType } from "src/common/enum/shipping-type.enum";
-import { ShipmentVolume } from "src/common/enum/shipment-volume.enum";
-import { IsOptional } from "class-validator";
+import { PackageShipmentVolume, PalletShipmentVolume } from "src/common/enum/shipment-volume.enum";
 
 @Entity()
 export class CompanyShippingPreference {
@@ -15,6 +14,6 @@ export class CompanyShippingPreference {
     @Enum(() => ShippingType)
     shippingType!: ShippingType;
 
-    @Enum({items: () => ShipmentVolume, nullable: true})
-    shippingVolume?: ShipmentVolume;
+    @Property({nullable: true})
+    shippingVolume?: PackageShipmentVolume | PalletShipmentVolume;
 }
