@@ -5,15 +5,19 @@ import { MikroOrmModule } from '@mikro-orm/nestjs';
 import config from './mikro-orm.config';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
+    EventEmitterModule.forRoot(),
     MikroOrmModule.forRoot({
       ...config,
       autoLoadEntities: true
     }),
     AuthModule,
-    UserModule
+    UserModule,
+    EmailModule
   ],
   controllers: [AppController],
   providers: [AppService],

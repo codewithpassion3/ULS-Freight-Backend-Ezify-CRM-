@@ -11,10 +11,13 @@ import { ShippingType } from "src/common/enum/shipping-type.enum";
 import { SigninDTO } from "../dto/signin.dto";
 import { Role } from "src/entities/role.entity";
 import { ROLES } from "src/common/constants/roles";
+import { EmailService } from "src/email/email.service";
 
 @Injectable()
 export class AuthService{
-    constructor(private readonly em: EntityManager){}
+    constructor(private readonly em: EntityManager,
+        private readonly emailService: EmailService
+    ){}
 
     async signup(dto: SignupDTO) {
         return this.em.transactional(async(em) => {
@@ -68,7 +71,17 @@ export class AuthService{
             userEntity
            ]).flush();
 
-           //11) Return created user
+           //11) Send out otp email to user
+           this.emailService.sendOtpEmail({
+                to: userEntity.email,
+                subject: "Verify email address",
+                template: "verify-email",
+                context: {
+                name: `${userEntity.firstName} ${userEntity.lastName}`
+                }
+            });
+
+           //12) Return created user
            return userEntity
         })
     }

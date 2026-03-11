@@ -1,6 +1,6 @@
-import { NestFactory, Reflector } from '@nestjs/core';
+import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import { MikroORM } from '@mikro-orm/postgresql';
 import session from 'express-session';
 import { RedisStore } from 'connect-redis';
@@ -9,6 +9,12 @@ import { seedRolesAndPermissions } from './utils/seedRolesAndPermissions';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableCors({
+    origin: true, // reflect request origin
+    credentials: true,
+    methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  });
   
   // Get redis store for sessions
   const redisClient = await connectRedis();
