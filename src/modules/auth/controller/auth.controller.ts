@@ -13,6 +13,8 @@ export class AuthController {
    async Signup(@Body() dto: SignupDTO, @Req() req: Request){
       const user = await this.AuthService.signup(dto);
       req.session.userId = user.id;
+      req.session.role = user.role.name;
+      req.session.companyId = user.company.id;
 
       return {
          message: "Signup successfull",
@@ -24,6 +26,8 @@ export class AuthController {
    async Signin(@Body() dto: SigninDTO, @Req() req: Request){
       const user = await this.AuthService.signin(dto);
       req.session.userId = user.id;
+      req.session.role = user.role.name;
+      req.session.companyId = user.company.id;
 
       return {
          message: "Signin successfull",

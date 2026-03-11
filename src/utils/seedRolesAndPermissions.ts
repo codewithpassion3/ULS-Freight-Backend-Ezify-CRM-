@@ -1,16 +1,17 @@
 import { EntityManager } from "@mikro-orm/core";
 import { Permission } from "src/entities/permission.entity";
 import { Role } from "src/entities/role.entity";
+import { PermissionNames } from "src/common/constants/permissions";
+import { RoleNames, ROLES } from "src/common/constants/roles";
 
 export async function seedRolesAndPermissions(em: EntityManager) {
 
   await em.transactional(async (em) => {
-    const permissionNames = ["shipping", "invoicing", "claims"];
-    const roleNames = ["admin", "user"];
+   
 
     // Permissions
     const existingPermissions = await em.find(Permission, {
-      name: { $in: permissionNames },
+      name: { $in: PermissionNames },
     });
 
     const permissionMap = new Map(
@@ -19,7 +20,7 @@ export async function seedRolesAndPermissions(em: EntityManager) {
 
     const missingPermissions: Permission[] = [];
 
-    for (const name of permissionNames) {
+    for (const name of PermissionNames) {
       if (!permissionMap.has(name)) {
         const permission = em.create(Permission, { name });
         missingPermissions.push(permission);
@@ -33,7 +34,7 @@ export async function seedRolesAndPermissions(em: EntityManager) {
 
     // Roles
     const existingRoles = await em.find(Role, {
-      name: { $in: roleNames },
+      name: { $in: RoleNames },
     });
 
     const roleMap = new Map(
@@ -42,7 +43,7 @@ export async function seedRolesAndPermissions(em: EntityManager) {
 
     const missingRoles: Role[] = [];
 
-    for (const name of roleNames) {
+    for (const name of RoleNames) {
       if (!roleMap.has(name)) {
         const role = em.create(Role, { name });
         missingRoles.push(role);
@@ -57,7 +58,7 @@ export async function seedRolesAndPermissions(em: EntityManager) {
    // Role Permission
     const permissions = Array.from(permissionMap.values());
 
-    const adminRole = roleMap.get("admin")!;
+    const adminRole = roleMap.get(ROLES.ADMIN)!;
     
     //Admin have all permissions
     adminRole.permissions.set(permissions);

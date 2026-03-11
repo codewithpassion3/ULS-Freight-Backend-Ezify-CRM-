@@ -1,6 +1,11 @@
 import { EntityManager } from "@mikro-orm/postgresql";
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { User } from "src/entities/user.entity";
+import { CreateProfileDTO } from "../dto/create-profile";
+import { Role } from "src/decorators/role.decorator";
+import { Permission } from "src/entities/permission.entity";
+import { Company } from "src/entities/company.entity";
+import bcrypt from "bcrypt";
 
 @Injectable()
 export class UserService {
@@ -14,7 +19,7 @@ export class UserService {
                 'company.address',
                 'company.shippingPreferences',
                 'role',
-                'role.permissions'
+                'permissions'
             ]
         })
 
@@ -25,5 +30,64 @@ export class UserService {
 
         //3) Return user
         return user;
+    }
+
+    async createProfile(dto: CreateProfileDTO, companyId: number) {
+        return this.em.transactional(async (em) => {
+
+            const { roleId, permissionIds, ...userData } = dto;
+
+            //1) Validate role
+            const role = await em.findOne(Role, { id: roleId });
+            
+            if (!role) {
+                throw new BadRequestException("Invalid role");
+            }
+
+            //2) Validate permissions
+            let permissions: Permission[] = [];
+
+            if(role.name !== 'admin' && permissionIds?.length) {
+                const uniquePermissionIds = [...new Set(permissionIds)];
+                
+                const count = await em.count(Permission, {
+                    id: { $in: uniquePermissionIds }
+                });
+                
+                if (count !== uniquePermissionIds.length) {
+                    throw new BadRequestException("Invalid permissions provided");
+                }
+
+                permissions = uniquePermissionIds.map(id =>
+                    em.getReference(Permission, id)
+                );
+            }
+
+            //3) Hash password
+            const passwordHash = await bcrypt.hash(userData.password,10);
+            
+            //4) Create user
+            const user = em.create(User, {
+                ...userData,
+                password: passwordHash,
+                role,
+                company: em.getReference(Company, companyId),
+                termsAndConditionAccepted: true,
+                companyPolicyAccepted: true,
+                freightBroker: false,
+                profileIsComplete: false
+            });
+
+            //5) Assign permissions
+            if (permissions.length) {
+                user.permissions.set(permissions);
+            }
+
+            //6) Persist user
+            await em.persistAndFlush(user);
+
+            //7) Return user
+            return;
+        });
     }
 }

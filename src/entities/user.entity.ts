@@ -1,28 +1,29 @@
-import { Entity, ManyToOne, PrimaryKey, Property } from "@mikro-orm/core";
+import { Collection, Entity, ManyToMany, ManyToOne, PrimaryKey, Property } from "@mikro-orm/core";
 import { Company } from "./company.entity";
 import { Role } from "./role.entity";
+import { Permission } from "./permission.entity";
 
 @Entity()
 export class User{
     @PrimaryKey()
     id!: number;
 
-    @Property()
-    firstName!: string;
+    @Property({ nullable: true })
+    firstName?: string;
 
-    @Property()
-    lastName!: string;
+    @Property({ nullable: true })
+    lastName?: string;
 
     @Property({ unique: true})
     email!: string;
 
-    @Property()
+    @Property({ nullable: true })
     phoneNumber!: string;
 
-    @Property()
-    username!: string;
+    @Property({ nullable: true })
+    username?: string;
 
-    @Property({hidden: true})
+    @Property({ hidden: true })
     password!: string;
 
     @Property({ nullable: true})
@@ -36,10 +37,16 @@ export class User{
 
     @Property()
     companyPolicyAccepted!: boolean;
+
+    @Property()
+    profileIsComplete!: boolean;
     
     @ManyToOne(() => Company)
     company!: Company;
 
     @ManyToOne(() => Role)
     role!: Role
+
+    @ManyToMany(() => Permission, permission => permission.user,{ owner: true})
+    permissions = new Collection<Permission>(this)
 }

@@ -10,6 +10,7 @@ import { ShipmentVolume } from "src/common/enum/shipment-volume.enum";
 import { ShippingType } from "src/common/enum/shipping-type.enum";
 import { SigninDTO } from "../dto/signin.dto";
 import { Role } from "src/entities/role.entity";
+import { ROLES } from "src/common/constants/roles";
 
 @Injectable()
 export class AuthService{
@@ -48,14 +49,15 @@ export class AuthService{
            const hashedPassword = await bcrypt.hash(user.password, 10);
         
            //8) Fetch admin role and attach it to user
-           const role = await em.findOneOrFail(Role, { name: "admin"});
+           const role = await em.findOneOrFail(Role, { name: ROLES.ADMIN});
 
            //9) Create user
            const userEntity = em.create(User, {
             ...user,
             role: role,
             password: hashedPassword,
-            company: companyEntity
+            company: companyEntity,
+            profileIsComplete: true
            })
 
            //10) Persist all changes
@@ -76,15 +78,13 @@ export class AuthService{
         const { email, password } = dto;
 
         //2) Check user exists and throw error for invalid credentials
-        const user = await this.em.findOne(User, { email });
-
+        const user = await this.em.findOne(User, { email }, { populate: ["role"] });
         if(!user){
             throw new UnauthorizedException("Invalid credentials")
         }
 
         //4) Compare password and throw error for invalid credentials
         const passwordMatched = await bcrypt.compare(password, user.password);
-
         if(!passwordMatched){
             throw new UnauthorizedException("Invalid credentials")
         }
