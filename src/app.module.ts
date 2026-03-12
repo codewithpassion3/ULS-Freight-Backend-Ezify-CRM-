@@ -8,6 +8,7 @@ import { UserModule } from './modules/user/user.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { EmailModule } from './email/email.module';
 import { OtpModule } from './modules/otp/opt.module';
+import { PermissionModule } from './modules/permission/permission.module';
 
 @Module({
   imports: [
@@ -19,7 +20,8 @@ import { OtpModule } from './modules/otp/opt.module';
     AuthModule,
     UserModule,
     EmailModule,
-    OtpModule
+    OtpModule,
+    PermissionModule
   ],
   controllers: [AppController],
   providers: [AppService],
