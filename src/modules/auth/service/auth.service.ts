@@ -11,19 +11,20 @@ import { ShippingType } from "src/common/enum/shipping-type.enum";
 import { SigninDTO } from "../dto/signin.dto";
 import { Role } from "src/entities/role.entity";
 import { ROLES } from "src/common/constants/roles";
-import { EmailService } from "src/email/email.service";
+import { OtpPurpose } from "src/common/enum/otp-purpose.enum";
+import { OtpService } from "src/modules/otp/service/otp.service";
 
 @Injectable()
 export class AuthService{
-    constructor(private readonly em: EntityManager,
-        private readonly emailService: EmailService
+    constructor(
+        private readonly em: EntityManager,
+        private readonly otpService: OtpService
     ){}
 
     async signup(dto: SignupDTO) {
-        return this.em.transactional(async(em) => {
+       const userEntity =  await this.em.transactional(async(em) => {
             //1) Extract fields from dto
             const { user, company, address, shippingPreference } = dto;
-            console.log({user})
 
             //2) Check exisiting user againts email
             const existingUser = await em.findOne(User, { email: user.email});
@@ -76,7 +77,7 @@ export class AuthService{
             role: role,
             password: hashedPassword,
             company: companyEntity,
-            profileIsComplete: true
+            emailIsVerified: false
            })
 
            //10) Persist all changes
@@ -87,19 +88,24 @@ export class AuthService{
             userEntity
            ]).flush();
 
-           //11) Send out otp email to user
-           this.emailService.sendOtpEmail({
-                to: userEntity.email,
-                subject: "Verify email address",
-                template: "verify-email",
-                context: {
-                name: `${userEntity.firstName} ${userEntity.lastName}`
-                }
-            });
+           await this.em.populate(userEntity, [
+            'company',
+            'role',
+            'permissions'
+            ]);
 
-           //12) Return created user
+           //11) Return created user
            return userEntity
         })
+
+        //12) Send out otp email to user
+        this.otpService.generate({
+            email: userEntity.email,
+            purpose: OtpPurpose.EMAIL_VERIFICATION
+        });
+        
+        //13) Return user
+        return userEntity;
     }
 
     async signin(dto: SigninDTO) {

@@ -1,10 +1,10 @@
 import { Module } from "@nestjs/common";
 import { AuthController } from "./controller/auth.controller";
 import { AuthService } from "./service/auth.service";
-import { EmailModule } from "src/email/email.module";
+import { OtpModule } from "../otp/opt.module";
 
 @Module({
-    imports: [EmailModule],
+    imports: [OtpModule],
     controllers: [AuthController],
     providers: [AuthService]
 })

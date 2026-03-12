@@ -7,7 +7,7 @@ import type { EmailTemplate } from "src/types/email";
 export class EmailListener {
     constructor(private readonly mailService: MailerService) {}
 
-    @OnEvent("otp.send")
+    @OnEvent("otp.generated")
     async handleEmail(payload: EmailTemplate) {
         const { template, ...otherConfigurations } = payload;
         const mailConfiguration = {

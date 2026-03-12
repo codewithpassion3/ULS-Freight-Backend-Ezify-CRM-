@@ -39,7 +39,7 @@ export class User{
     companyPolicyAccepted!: boolean;
 
     @Property()
-    profileIsComplete!: boolean;
+    emailIsVerified!: boolean;
     
     @ManyToOne(() => Company)
     company!: Company;

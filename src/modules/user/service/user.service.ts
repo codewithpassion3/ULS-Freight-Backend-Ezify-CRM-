@@ -75,7 +75,7 @@ export class UserService {
                 termsAndConditionAccepted: true,
                 companyPolicyAccepted: true,
                 freightBroker: false,
-                profileIsComplete: false
+                emailIsVerified: false
             });
 
             //5) Assign permissions
@@ -84,7 +84,7 @@ export class UserService {
             }
 
             //6) Persist user
-            await em.persistAndFlush(user);
+            await em.persist(user).flush();
 
             //7) Return user
             return;

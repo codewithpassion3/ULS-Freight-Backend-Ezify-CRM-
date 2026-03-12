@@ -3,5 +3,8 @@ export interface EmailTemplate {
     subject: string;
     text?: string;
     template?: string;
-    context?: Record<string,any>
+    context: {
+        name: string;
+        otp: string;
+    };
 }
