@@ -5,7 +5,7 @@ import { EntityManager } from "@mikro-orm/core";
 import { generateRandomNumbers } from "src/utils/generateRandomNumbers";
 import { OTP } from "src/entities/otp.entity";
 import { User } from "src/entities/user.entity";
-import { EmailService } from "src/email/email.service";
+import { EmailService } from "src/email/service/email.service";
 import bcrypt from "bcrypt";
 
 @Injectable()

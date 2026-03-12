@@ -15,7 +15,7 @@ export class EmailListener {
         }
 
         if(template) mailConfiguration["template"] = template;
-        
+
         await this.mailService.sendMail(mailConfiguration)
     }
 }
