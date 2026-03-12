@@ -9,6 +9,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { EmailModule } from './email/email.module';
 import { OtpModule } from './modules/otp/opt.module';
 import { PermissionModule } from './modules/permission/permission.module';
+import { RoleModule } from './modules/role/role.module';
 
 @Module({
   imports: [
@@ -21,7 +22,8 @@ import { PermissionModule } from './modules/permission/permission.module';
     UserModule,
     EmailModule,
     OtpModule,
-    PermissionModule
+    PermissionModule,
+    RoleModule
   ],
   controllers: [AppController],
   providers: [AppService],
