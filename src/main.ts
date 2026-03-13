@@ -9,11 +9,21 @@ import { seedRolesAndPermissions } from './utils/seedRolesAndPermissions';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.set('trust proxy', 1);
+  
   app.enableCors({
-    origin: true, // reflect request origin
+    origin:  [
+      "https://matrimonial-ecospecifically-jeni.ngrok-free.dev",
+      "http://localhost:3000"
+    ],
     credentials: true,
     methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "ngrok-skip-browser-warning"
+    ]
   });
   
   // Get redis store for sessions
@@ -30,10 +40,11 @@ async function bootstrap() {
     resave: false,
     saveUninitialized: false,
     cookie: {
+      sameSite: 'none',
+      secure: true,
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000
     }
-
   }))
   
   // Validate and transform request payload
