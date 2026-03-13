@@ -40,6 +40,13 @@ export class UserController {
         }
     }
 
+    @UseGuards(SessionAuthGuard, RolesGuard)
+    @Role([ROLES.ADMIN])
+    @Get("/")
+    async GetAllProfiles(@CurrentUser() userId: number){
+        return this.userService.getAllProfiles(userId);
+    }
+
     @UseGuards(SessionAuthGuard)
     @Patch("me")
     @UseInterceptors(FileInterceptor("profile_pic", multerConfig))

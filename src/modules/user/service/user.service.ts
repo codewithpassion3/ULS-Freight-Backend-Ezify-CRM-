@@ -174,4 +174,17 @@ export class UserService {
             message: "Password updated successfully"
         };
     }
+
+    async getAllProfiles(userId: number) {
+        //1) Get all users except the current user
+        const users = await this.em.find(User, {
+            id: { $ne: userId }
+        });
+
+        //2) Return users
+        return {
+            message: "Profiles retrieved successfully",
+            users
+        };
+    }
 }
