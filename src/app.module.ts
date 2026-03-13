@@ -11,6 +11,7 @@ import { OtpModule } from './modules/otp/opt.module';
 import { PermissionModule } from './modules/permission/permission.module';
 import { RoleModule } from './modules/role/role.module';
 import { MulterModule } from '@nestjs/platform-express';
+import { CompanyModule } from './modules/company/company.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { MulterModule } from '@nestjs/platform-express';
     }),
     AuthModule,
     UserModule,
+    CompanyModule,
     EmailModule,
     OtpModule,
     PermissionModule,
