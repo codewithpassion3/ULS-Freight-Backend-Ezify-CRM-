@@ -9,6 +9,7 @@ import bcrypt from "bcrypt";
 import { UpdateProfileDTO } from "../dto/update-profile";
 import { join } from "path";
 import * as fs from "fs/promises";
+import { UpdatePasswordDTO } from "../dto/update-password";
 
 @Injectable()
 export class UserService {
@@ -126,5 +127,51 @@ export class UserService {
 
         //8) Return updated user
         return user;
+    }
+
+    async updatePassword(dto: UpdatePasswordDTO, userId: number){
+        //1) Extract fields
+        const { currentPassword, newPassword, newConfirmPassword } = dto;
+
+        //2) Get the user
+        const user = await this.em.findOne(User, { id: userId }, { fields: ["id", "password"] });
+
+        //3) Throw error for no user
+        if(!user){
+            throw new NotFoundException("User not found")
+        }
+
+        //4) Compare newPassword and newConfirmPassword
+        if(newPassword !== newConfirmPassword){
+            throw new BadRequestException("Passwords do not match")
+        }
+
+        //5) Validate old password
+        const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+
+        //6) Throw error for invalid password
+        if(!isPasswordValid){
+            throw new BadRequestException("Invalid current password")
+        }
+
+        //7) Check password is not the same
+        const isPasswordSame = await bcrypt.compare(newPassword, user.password);
+
+        //8) Throw error for same old password match
+        if(isPasswordSame) {
+            throw new BadRequestException("New password must be different from new password")
+        }
+
+        //9) Hash password and update user
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        await this.em.nativeUpdate(User, { id: userId }, {
+            password: hashedPassword
+        })
+
+        //10) Return success response
+        return {
+            message: "Password updated successfully"
+        };
     }
 }

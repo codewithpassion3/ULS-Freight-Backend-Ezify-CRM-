@@ -154,12 +154,11 @@ export class AuthService{
     }
 
     async resetPassword(dto: ResetPasswordDTO){
-        
         //1) Extract fields
         const { email, resetToken, password } = dto;
 
         //2) Check for reset token validity
-        const user = await this.em.findOne(User, { email }, { fields: ["id", "resetPasswordToken", "resetPasswordExpires"]});
+        const user = await this.em.findOne(User, { email }, { fields: ["id", "password", "resetPasswordToken", "resetPasswordExpires"]});
 
         //3) Throw error for invalid email
         if(!user){
@@ -185,7 +184,16 @@ export class AuthService{
             throw new BadRequestException("Invalid reset token");
         }
 
-        //7) hash user password and update user
+        //7) Prevent reusing the same password
+        const isSamePassword = await bcrypt.compare(password, user.password);
+
+        if (isSamePassword) {
+            throw new BadRequestException(
+                "New password must be different from the previous password"
+            );
+        }
+
+        //8) hash user password and update user
         const hashedPassword = await bcrypt.hash(password, 10);
 
         await this.em.nativeUpdate(User, { id: user.id },{
@@ -194,7 +202,7 @@ export class AuthService{
             resetPasswordExpires: null
         })
 
-        //8) Return success response
+        //9) Return success response
         return {
             message: "Password reset successful"
         }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, Req, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
+import { Body, Controller, Get, Patch, Post, Req, Session, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
 import { UserService } from "../service/user.service";
 import { CurrentUser } from "src/decorators/currentUser.decorator";
 import { SessionAuthGuard } from "src/guards/sessionAuth.guard";
@@ -10,6 +10,7 @@ import { ROLES } from "src/common/constants/roles";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { UpdateProfileDTO } from "../dto/update-profile";
 import { multerConfig } from "src/config/multer.config";
+import { UpdatePasswordDTO } from "../dto/update-password";
 
 @Controller("users")
 export class UserController {
@@ -42,11 +43,17 @@ export class UserController {
     @UseGuards(SessionAuthGuard)
     @Patch("me")
     @UseInterceptors(FileInterceptor("profile_pic", multerConfig))
-    async updateUser(
+    async UpdateUser(
         @CurrentUser() userId: number,
         @Body() dto: UpdateProfileDTO,
         @UploadedFile() file?: Express.Multer.File
     ) {
         return this.userService.update(userId, dto, file);
+    }
+
+    @UseGuards(SessionAuthGuard)
+    @Patch("/password")
+    async UpdatePassword(@Body() dto: UpdatePasswordDTO, @CurrentUser() userId: number){
+        return this.userService.updatePassword(dto, userId);
     }
 }
