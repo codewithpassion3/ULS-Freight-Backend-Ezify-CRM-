@@ -79,7 +79,7 @@ export class UserService {
                 termsAndConditionAccepted: true,
                 companyPolicyAccepted: true,
                 freightBroker: false,
-                emailIsVerified: false
+                emailIsVerified: true
             });
 
             //5) Assign permissions
