@@ -8,6 +8,7 @@ import { connectRedis } from './config/redis.config';
 import { seedRolesAndPermissions } from './utils/seedRolesAndPermissions';
 import { join } from 'path';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { GlobalExceptionFilter } from './common/filters/global-exception-filter';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -64,6 +65,9 @@ async function bootstrap() {
   // Set a global prefix for each api request
   app.setGlobalPrefix(`/api/${process.env.API_VERSION || 'v1'}`);
 
+  // Catch global exceptions
+  app.useGlobalFilters(new GlobalExceptionFilter());
+  
   // Setup mikro orm entities schema
   const orm = app.get(MikroORM);
   

@@ -1,15 +1,15 @@
 import { EntityManager, wrap } from "@mikro-orm/postgresql";
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { User } from "src/entities/user.entity";
-import { CreateProfileDTO } from "../dto/create-profile";
+import { CreateProfileDTO } from "../dto/create-profile.dto";
 import { Role } from "src/decorators/role.decorator";
 import { Permission } from "src/entities/permission.entity";
 import { Company } from "src/entities/company.entity";
 import bcrypt from "bcrypt";
-import { UpdateProfileDTO } from "../dto/update-profile";
+import { UpdateProfileDTO } from "../dto/update-profile.dto";
 import { join } from "path";
 import * as fs from "fs/promises";
-import { UpdatePasswordDTO } from "../dto/update-password";
+import { UpdatePasswordDTO } from "../dto/update-password.dto";
 
 @Injectable()
 export class UserService {

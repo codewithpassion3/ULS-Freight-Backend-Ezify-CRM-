@@ -4,13 +4,13 @@ import { CurrentUser } from "src/decorators/currentUser.decorator";
 import { SessionAuthGuard } from "src/guards/sessionAuth.guard";
 import { RolesGuard } from "src/guards/roles.guard";
 import { Role } from "src/decorators/role.decorator";
-import { CreateProfileDTO } from "../dto/create-profile";
+import { CreateProfileDTO } from "../dto/create-profile.dto";
 import type { Request } from "express";
 import { ROLES } from "src/common/constants/roles";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { UpdateProfileDTO } from "../dto/update-profile";
+import { UpdateProfileDTO } from "../dto/update-profile.dto";
 import { multerConfig } from "src/config/multer.config";
-import { UpdatePasswordDTO } from "../dto/update-password";
+import { UpdatePasswordDTO } from "../dto/update-password.dto";
 
 @Controller("users")
 export class UserController {

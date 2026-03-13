@@ -1,4 +1,4 @@
-import { IsArray, IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
+import { IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, MinLength } from "class-validator";
 
 export class CreateProfileDTO {
     @IsNotEmpty()
@@ -7,6 +7,7 @@ export class CreateProfileDTO {
 
     @IsNotEmpty()
     @IsString()
+    @MinLength(8)
     password: string;
     
     @IsNotEmpty()
