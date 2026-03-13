@@ -10,6 +10,7 @@ import { EmailModule } from './email/email.module';
 import { OtpModule } from './modules/otp/opt.module';
 import { PermissionModule } from './modules/permission/permission.module';
 import { RoleModule } from './modules/role/role.module';
+import { MulterModule } from '@nestjs/platform-express';
 
 @Module({
   imports: [
@@ -17,6 +18,9 @@ import { RoleModule } from './modules/role/role.module';
     MikroOrmModule.forRoot({
       ...config,
       autoLoadEntities: true
+    }),
+    MulterModule.register({
+      dest: process.env.IMAGE_UPLOAD_DESTINATION || './uploads'
     }),
     AuthModule,
     UserModule,

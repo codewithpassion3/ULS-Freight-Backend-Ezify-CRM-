@@ -6,16 +6,24 @@ import session from 'express-session';
 import { RedisStore } from 'connect-redis';
 import { connectRedis } from './config/redis.config';
 import { seedRolesAndPermissions } from './utils/seedRolesAndPermissions';
+import { join } from 'path';
+import { NestExpressApplication } from '@nestjs/platform-express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
   const expressApp = app.getHttpAdapter().getInstance();
+  
+  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
+    prefix: process.env.STATIC_ASSETS_PREFIX || '/uploads/',
+  });
+  
   expressApp.set('trust proxy', 1);
   
   app.enableCors({
     origin:  [
-      "https://matrimonial-ecospecifically-jeni.ngrok-free.dev",
-      "http://localhost:3000"
+      process.env.NG_ROK_ORIGIN || "https://matrimonial-ecospecifically-jeni.ngrok-free.dev",
+      process.env.LOCALHOST_ORIGIN || "http://localhost:3000"     
     ],
     credentials: true,
     methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],

@@ -1,11 +1,14 @@
-import { EntityManager } from "@mikro-orm/postgresql";
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { EntityManager, wrap } from "@mikro-orm/postgresql";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { User } from "src/entities/user.entity";
 import { CreateProfileDTO } from "../dto/create-profile";
 import { Role } from "src/decorators/role.decorator";
 import { Permission } from "src/entities/permission.entity";
 import { Company } from "src/entities/company.entity";
 import bcrypt from "bcrypt";
+import { UpdateProfileDTO } from "../dto/update-profile";
+import { join } from "path";
+import * as fs from "fs/promises";
 
 @Injectable()
 export class UserService {
@@ -89,5 +92,39 @@ export class UserService {
             //7) Return user
             return;
         });
+    }
+
+    async update( userId: number, dto: UpdateProfileDTO, file?: Express.Multer.File ) {
+        //1) Get the user
+        const user = await this.em.findOneOrFail(User, { id: userId });
+
+        //2) Throw not found exception for missing user
+        if (!user) {
+            throw new NotFoundException("User not found");
+        }
+
+        //3) Copy filtered dto into entity
+        wrap(user).assign(dto, { ignoreUndefined: true });
+
+        //4) Check for uploaded image
+        if (file) {
+            //5) Remove old(alreday existed) image
+            if (user.profilePic) {
+                const oldPath = join(process.cwd(), user.profilePic);
+
+                fs.unlink(oldPath).catch(() => {});
+            }
+        
+            //6) Update new image path in user
+            const fileUrl = `/uploads/profile-pics/${file.filename}`;
+
+            user.profilePic = fileUrl;
+        }
+
+        //7) Save user
+        await this.em.flush();
+
+        //8) Return updated user
+        return user;
     }
 }

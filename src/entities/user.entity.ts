@@ -29,6 +29,9 @@ export class User{
     @Property({ nullable: true})
     signupCode?: string;
 
+    @Property({ nullable: true })
+    profilePic?: string;
+
     @Property()
     freightBroker!: boolean;
 
