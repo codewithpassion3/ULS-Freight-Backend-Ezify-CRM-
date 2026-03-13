@@ -13,6 +13,8 @@ import { Role } from "src/entities/role.entity";
 import { ROLES } from "src/common/constants/roles";
 import { OtpPurpose } from "src/common/enum/otp-purpose.enum";
 import { OtpService } from "src/modules/otp/service/otp.service";
+import { ForgotPasswordDTO } from "../dto/forgot-password.dto";
+import { ResetPasswordDTO } from "../dto/reset-password.dto";
 
 @Injectable()
 export class AuthService{
@@ -126,5 +128,75 @@ export class AuthService{
 
         //5) return user
         return user;
+    }
+
+    async forgotPassword(dto: ForgotPasswordDTO){
+        //1) Extract fields
+        const { email } = dto;
+
+        //2) Validate email account
+        const user = await this.em.findOne(User, {email}, { fields: ["id"]});
+
+        //3) Throw error for invalid user email
+        if(!user){
+            throw new BadRequestException("Invalid email address")
+        }
+
+        //4) Send otp to email address
+        this.otpService.generate({
+            email,
+            purpose: OtpPurpose.PASSWORD_RESET
+        })
+
+        return {
+            message: "Otp sent to email successfully"
+        };
+    }
+
+    async resetPassword(dto: ResetPasswordDTO){
+        
+        //1) Extract fields
+        const { email, resetToken, password } = dto;
+
+        //2) Check for reset token validity
+        const user = await this.em.findOne(User, { email }, { fields: ["id", "resetPasswordToken", "resetPasswordExpires"]});
+
+        //3) Throw error for invalid email
+        if(!user){
+            throw new BadRequestException("Invalid email address")
+        }
+
+        //4) Throw error for invalid reset request
+        if(!user.resetPasswordToken || !user.resetPasswordExpires){
+            throw new BadRequestException("Invalid reset request");
+        }
+
+        //5) Compare token and check it's validity
+        const isExpired = (user.resetPasswordExpires as Date) < new Date();
+
+        if(isExpired){
+            throw new BadRequestException("Expired reset token, try resetting again")
+        }
+
+        //6) Check token validity
+        const isValidToken = await bcrypt.compare(resetToken, user.resetPasswordToken as string);
+
+        if(!isValidToken){
+            throw new BadRequestException("Invalid reset token");
+        }
+
+        //7) hash user password and update user
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        await this.em.nativeUpdate(User, { id: user.id },{
+            password: hashedPassword,
+            resetPasswordToken: null,
+            resetPasswordExpires: null
+        })
+
+        //8) Return success response
+        return {
+            message: "Password reset successful"
+        }
     }
 }

@@ -40,6 +40,12 @@ export class User{
 
     @Property()
     emailIsVerified!: boolean;
+
+    @Property({ nullable: true })
+    resetPasswordToken?: string;
+
+    @Property({ nullable: true })
+    resetPasswordExpires?: Date;
     
     @ManyToOne(() => Company)
     company!: Company;

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { GenerateOtpDTO } from "../dto/generate-otp.dto";
 import { VerifyOtpDTO } from "../dto/verify-otp.dto";
 import { EntityManager } from "@mikro-orm/core";
@@ -7,6 +7,9 @@ import { OTP } from "src/entities/otp.entity";
 import { User } from "src/entities/user.entity";
 import { EmailService } from "src/email/service/email.service";
 import bcrypt from "bcrypt";
+import { OtpPurpose } from "src/common/enum/otp-purpose.enum";
+import * as crypto from "crypto"
+import { getTemplateBasedOnOtpPurpose } from "src/utils/getTemplateBasedOnOtpPurpose";
 
 @Injectable()
 export class OtpService {
@@ -19,7 +22,17 @@ export class OtpService {
     const { email, purpose } = dto;
     const now = new Date();
 
-    //1) Validate email
+    //1) Check for purpose type and template
+    const template = getTemplateBasedOnOtpPurpose(purpose);
+    
+    //2) Throw error for invalid purpose type
+    if(!template) {
+      throw new InternalServerErrorException(
+        `No email template configured for OTP purpose: ${purpose}`
+      );
+    }
+
+    //3) Validate email
     const user = await this.em.findOne(
       User,
       { email },
@@ -30,7 +43,7 @@ export class OtpService {
       throw new BadRequestException("Invalid email address");
     }
 
-    //2) Cooldown check (30 seconds)
+    //4) Cooldown check (30 seconds)
     const lastOtp = await this.em.findOne(
       OTP,
       { email, purpose },
@@ -43,16 +56,16 @@ export class OtpService {
       );
     }
 
-    //3) Delete previous Otps
+    //5) Delete previous Otps
     await this.em.nativeDelete(OTP, { email, purpose });
 
-    //4) Generate Otp
+    //6) Generate Otp
     const code = generateRandomNumbers(6);
 
-    //5) Hash Otp
+    //7) Hash Otp
     const hashedOtp = await bcrypt.hash(code, 10);
 
-    //6) Create Otp entity
+    //8) Create Otp entity
     const otp = this.em.create(OTP, {
       email,
       purpose,
@@ -60,14 +73,14 @@ export class OtpService {
       expiresAt: new Date(Date.now() + 10 * 60 * 1000),
     });
 
-    //7) Save Otp
+    //9) Save Otp
     await this.em.persist(otp).flush();
-
-    //8) Emit email event
+ 
+    //10) Emit email event
     this.emailService.sendOtpEmail({
       to: email,
       subject: "Verify email address",
-      template: "verify-email",
+      template: template,
       context: {
         name: `${user.firstName} ${user.lastName}`,
         otp: code
@@ -82,9 +95,11 @@ export class OtpService {
   async verify(dto: VerifyOtpDTO) {
     const { email, purpose, code } = dto;
     const now = new Date();
+    const response = {};
+    const fieldsToUpdate = {};
 
     //1)  Find Otp
-    const otp = await this.em.findOne(OTP, { email, purpose });
+    const otp = await this.em.findOne(OTP, { email, purpose, used: false });
 
     //2) Throw error for invalid Otp
     if (!otp) {
@@ -123,9 +138,30 @@ export class OtpService {
     otp.used = true;
     await this.em.flush();
 
-    //6) Verify user email
-    await this.em.nativeUpdate(User, { email }, { emailIsVerified: true });
+    //6) Verify user email (email verification)
+    if(purpose === OtpPurpose.EMAIL_VERIFICATION){
+      fieldsToUpdate["emailIsVerified"] = true
+    }
 
-    return { message: "Otp verified successfully" };
+    //7) Set reset token (reset password)
+    if(purpose === OtpPurpose.PASSWORD_RESET){
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      
+      const hashedToken = await bcrypt.hash(resetToken, 10);
+      
+      fieldsToUpdate["resetPasswordToken"] = hashedToken;
+      
+      fieldsToUpdate["resetPasswordExpires"] = new Date(Date.now() + 10 * 60 * 1000);
+      
+      response["resetToken"] = resetToken;
+    }
+
+    response["message"] = "Otp verified successfully";
+
+    if(Object.keys(fieldsToUpdate).length){
+      await this.em.nativeUpdate(User, { email }, fieldsToUpdate);
+    }
+
+    return response;
   }
 }
