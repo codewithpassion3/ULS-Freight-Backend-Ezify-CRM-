@@ -3,12 +3,15 @@ import { IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, MinLength
 export class CreateProfileDTO {
     @IsNotEmpty()
     @IsString()
-    email: string;
+    firstName: string;
 
     @IsNotEmpty()
     @IsString()
-    @MinLength(8)
-    password: string;
+    lastName: string;
+    
+    @IsNotEmpty()
+    @IsString()
+    email: string;
     
     @IsNotEmpty()
     @IsString()

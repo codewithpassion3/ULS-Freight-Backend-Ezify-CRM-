@@ -1,5 +1,5 @@
 import { EntityManager, wrap } from "@mikro-orm/postgresql";
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { User } from "src/entities/user.entity";
 import { CreateProfileDTO } from "../dto/create-profile.dto";
 import { Role } from "src/decorators/role.decorator";
@@ -12,10 +12,14 @@ import * as fs from "fs/promises";
 import { UpdatePasswordDTO } from "../dto/update-password.dto";
 import { UpdateSettingsDto } from "../dto/user-settings-update.dto";
 import { remvoeUndefinedKeysFromDto } from "src/utils/removeUndefinedKeysFromDto";
+import { EmailService } from "src/email/service/email.service";
 
 @Injectable()
 export class UserService {
-    constructor(private readonly em: EntityManager) {}
+    constructor(
+        private readonly em: EntityManager, 
+        private readonly emailService: EmailService
+    ) {}
 
     async getProfile(userId: number) {
         //1) Get the user based on userId
@@ -70,7 +74,8 @@ export class UserService {
             }
 
             //3) Hash password
-            const passwordHash = await bcrypt.hash(userData.password,10);
+            const dummyPassword = process.env.CREATE_PROFILE_PASSWORD || "*StrongPassword0";
+            const passwordHash = await bcrypt.hash(dummyPassword,10);
             
             //4) Create user
             const user = em.create(User, {
@@ -89,10 +94,32 @@ export class UserService {
                 user.permissions.set(permissions);
             }
 
-            //6) Persist user
+            //6) Get the company
+            const company = await this.em.findOne(Company, { id: companyId });
+
+            //7) Throw error if company does not exist
+            if (!company) {
+            throw new NotFoundException("Company not found");
+            }
+
+            //8) Persist user
             await em.persist(user).flush();
 
-            //7) Return user
+            //9) Send out account creation email to user
+            this.emailService.sendProfileCreatedByAdminEmail({
+            to: userData.email,
+            subject: "Your Account Has Been Created – Login Details",
+            template: "create-profile",
+            context: {
+                name: userData.firstName + " " + userData.lastName,
+                email: userData.email,
+                password: dummyPassword,
+                companyName: company.name,
+                loginUrl: `${process.env.NG_ROK_ORIGIN_FRONTEND}/login`
+            }
+            });
+
+            //10) Return user
             return;
         });
     }

@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsBoolean, IsIn } from "class-validator";
+import { IsOptional, IsString, IsIn } from "class-validator";
 
 export class UpdateSettingsDto {
   @IsOptional()
@@ -14,6 +14,6 @@ export class UpdateSettingsDto {
   language?: string;
 
   @IsOptional()
-  @IsBoolean()
-  dark_mode?: boolean;
+  @IsString()
+  dark_mode?: string;
 }

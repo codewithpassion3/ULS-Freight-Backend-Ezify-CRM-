@@ -1,0 +1,37 @@
+extends ./layout
+
+block title
+  | Account Created
+
+block content
+  | Hi 
+  strong #{name},
+  br
+  br
+  | An administrator from 
+  strong #{companyName}
+  |  has created an account for you on our platform.
+  br
+  br
+  | Please use the following credentials to log in:
+  br
+  br
+  | Email:
+  strong #{email}
+  br
+  | Temporary Password:
+  strong #{password}
+  br
+  br
+  | For security reasons, please log in and change your password immediately.
+  br
+  br
+  | Login here:
+  br
+  a(
+   href=loginUrl
+   style="display:inline-block;padding:12px 20px;background-color:#2563eb;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold;"
+  ) Login to Your Account
+  br
+  br
+  | If you were not expecting this account, please contact your administrator.
