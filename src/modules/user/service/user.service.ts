@@ -86,7 +86,13 @@ export class UserService {
                 termsAndConditionAccepted: true,
                 companyPolicyAccepted: true,
                 freightBroker: false,
-                emailIsVerified: true
+                emailIsVerified: true,
+                settings: {
+                    "default_landing_page": "dashboard", 
+                    "home_quick_button": "create_order", 
+                    "language": "en", 
+                    "dark_mode": "dark"
+                }
             });
 
             //5) Assign permissions
