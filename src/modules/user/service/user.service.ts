@@ -187,4 +187,22 @@ export class UserService {
             users
         };
     }
+
+    async deleteProfile(companyId:number, userId: number) {
+        //1) Fetch profile
+        const user = await this.em.findOne(User, { id: userId, company: companyId });
+
+        //2) Throw error if there is no profile
+        if(!user){
+            throw new NotFoundException("User not found in this company")
+        }
+
+        //3) Delte user profile
+        await this.em.remove(user).flush();
+
+        //4) Send back success response
+        return {
+            message: "Profile deleted successfully"
+        };
+    }
 }

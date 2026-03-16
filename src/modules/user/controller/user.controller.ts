@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, Req, Session, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, Session, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
 import { UserService } from "../service/user.service";
 import { CurrentUser } from "src/decorators/currentUser.decorator";
 import { SessionAuthGuard } from "src/guards/sessionAuth.guard";
@@ -11,6 +11,7 @@ import { FileInterceptor } from "@nestjs/platform-express";
 import { UpdateProfileDTO } from "../dto/update-profile.dto";
 import { multerConfig } from "src/config/multer.config";
 import { UpdatePasswordDTO } from "../dto/update-password.dto";
+import type { SessionData } from "express-session";
 
 @Controller("users")
 export class UserController {
@@ -36,7 +37,7 @@ export class UserController {
         await this.userService.createProfile(dto, companyId);
         
         return {
-            message: "Profile create successfully"
+            message: "Profile created successfully"
         }
     }
 
@@ -45,6 +46,15 @@ export class UserController {
     @Get("/")
     async GetAllProfiles(@CurrentUser() userId: number){
         return this.userService.getAllProfiles(userId);
+    }
+
+
+    @UseGuards(SessionAuthGuard, RolesGuard)
+    @Role([ROLES.ADMIN])
+    @Delete("/:id")
+    async DeleteProfile(@Session() session: SessionData, @Param("id") userId: number){
+        const companyId = session.companyId;
+        return this.userService.deleteProfile(companyId, userId);
     }
 
     @UseGuards(SessionAuthGuard)

@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from "class-validator";
+import { IsBoolean, IsEmail, IsNotEmpty, IsOptional, IsString, Matches, MinLength } from "class-validator";
 
 export class UserDTO {
     @IsNotEmpty()
@@ -15,6 +15,9 @@ export class UserDTO {
 
     @IsNotEmpty()
     @IsString()
+    @Matches(/^\+[1-9]\d{7,14}$/, {
+        message: "Phone number must be in international format (e.g., +923001234567)"
+    })
     phoneNumber: string;
 
     @IsNotEmpty()
