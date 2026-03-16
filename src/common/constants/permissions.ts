@@ -1,0 +1,1 @@
+export const PermissionNames: string[] = ["shipping", "invoicing", "claims"];
