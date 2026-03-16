@@ -50,6 +50,15 @@ export class User{
     @Property({ nullable: true })
     resetPasswordExpires?: Date;
     
+    @Property({ default: null, nullable: true })
+    lastLogin?: Date;
+
+    @Property({ onCreate: () => new Date() })
+    createdAt?: Date = new Date();
+    
+    @Property({ onUpdate: () => new Date() })
+    updatedAt?: Date = new Date();
+
     @ManyToOne(() => Company)
     company!: Company;
 

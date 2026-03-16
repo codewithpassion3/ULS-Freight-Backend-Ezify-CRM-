@@ -209,6 +209,8 @@ export class UserService {
         //1) Get all users except the current user
         const users = await this.em.find(User, {
             id: { $ne: userId }
+        }, {
+            populate: ["permissions"]
         });
 
         //2) Return users

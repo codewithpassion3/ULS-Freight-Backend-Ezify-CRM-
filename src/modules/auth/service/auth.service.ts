@@ -126,7 +126,12 @@ export class AuthService{
             throw new UnauthorizedException("Invalid credentials")
         }
 
-        //5) return user
+        //5) Update last login field
+        user.lastLogin = new Date();
+
+        await this.em.persist(user).flush();
+
+        //6) return user
         return user;
     }
 
