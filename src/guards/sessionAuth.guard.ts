@@ -14,7 +14,7 @@ export class SessionAuthGuard implements CanActivate {
         if (!userId) {
             throw new BadRequestException({
                 message: "User session not found. Please login first.",
-                error: "INVALID_SESSION",
+                errorCode: "INVALID_SESSION",
             });
         }
 
@@ -32,7 +32,7 @@ export class SessionAuthGuard implements CanActivate {
 
             throw new BadRequestException({
                 message: "Session user no longer exists. Please login again",
-                error: "INVALID_SESSION",
+                errorCode: "INVALID_SESSION",
             });
         }
 

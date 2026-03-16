@@ -19,12 +19,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: any = "Internal server error";
+    let exceptionResponse: any;
 
     //1) NestJS HTTP exceptions
     if (exception instanceof HttpException) {
       status = exception.getStatus();
 
-      const exceptionResponse = exception.getResponse();
+      exceptionResponse = exception.getResponse();
 
       message =
         typeof exceptionResponse === "string"
@@ -68,11 +69,18 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       console.error("Unhandled exception:", exception);
     }
 
-    response.status(status).json({
+    //5) Construct exception error message
+    let errorResponse = {
       statusCode: status,
       message,
       path: request.url,
       timestamp: new Date().toISOString(),
-    });
+    }
+
+    //6) Check for errorCode
+    if(exceptionResponse?.errorCode) errorResponse["errorCode"] = exceptionResponse.errorCode;
+    
+    //7) Return back exception response
+    response.status(status).json(errorResponse);
   }
 }
