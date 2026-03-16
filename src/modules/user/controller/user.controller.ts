@@ -69,6 +69,12 @@ export class UserController {
     }
 
     @UseGuards(SessionAuthGuard)
+    @Delete("/me/profile-pic")
+    async DeleteUserProfile(@CurrentUser() userId: number){
+        return this.userService.deleteProfilePic(userId);
+    }
+
+    @UseGuards(SessionAuthGuard)
     @Patch("/password")
     async UpdatePassword(@Body() dto: UpdatePasswordDTO, @CurrentUser() userId: number){
         return this.userService.updatePassword(dto, userId);

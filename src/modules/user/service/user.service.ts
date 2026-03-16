@@ -7,7 +7,7 @@ import { Permission } from "src/entities/permission.entity";
 import { Company } from "src/entities/company.entity";
 import bcrypt from "bcrypt";
 import { UpdateProfileDTO } from "../dto/update-profile.dto";
-import { join } from "path";
+import path, { join } from "path";
 import * as fs from "fs/promises";
 import { UpdatePasswordDTO } from "../dto/update-password.dto";
 
@@ -93,6 +93,36 @@ export class UserService {
             //7) Return user
             return;
         });
+    }
+
+    async deleteProfilePic(userId: number) {
+        //1) Get user profile
+        const user = await this.em.findOne(User, { id: userId }, { fields: ["id", "profilePic"]});
+
+        //2) Throw error if user does not exist
+        if (!user) {
+            throw new NotFoundException("User does not exist");
+        }
+
+        //3) Return if profile pic is already deleted
+        if (!user.profilePic) {
+            return { message: "Profile picture already removed" };
+        }
+
+        //4) Remove image from server (fire and forget)
+        const profilePicPath = path.join(process.cwd(), user.profilePic)
+        fs.unlink(profilePicPath).catch(() => {});
+
+        //5) Remove profile picture
+        user.profilePic = null;
+
+        //6) Persist change
+        await this.em.flush();
+
+        //7) Return response
+        return {
+            message: "Profile picture deleted successfully"
+        };
     }
 
     async update( userId: number, dto: UpdateProfileDTO, file?: Express.Multer.File ) {

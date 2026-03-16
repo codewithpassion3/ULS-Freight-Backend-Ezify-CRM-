@@ -30,7 +30,7 @@ export class User{
     signupCode?: string;
 
     @Property({ nullable: true })
-    profilePic?: string;
+    profilePic: string | null;
 
     @Property()
     freightBroker!: boolean;
