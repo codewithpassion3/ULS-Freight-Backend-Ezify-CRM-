@@ -12,6 +12,7 @@ import { UpdateProfileDTO } from "../dto/update-profile.dto";
 import { multerConfig } from "src/config/multer.config";
 import { UpdatePasswordDTO } from "../dto/update-password.dto";
 import type { SessionData } from "express-session";
+import { UpdateSettingsDto } from "../dto/user-settings-update.dto";
 
 @Controller("users")
 export class UserController {
@@ -78,5 +79,11 @@ export class UserController {
     @Patch("/password")
     async UpdatePassword(@Body() dto: UpdatePasswordDTO, @CurrentUser() userId: number){
         return this.userService.updatePassword(dto, userId);
+    }
+
+    @UseGuards(SessionAuthGuard)
+    @Post("/me/settings")
+    async updateSettings(@CurrentUser() userId: number, @Body() dto: UpdateSettingsDto) {
+        return this.userService.updateSettings(userId, dto);
     }
 }

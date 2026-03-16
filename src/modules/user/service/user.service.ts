@@ -10,6 +10,8 @@ import { UpdateProfileDTO } from "../dto/update-profile.dto";
 import path, { join } from "path";
 import * as fs from "fs/promises";
 import { UpdatePasswordDTO } from "../dto/update-password.dto";
+import { UpdateSettingsDto } from "../dto/user-settings-update.dto";
+import { remvoeUndefinedKeysFromDto } from "src/utils/removeUndefinedKeysFromDto";
 
 @Injectable()
 export class UserService {
@@ -235,6 +237,42 @@ export class UserService {
         //4) Send back success response
         return {
             message: "Profile deleted successfully"
+        };
+    }
+
+    async updateSettings(userId: number, dto: UpdateSettingsDto) {
+        //1) Get user details
+        const user = await this.em.findOne(User, { id: userId });
+
+        //2) Throw error if user does not exist
+        if (!user) {
+            throw new NotFoundException("User not found");
+        }
+
+        //3) Merge new settings with existing settings
+        const existingSettings = user.settings || {};
+
+        //4) Filter out undefined key value pairs
+        const cleanedDto = remvoeUndefinedKeysFromDto(dto);
+
+        //5) Throw error for empty request payload
+        if (Object.keys(cleanedDto).length === 0) {
+            throw new BadRequestException("Provide at least one setting to update");
+        }
+
+        //6) Update user settings
+        user.settings = {
+            ...existingSettings,
+            ...cleanedDto
+        };
+
+        //7) Persist changes
+        await this.em.flush();
+
+        //8) Return back success response
+        return {
+            message: "Settings updated successfully",
+            settings: user.settings
         };
     }
 }

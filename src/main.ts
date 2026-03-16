@@ -9,6 +9,8 @@ import { seedRolesAndPermissions } from './utils/seedRolesAndPermissions';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { GlobalExceptionFilter } from './common/filters/global-exception-filter';
 import { statiAssetPaths } from './utils/staticAssetPaths';
+import * as express from 'express';
+import { urlencoded } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -56,6 +58,10 @@ async function bootstrap() {
     }
   }))
   
+  // Limit request payload size
+  app.use(express.json({ limit: "10kb" }));
+  app.use(urlencoded({ limit: '10kb', extended: true }));
+
   // Validate and transform request payload
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,

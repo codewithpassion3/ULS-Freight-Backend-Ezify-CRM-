@@ -59,6 +59,9 @@ export class User{
     @Property({ onUpdate: () => new Date() })
     updatedAt?: Date = new Date();
 
+    @Property({ type: "json", nullable: true })
+    settings?: Record<string, any>;
+
     @ManyToOne(() => Company)
     company!: Company;
 
