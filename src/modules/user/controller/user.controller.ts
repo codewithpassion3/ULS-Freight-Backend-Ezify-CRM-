@@ -45,13 +45,6 @@ export class UserController {
 
     @UseGuards(SessionAuthGuard, RolesGuard)
     @Role([ROLES.ADMIN])
-    @Patch("/:id")
-    async UpdateProfile(@Body() dto: UpdateProfileByAdminDTO,@Session() session: SessionData, @Param("id") userId: number){
-        return this.userService.updateProfileByAdmin(dto, session, userId);
-    }
-
-    @UseGuards(SessionAuthGuard, RolesGuard)
-    @Role([ROLES.ADMIN])
     @Get("/")
     async GetAllProfiles(@CurrentUser() userId: number){
         return this.userService.getAllProfiles(userId);
@@ -93,5 +86,12 @@ export class UserController {
     @Post("/me/settings")
     async updateSettings(@CurrentUser() userId: number, @Body() dto: UpdateSettingsDto) {
         return this.userService.updateSettings(userId, dto);
+    }
+
+    @UseGuards(SessionAuthGuard, RolesGuard)
+    @Role([ROLES.ADMIN])
+    @Patch("/:id")
+    async UpdateProfile(@Body() dto: UpdateProfileByAdminDTO,@Session() session: SessionData, @Param("id") userId: number){
+        return this.userService.updateProfileByAdmin(dto, session, userId);
     }
 }

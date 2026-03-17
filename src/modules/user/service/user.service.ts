@@ -77,7 +77,7 @@ export class UserService {
             }
 
             //3) Hash password
-            const dummyPassword = process.env.CREATE_PROFILE_PASSWORD || "*StrongPassword0";
+            const dummyPassword = process.env.CREATE_PROFILE_PASSWORD || "*StrongPassword123.";
             const passwordHash = await bcrypt.hash(dummyPassword,10);
             
             //4) Create user
