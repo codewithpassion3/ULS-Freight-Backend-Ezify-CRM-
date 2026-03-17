@@ -1,5 +1,5 @@
 import { EntityManager, wrap } from "@mikro-orm/postgresql";
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { User } from "src/entities/user.entity";
 import { CreateProfileDTO } from "../dto/create-profile.dto";
 import { Role } from "src/decorators/role.decorator";
@@ -13,6 +13,9 @@ import { UpdatePasswordDTO } from "../dto/update-password.dto";
 import { UpdateSettingsDto } from "../dto/user-settings-update.dto";
 import { remvoeUndefinedKeysFromDto } from "src/utils/removeUndefinedKeysFromDto";
 import { EmailService } from "src/email/service/email.service";
+import { UpdateProfileByAdminDTO } from "../dto/update-profile-by-admin";
+import { SessionData } from "express-session";
+import { ROLES } from "src/common/constants/roles";
 
 @Injectable()
 export class UserService {
@@ -307,5 +310,152 @@ export class UserService {
             message: "Settings updated successfully",
             settings: user.settings
         };
+    }
+
+
+    async updateProfileByAdmin(
+        dto: UpdateProfileByAdminDTO,
+        session: SessionData,
+        userId: number
+    ) {
+        return await this.em.transactional(async (em) => {
+            // 1) Extract fields from DTO
+            const { firstName, lastName, roleId, permissionIds } = dto;
+
+            // 2) Ensure at least one field is provided
+            if (
+                firstName === undefined &&
+                lastName === undefined &&
+                roleId === undefined &&
+                permissionIds === undefined
+            ) {
+                throw new BadRequestException(
+                    "Provide at least one valid field to update"
+                );
+            }
+
+            const companyId = session.companyId;
+
+            // 3) Fetch user with permissions + role
+            const user = await em.findOne(
+                User,
+                {
+                    id: userId,
+                    company: { id: companyId },
+                },
+                {
+                    populate: ["permissions", "role"],
+                }
+            );
+
+            // 4) Validate user
+            if (!user) {
+                throw new ForbiddenException(
+                    "You can only update user from your own company"
+                );
+            }
+
+            // 5) Validate role (if provided)
+            let role: any = null;
+
+            if (roleId !== undefined) {
+                role = await em.findOne(Role, { id: roleId });
+
+                if (!role) {
+                    throw new BadRequestException("Invalid roleId");
+                }
+            }
+
+            // 6) Validate permissions
+            let validPermissions: Permission[] = [];
+
+            if (permissionIds && permissionIds.length > 0) {
+                validPermissions = await em.find(Permission, {
+                    id: { $in: permissionIds },
+                });
+
+                if (validPermissions.length !== permissionIds.length) {
+                    throw new BadRequestException(
+                        "Some permissionIds are invalid"
+                    );
+                }
+            }
+
+            //7) Validate role and permissionIds
+            if (role) {
+                const previousRole = user.role.name;
+                const newRole = role.name;
+
+                //8) Manage ADMIN → USER role and permissions
+                if (previousRole === ROLES.ADMIN && newRole === ROLES.USER) {
+                    if (!permissionIds || permissionIds.length === 0) {
+                        throw new BadRequestException(
+                            "Permissions are required when assigning USER role"
+                        );
+                    }
+
+                    //9) Clear permissions
+                    await em.nativeDelete("user_permissions", {
+                        user_id: user.id,
+                    });
+
+                    //10) Assign new permissions
+                    user.permissions.set(validPermissions);
+                }
+
+                //11) Manage USER → ADMIN role and permissions
+                if (previousRole === ROLES.USER && newRole === ROLES.ADMIN) {
+                    await em.nativeDelete("user_permissions", {
+                        user_id: user.id,
+                    });
+                }
+
+                //12) Manage USER → USER role and permissions
+                if (previousRole === ROLES.USER && newRole === ROLES.USER) {
+                    if (permissionIds) {
+                        await em.nativeDelete("user_permissions", {
+                            user_id: user.id,
+                        });
+
+                        user.permissions.set(validPermissions);
+                    }
+                }
+
+                //13) Update role
+                user.role = role;
+            }
+
+            //14) Throw error for 
+            if (!role && permissionIds) {
+                if (user.role.name !== ROLES.USER) {
+                    throw new BadRequestException(
+                        "Only USER role can have permissions"
+                    );
+                }
+
+                await em.nativeDelete("user_permissions", {
+                    user_id: user.id,
+                });
+
+                user.permissions.set(validPermissions);
+            }
+
+            //15) Update user fields
+            if (firstName !== undefined) {
+                user.firstName = firstName;
+            }
+
+            if (lastName !== undefined) {
+                user.lastName = lastName;
+            }
+
+            //16) Flush once at the end
+            await em.flush();
+
+            //17) Return back success reponse
+            return {
+                message: "User profile updated successfully",
+            };
+        });
     }
 }

@@ -13,6 +13,7 @@ import { multerConfig } from "src/config/multer.config";
 import { UpdatePasswordDTO } from "../dto/update-password.dto";
 import type { SessionData } from "express-session";
 import { UpdateSettingsDto } from "../dto/user-settings-update.dto";
+import { UpdateProfileByAdminDTO } from "../dto/update-profile-by-admin";
 
 @Controller("users")
 export class UserController {
@@ -40,6 +41,13 @@ export class UserController {
         return {
             message: "Profile created successfully"
         }
+    }
+
+    @UseGuards(SessionAuthGuard, RolesGuard)
+    @Role([ROLES.ADMIN])
+    @Patch("/:id")
+    async UpdateProfile(@Body() dto: UpdateProfileByAdminDTO,@Session() session: SessionData, @Param("id") userId: number){
+        return this.userService.updateProfileByAdmin(dto, session, userId);
     }
 
     @UseGuards(SessionAuthGuard, RolesGuard)
