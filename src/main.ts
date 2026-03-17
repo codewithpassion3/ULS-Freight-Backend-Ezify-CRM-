@@ -11,76 +11,96 @@ import { GlobalExceptionFilter } from './common/filters/global-exception-filter'
 import { statiAssetPaths } from './utils/staticAssetPaths';
 import * as express from 'express';
 import { urlencoded } from 'express';
+import { ENV } from './common/constants/env';
+import { getEnv } from './utils/getEnv';
+import { validateEnv } from './utils/validateEnv';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+    //1) Validate env keys
+    validateEnv();
 
-  const expressApp = app.getHttpAdapter().getInstance();
+    //2) Create nestjs app
+    const app = await NestFactory.create<NestExpressApplication>(AppModule);
   
-  statiAssetPaths.forEach(({ path, prefix }) => {
-    app.useStaticAssets(path, { prefix });
-  });
+    //3) Get express app instance
+    const expressApp = app.getHttpAdapter().getInstance();
+    
+    //4) Make static asset reachable
+    statiAssetPaths.forEach(({ path, prefix }) => {
+      app.useStaticAssets(path, { prefix });
+    });
+    
+    expressApp.set('trust proxy', 1);
+    
+    //5) Enable cors
+    app.enableCors({
+      origin:  [
+        getEnv(ENV.NG_ROK_ORIGIN_FRONTEND),
+        getEnv(ENV.LOCALHOST_ORIGIN)     
+      ],
+      credentials: true,
+      methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
+      allowedHeaders: [
+        "Content-Type",
+        "Authorization",
+        "ngrok-skip-browser-warning"
+      ]
+    });
+    
+    //6) Get redis store for sessions
+    const redisClient = await connectRedis();
+    const redisStore = new RedisStore({
+      client: redisClient,
+      prefix: "sess:"
+    })
   
-  expressApp.set('trust proxy', 1);
+    //7) Update sessions middleware
+    app.use(session({
+      store: redisStore,
+      secret: getEnv(ENV.SESSION_SECRET),
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        sameSite: 'none',
+        secure: true,
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000
+      }
+    }))
+    
+    //8) Limit request payload size
+    app.use(express.json({ limit: "10kb" }));
+    app.use(urlencoded({ limit: '10kb', extended: true }));
   
-  app.enableCors({
-    origin:  [
-      process.env.NG_ROK_ORIGIN_FRONTEND || "https://matrimonial-ecospecifically-jeni.ngrok-free.dev",
-      process.env.LOCALHOST_ORIGIN || "http://localhost:3000"     
-    ],
-    credentials: true,
-    methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "ngrok-skip-browser-warning"
-    ]
-  });
+    //9) Validate and transform request payload
+    app.useGlobalPipes(new ValidationPipe({
+      whitelist: true,
+      transform: true,
+    }));
   
-  // Get redis store for sessions
-  const redisClient = await connectRedis();
-  const redisStore = new RedisStore({
-    client: redisClient,
-    prefix: "sess:"
-  })
-
-  // Update sessions middleware
-  app.use(session({
-    store: redisStore,
-    secret: process.env.SESSION_SECRET || 'l)ngliv#dsecretk$y',
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      sameSite: 'none',
-      secure: true,
-      httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000
+    //10) Set a global prefix for each api request
+    app.setGlobalPrefix(`/api/${getEnv(ENV.API_VERSION)}`);
+  
+    //11) Catch global exceptions
+    app.useGlobalFilters(new GlobalExceptionFilter());
+    
+    //12) Setup mikro orm entities schema
+    const orm = app.get(MikroORM);
+    
+    //13) Create tables 
+    await orm.schema.updateSchema();
+    
+    //14) Add roles and permissions dummy data
+    await seedRolesAndPermissions(orm.em);
+    
+    //15) Check for valid port
+    const port = Number(getEnv(ENV.PORT))
+    
+    if (isNaN(port)) {
+      throw new Error(`Invalid PORT: ${process.env.PORT}`);
     }
-  }))
-  
-  // Limit request payload size
-  app.use(express.json({ limit: "10kb" }));
-  app.use(urlencoded({ limit: '10kb', extended: true }));
-
-  // Validate and transform request payload
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    transform: true,
-  }));
-
-  // Set a global prefix for each api request
-  app.setGlobalPrefix(`/api/${process.env.API_VERSION || 'v1'}`);
-
-  // Catch global exceptions
-  app.useGlobalFilters(new GlobalExceptionFilter());
-  
-  // Setup mikro orm entities schema
-  const orm = app.get(MikroORM);
-  
-  await orm.schema.updateSchema();
-  await seedRolesAndPermissions(orm.em);
-  
-  // Start server at 3000 port
-  await app.listen(process.env.PORT ?? 3000);
+    
+    //16) Start server
+    await app.listen(port);
 }
 bootstrap();

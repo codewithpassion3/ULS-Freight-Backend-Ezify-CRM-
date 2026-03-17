@@ -16,6 +16,8 @@ import { EmailService } from "src/email/service/email.service";
 import { UpdateProfileByAdminDTO } from "../dto/update-profile-by-admin";
 import { SessionData } from "express-session";
 import { ROLES } from "src/common/constants/roles";
+import { ENV } from "src/common/constants/env";
+import { getEnv } from "src/utils/getEnv";
 
 @Injectable()
 export class UserService {
@@ -81,7 +83,7 @@ export class UserService {
             }
 
             //3) Hash password
-            const dummyPassword = process.env.CREATE_PROFILE_PASSWORD || "*StrongPassword123.";
+            const dummyPassword = getEnv(ENV.CREATE_PROFILE_PASSWORD);
             const passwordHash = await bcrypt.hash(dummyPassword,10);
             
             //4) Create user
