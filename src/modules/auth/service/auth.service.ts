@@ -79,7 +79,13 @@ export class AuthService{
             role: role,
             password: hashedPassword,
             company: companyEntity,
-            emailIsVerified: false
+            emailIsVerified: false,
+            settings: {
+                "default_landing_page": "dashboard", 
+                "home_quick_button": "create_order", 
+                "language": "en", 
+                "dark_mode": "dark"
+            }
            })
 
            //10) Persist all changes

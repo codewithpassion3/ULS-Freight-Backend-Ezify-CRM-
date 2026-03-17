@@ -103,7 +103,7 @@ export class OtpService {
 
     //2) Throw error for invalid Otp
     if (!otp) {
-        throw new BadRequestException("OTP not found");
+        throw new BadRequestException("OTP not found against this email address, provide valid email");
     }
 
     //3) Check if blocked

@@ -1,5 +1,5 @@
 import { EntityManager, wrap } from "@mikro-orm/postgresql";
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { User } from "src/entities/user.entity";
 import { CreateProfileDTO } from "../dto/create-profile.dto";
 import { Role } from "src/decorators/role.decorator";
@@ -12,10 +12,17 @@ import * as fs from "fs/promises";
 import { UpdatePasswordDTO } from "../dto/update-password.dto";
 import { UpdateSettingsDto } from "../dto/user-settings-update.dto";
 import { remvoeUndefinedKeysFromDto } from "src/utils/removeUndefinedKeysFromDto";
+import { EmailService } from "src/email/service/email.service";
+import { UpdateProfileByAdminDTO } from "../dto/update-profile-by-admin";
+import { SessionData } from "express-session";
+import { ROLES } from "src/common/constants/roles";
 
 @Injectable()
 export class UserService {
-    constructor(private readonly em: EntityManager) {}
+    constructor(
+        private readonly em: EntityManager, 
+        private readonly emailService: EmailService
+    ) {}
 
     async getProfile(userId: number) {
         //1) Get the user based on userId
@@ -52,8 +59,12 @@ export class UserService {
 
             //2) Validate permissions
             let permissions: Permission[] = [];
+            
+            if(role.name !== ROLES.ADMIN && permissionIds?.length === 0){
+                throw new BadRequestException("Provide at least one permission for user role")
+            }
 
-            if(role.name !== 'admin' && permissionIds?.length) {
+            if(role.name !==  ROLES.ADMIN && permissionIds?.length) {
                 const uniquePermissionIds = [...new Set(permissionIds)];
                 
                 const count = await em.count(Permission, {
@@ -70,7 +81,8 @@ export class UserService {
             }
 
             //3) Hash password
-            const passwordHash = await bcrypt.hash(userData.password,10);
+            const dummyPassword = process.env.CREATE_PROFILE_PASSWORD || "*StrongPassword123.";
+            const passwordHash = await bcrypt.hash(dummyPassword,10);
             
             //4) Create user
             const user = em.create(User, {
@@ -81,7 +93,13 @@ export class UserService {
                 termsAndConditionAccepted: true,
                 companyPolicyAccepted: true,
                 freightBroker: false,
-                emailIsVerified: true
+                emailIsVerified: true,
+                settings: {
+                    "default_landing_page": "dashboard", 
+                    "home_quick_button": "create_order", 
+                    "language": "en", 
+                    "dark_mode": "dark"
+                }
             });
 
             //5) Assign permissions
@@ -89,10 +107,32 @@ export class UserService {
                 user.permissions.set(permissions);
             }
 
-            //6) Persist user
+            //6) Get the company
+            const company = await this.em.findOne(Company, { id: companyId });
+
+            //7) Throw error if company does not exist
+            if (!company) {
+            throw new NotFoundException("Company not found");
+            }
+
+            //8) Persist user
             await em.persist(user).flush();
 
-            //7) Return user
+            //9) Send out account creation email to user
+            this.emailService.sendProfileCreatedByAdminEmail({
+            to: userData.email,
+            subject: "Your Account Has Been Created – Login Details",
+            template: "create-profile",
+            context: {
+                name: userData.firstName + " " + userData.lastName,
+                email: userData.email,
+                password: dummyPassword,
+                companyName: company.name,
+                loginUrl: `${process.env.NG_ROK_ORIGIN_FRONTEND}/login`
+            }
+            });
+
+            //10) Return user
             return;
         });
     }
@@ -207,10 +247,11 @@ export class UserService {
         };
     }
 
-    async getAllProfiles(userId: number) {
+    async getAllProfiles(userId: number, session: SessionData) {
         //1) Get all users except the current user
         const users = await this.em.find(User, {
-            id: { $ne: userId }
+            id: { $ne: userId },
+            company: { id: session.companyId }
         }, {
             populate: ["permissions"]
         });
@@ -274,5 +315,161 @@ export class UserService {
             message: "Settings updated successfully",
             settings: user.settings
         };
+    }
+
+
+    async updateProfileByAdmin(
+        dto: UpdateProfileByAdminDTO,
+        session: SessionData,
+        userId: number,
+        loggedInUserId: number
+    ) {
+        //1) Check if admin is trying to update his account
+        if(userId === loggedInUserId){
+            throw new ForbiddenException(
+                "You cannot update your own profile via this endpoint"
+            );
+        }
+
+        return await this.em.transactional(async (em) => {
+
+            //2) Extract fields from DTO
+            const { firstName, lastName, roleId, permissionIds } = dto;
+
+            //3) Ensure at least one field is provided
+            if (
+                firstName === undefined &&
+                lastName === undefined &&
+                roleId === undefined &&
+                permissionIds === undefined
+            ) {
+                throw new BadRequestException(
+                    "Provide at least one valid field to update"
+                );
+            }
+
+            const companyId = session.companyId;
+
+            //4) Fetch user with permissions + role
+            const user = await em.findOne(
+                User,
+                {
+                    id: userId,
+                    company: { id: companyId },
+                },
+                {
+                    populate: ["permissions", "role"],
+                }
+            );
+
+            //5) Validate user
+            if (!user) {
+                throw new ForbiddenException(
+                    "You can only update user from your own company"
+                );
+            }
+
+            //6) Validate role (if provided)
+            let role: any = null;
+
+            if (roleId !== undefined) {
+                role = await em.findOne(Role, { id: roleId });
+
+                if (!role) {
+                    throw new BadRequestException("Invalid roleId");
+                }
+            }
+
+            //7) Validate permissions
+            let validPermissions: Permission[] = [];
+
+            if (permissionIds && permissionIds.length > 0) {
+                validPermissions = await em.find(Permission, {
+                    id: { $in: permissionIds },
+                });
+
+                if (validPermissions.length !== permissionIds.length) {
+                    throw new BadRequestException(
+                        "Some permissionIds are invalid"
+                    );
+                }
+            }
+
+            //8) Validate role and permissionIds
+            if (role) {
+                const previousRole = user.role.name;
+                const newRole = role.name;
+
+                //9) Manage ADMIN → USER role and permissions
+                if (previousRole === ROLES.ADMIN && newRole === ROLES.USER) {
+                    if (!permissionIds || permissionIds.length === 0) {
+                        throw new BadRequestException(
+                            "Permissions are required when assigning USER role"
+                        );
+                    }
+
+                    //10) Clear permissions
+                    await em.nativeDelete("user_permissions", {
+                        user_id: user.id,
+                    });
+
+                    //11) Assign new permissions
+                    user.permissions.set(validPermissions);
+                }
+
+                //12) Manage USER → ADMIN role and permissions
+                if (previousRole === ROLES.USER && newRole === ROLES.ADMIN) {
+                    await em.nativeDelete("user_permissions", {
+                        user_id: user.id,
+                    });
+                }
+
+                //13) Manage USER → USER role and permissions
+                if (previousRole === ROLES.USER && newRole === ROLES.USER) {
+                    if (permissionIds) {
+                        await em.nativeDelete("user_permissions", {
+                            user_id: user.id,
+                        });
+
+                        user.permissions.set(validPermissions);
+                    }
+                }
+
+                //14) Update role
+                user.role = role;
+            }
+
+            //15) Throw error for 
+            if (!role && permissionIds) {
+                if (user.role.name !== ROLES.USER) {
+                    throw new BadRequestException(
+                        "Only USER role can have permissions"
+                    );
+                }
+
+                await em.nativeDelete("user_permissions", {
+                    user_id: user.id,
+                });
+
+                user.permissions.set(validPermissions);
+            }
+
+            //16) Update user fields
+            if (firstName !== undefined) {
+                user.firstName = firstName;
+            }
+
+            if (lastName !== undefined) {
+                user.lastName = lastName;
+            }
+
+            //17) Flush once at the end
+            await em.flush();
+
+            //18) Return back success reponse
+            return {
+                message: "User profile updated successfully",
+            };
+        });
     }
 }

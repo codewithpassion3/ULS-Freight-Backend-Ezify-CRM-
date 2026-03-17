@@ -13,6 +13,7 @@ import { multerConfig } from "src/config/multer.config";
 import { UpdatePasswordDTO } from "../dto/update-password.dto";
 import type { SessionData } from "express-session";
 import { UpdateSettingsDto } from "../dto/user-settings-update.dto";
+import { UpdateProfileByAdminDTO } from "../dto/update-profile-by-admin";
 
 @Controller("users")
 export class UserController {
@@ -45,8 +46,8 @@ export class UserController {
     @UseGuards(SessionAuthGuard, RolesGuard)
     @Role([ROLES.ADMIN])
     @Get("/")
-    async GetAllProfiles(@CurrentUser() userId: number){
-        return this.userService.getAllProfiles(userId);
+    async GetAllProfiles(@CurrentUser() userId: number, @Session() session: SessionData){
+        return this.userService.getAllProfiles(userId, session);
     }
 
 
@@ -85,5 +86,12 @@ export class UserController {
     @Post("/me/settings")
     async updateSettings(@CurrentUser() userId: number, @Body() dto: UpdateSettingsDto) {
         return this.userService.updateSettings(userId, dto);
+    }
+
+    @UseGuards(SessionAuthGuard, RolesGuard)
+    @Role([ROLES.ADMIN])
+    @Patch("/:id")
+    async UpdateProfile(@Body() dto: UpdateProfileByAdminDTO,@Session() session: SessionData, @Param("id") userId: number, @CurrentUser() loggedInUserId: number){
+        return this.userService.updateProfileByAdmin(dto, session, userId, loggedInUserId);
     }
 }

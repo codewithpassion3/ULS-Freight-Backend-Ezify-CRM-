@@ -4,7 +4,12 @@ export interface EmailTemplate {
     text?: string;
     template?: string;
     context: {
-        name: string;
-        otp: string;
+        email?: string;
+        password?: string;
+        loginUrl?: string;
+        companyName?: string;
+        administratorName?: string;
+        name?: string;
+        otp?: string;
     };
 }
