@@ -46,8 +46,8 @@ export class UserController {
     @UseGuards(SessionAuthGuard, RolesGuard)
     @Role([ROLES.ADMIN])
     @Get("/")
-    async GetAllProfiles(@CurrentUser() userId: number){
-        return this.userService.getAllProfiles(userId);
+    async GetAllProfiles(@CurrentUser() userId: number, @Session() session: SessionData){
+        return this.userService.getAllProfiles(userId, session);
     }
 
 

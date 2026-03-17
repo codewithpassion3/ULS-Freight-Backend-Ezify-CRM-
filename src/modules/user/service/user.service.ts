@@ -243,10 +243,11 @@ export class UserService {
         };
     }
 
-    async getAllProfiles(userId: number) {
+    async getAllProfiles(userId: number, session: SessionData) {
         //1) Get all users except the current user
         const users = await this.em.find(User, {
-            id: { $ne: userId }
+            id: { $ne: userId },
+            company: { id: session.companyId }
         }, {
             populate: ["permissions"]
         });
