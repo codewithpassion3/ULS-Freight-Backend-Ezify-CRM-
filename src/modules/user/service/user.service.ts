@@ -59,8 +59,12 @@ export class UserService {
 
             //2) Validate permissions
             let permissions: Permission[] = [];
+            
+            if(role.name !== ROLES.ADMIN && permissionIds?.length === 0){
+                throw new BadRequestException("Provide at least one permission for user role")
+            }
 
-            if(role.name !== 'admin' && permissionIds?.length) {
+            if(role.name !==  ROLES.ADMIN && permissionIds?.length) {
                 const uniquePermissionIds = [...new Set(permissionIds)];
                 
                 const count = await em.count(Permission, {
