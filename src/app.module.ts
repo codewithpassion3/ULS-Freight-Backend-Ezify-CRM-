@@ -12,6 +12,8 @@ import { PermissionModule } from './modules/permission/permission.module';
 import { RoleModule } from './modules/role/role.module';
 import { MulterModule } from '@nestjs/platform-express';
 import { CompanyModule } from './modules/company/company.module';
+import { getEnv } from './utils/getEnv';
+import { ENV } from './common/constants/env';
 
 @Module({
   imports: [
@@ -21,7 +23,7 @@ import { CompanyModule } from './modules/company/company.module';
       autoLoadEntities: true
     }),
     MulterModule.register({
-      dest: process.env.IMAGE_UPLOAD_DESTINATION || './uploads'
+      dest: getEnv(ENV.IMAGE_UPLOAD_DESTINATION)
     }),
     AuthModule,
     UserModule,

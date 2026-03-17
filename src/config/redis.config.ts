@@ -1,7 +1,9 @@
 import { createClient } from "redis";
+import { ENV } from "src/common/constants/env";
+import { getEnv } from "src/utils/getEnv";
 
 export const redisClient = createClient({
-    url: process.env.REDIS_CLIENT_URL || "redis://localhost:6397"
+    url: getEnv(ENV.REDIS_CLIENT_URL)
 })
 
 export async function connectRedis(){
