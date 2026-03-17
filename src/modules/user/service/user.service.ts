@@ -316,13 +316,22 @@ export class UserService {
     async updateProfileByAdmin(
         dto: UpdateProfileByAdminDTO,
         session: SessionData,
-        userId: number
+        userId: number,
+        loggedInUserId: number
     ) {
+        //1) Check if admin is trying to update his account
+        if(userId === loggedInUserId){
+            throw new ForbiddenException(
+                "You cannot update your own profile via this endpoint"
+            );
+        }
+
         return await this.em.transactional(async (em) => {
-            // 1) Extract fields from DTO
+
+            //2) Extract fields from DTO
             const { firstName, lastName, roleId, permissionIds } = dto;
 
-            // 2) Ensure at least one field is provided
+            //3) Ensure at least one field is provided
             if (
                 firstName === undefined &&
                 lastName === undefined &&
@@ -336,7 +345,7 @@ export class UserService {
 
             const companyId = session.companyId;
 
-            // 3) Fetch user with permissions + role
+            //4) Fetch user with permissions + role
             const user = await em.findOne(
                 User,
                 {
@@ -348,14 +357,14 @@ export class UserService {
                 }
             );
 
-            // 4) Validate user
+            //5) Validate user
             if (!user) {
                 throw new ForbiddenException(
                     "You can only update user from your own company"
                 );
             }
 
-            // 5) Validate role (if provided)
+            //6) Validate role (if provided)
             let role: any = null;
 
             if (roleId !== undefined) {
@@ -366,7 +375,7 @@ export class UserService {
                 }
             }
 
-            // 6) Validate permissions
+            //7) Validate permissions
             let validPermissions: Permission[] = [];
 
             if (permissionIds && permissionIds.length > 0) {
@@ -381,12 +390,12 @@ export class UserService {
                 }
             }
 
-            //7) Validate role and permissionIds
+            //8) Validate role and permissionIds
             if (role) {
                 const previousRole = user.role.name;
                 const newRole = role.name;
 
-                //8) Manage ADMIN → USER role and permissions
+                //9) Manage ADMIN → USER role and permissions
                 if (previousRole === ROLES.ADMIN && newRole === ROLES.USER) {
                     if (!permissionIds || permissionIds.length === 0) {
                         throw new BadRequestException(
@@ -394,23 +403,23 @@ export class UserService {
                         );
                     }
 
-                    //9) Clear permissions
+                    //10) Clear permissions
                     await em.nativeDelete("user_permissions", {
                         user_id: user.id,
                     });
 
-                    //10) Assign new permissions
+                    //11) Assign new permissions
                     user.permissions.set(validPermissions);
                 }
 
-                //11) Manage USER → ADMIN role and permissions
+                //12) Manage USER → ADMIN role and permissions
                 if (previousRole === ROLES.USER && newRole === ROLES.ADMIN) {
                     await em.nativeDelete("user_permissions", {
                         user_id: user.id,
                     });
                 }
 
-                //12) Manage USER → USER role and permissions
+                //13) Manage USER → USER role and permissions
                 if (previousRole === ROLES.USER && newRole === ROLES.USER) {
                     if (permissionIds) {
                         await em.nativeDelete("user_permissions", {
@@ -421,11 +430,11 @@ export class UserService {
                     }
                 }
 
-                //13) Update role
+                //14) Update role
                 user.role = role;
             }
 
-            //14) Throw error for 
+            //15) Throw error for 
             if (!role && permissionIds) {
                 if (user.role.name !== ROLES.USER) {
                     throw new BadRequestException(
@@ -440,7 +449,7 @@ export class UserService {
                 user.permissions.set(validPermissions);
             }
 
-            //15) Update user fields
+            //16) Update user fields
             if (firstName !== undefined) {
                 user.firstName = firstName;
             }
@@ -449,10 +458,10 @@ export class UserService {
                 user.lastName = lastName;
             }
 
-            //16) Flush once at the end
+            //17) Flush once at the end
             await em.flush();
 
-            //17) Return back success reponse
+            //18) Return back success reponse
             return {
                 message: "User profile updated successfully",
             };

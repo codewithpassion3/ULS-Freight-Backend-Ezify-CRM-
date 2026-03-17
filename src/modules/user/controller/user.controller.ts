@@ -91,7 +91,7 @@ export class UserController {
     @UseGuards(SessionAuthGuard, RolesGuard)
     @Role([ROLES.ADMIN])
     @Patch("/:id")
-    async UpdateProfile(@Body() dto: UpdateProfileByAdminDTO,@Session() session: SessionData, @Param("id") userId: number){
-        return this.userService.updateProfileByAdmin(dto, session, userId);
+    async UpdateProfile(@Body() dto: UpdateProfileByAdminDTO,@Session() session: SessionData, @Param("id") userId: number, @CurrentUser() loggedInUserId: number){
+        return this.userService.updateProfileByAdmin(dto, session, userId, loggedInUserId);
     }
 }
