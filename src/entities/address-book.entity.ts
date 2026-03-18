@@ -1,8 +1,8 @@
-import { Cascade, Collection, DateTimeType, Entity, ManyToOne, OneToMany, OneToOne, PrimaryKey, Property } from "@mikro-orm/core";
+import { Cascade, Collection, Entity, ManyToOne, OneToMany, OneToOne, PrimaryKey, Property } from "@mikro-orm/core";
 import { Address } from "./address.entity";
 import { User } from "./user.entity";
-import { Signatrue } from "./signature.entity";
-import { PalletShippingLocationType } from "./pallet-shipping-location-type";
+import { Signature } from "./signature.entity";
+import { PalletShippingLocationType } from "./pallet-shipping-location-type.entity";
 import { UserAddressBookUsage } from "./user-address-book-usage.entity";
 
 @Entity()
@@ -55,8 +55,8 @@ export class AddressBook {
     @OneToMany(() => UserAddressBookUsage, usage => usage.addressBook)
     userUsages = new Collection<UserAddressBookUsage>(this);
     
-    @ManyToOne(() => Signatrue, { nullable: false })
-    signature!: Signatrue;
+    @ManyToOne(() => Signature, { nullable: false })
+    signature!: Signature;
 
     @ManyToOne(() => PalletShippingLocationType, { nullable: false })
     locationType!: PalletShippingLocationType;

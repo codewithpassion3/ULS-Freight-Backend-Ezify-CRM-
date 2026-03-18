@@ -2,8 +2,8 @@ import { EntityManager, wrap } from "@mikro-orm/core";
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { CreateAddressBookDTO} from "../dto/create-addres-book.dto";
 import { User } from "src/entities/user.entity";
-import { PalletShippingLocationType } from "src/entities/pallet-shipping-location-type";
-import { Signatrue } from "src/entities/signature.entity";
+import { PalletShippingLocationType } from "src/entities/pallet-shipping-location-type.entity";
+import { Signature } from "src/entities/signature.entity";
 import { Address } from "src/entities/address.entity";
 import { AddressBook } from "src/entities/address-book.entity";
 
@@ -36,7 +36,7 @@ export class AddressBookService {
 
         //6) Validate signature
         const signature = await em.findOne(
-            Signatrue, 
+            Signature, 
             { id: signatureId }, 
             { fields: ["id"] }
         );

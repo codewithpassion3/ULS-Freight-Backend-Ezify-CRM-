@@ -5,7 +5,7 @@ import { MikroORM } from '@mikro-orm/postgresql';
 import session from 'express-session';
 import { RedisStore } from 'connect-redis';
 import { connectRedis } from './config/redis.config';
-import { seedRolesAndPermissions } from './utils/seedRolesAndPermissions';
+// import { seedRolesAndPermissions } from './utils/seedRolesAndPermissions';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { GlobalExceptionFilter } from './common/filters/global-exception-filter';
 import { statiAssetPaths } from './utils/staticAssetPaths';
@@ -14,6 +14,7 @@ import { urlencoded } from 'express';
 import { ENV } from './common/constants/env';
 import { getEnv } from './utils/getEnv';
 import { validateEnv } from './utils/validateEnv';
+import { runSeeders } from './seeders/main.seeder';
 
 async function bootstrap() {
     //1) Validate env keys
@@ -91,7 +92,7 @@ async function bootstrap() {
     await orm.schema.updateSchema();
     
     //14) Add roles and permissions dummy data
-    await seedRolesAndPermissions(orm.em);
+    await runSeeders(orm.em);
     
     //15) Check for valid port
     const port = Number(getEnv(ENV.PORT))
