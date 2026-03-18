@@ -101,6 +101,6 @@ async function bootstrap() {
     }
     
     //16) Start server
-    await app.listen(port);
+    await app.listen(port, '0.0.0.0');
 }
 bootstrap();
