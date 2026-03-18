@@ -14,6 +14,7 @@ import { MulterModule } from '@nestjs/platform-express';
 import { CompanyModule } from './modules/company/company.module';
 import { getEnv } from './utils/getEnv';
 import { ENV } from './common/constants/env';
+import { AddressBookModule } from './modules/address-book/address-book.module';
 
 @Module({
   imports: [
@@ -31,7 +32,8 @@ import { ENV } from './common/constants/env';
     EmailModule,
     OtpModule,
     PermissionModule,
-    RoleModule
+    RoleModule,
+    AddressBookModule
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -13,7 +13,7 @@ import { UpdatePasswordDTO } from "../dto/update-password.dto";
 import { UpdateSettingsDto } from "../dto/user-settings-update.dto";
 import { remvoeUndefinedKeysFromDto } from "src/utils/removeUndefinedKeysFromDto";
 import { EmailService } from "src/email/service/email.service";
-import { UpdateProfileByAdminDTO } from "../dto/update-profile-by-admin";
+import { UpdateProfileByAdminDTO } from "../dto/update-profile-by-admin.dto";
 import { SessionData } from "express-session";
 import { ROLES } from "src/common/constants/roles";
 import { ENV } from "src/common/constants/env";
