@@ -1,7 +1,5 @@
-import { Entity } from "@mikro-orm/core";
 import { IsNotEmpty, IsString } from "class-validator";
 
-@Entity()
 export class CreateSignatureDTO {
     @IsNotEmpty()
     @IsString()

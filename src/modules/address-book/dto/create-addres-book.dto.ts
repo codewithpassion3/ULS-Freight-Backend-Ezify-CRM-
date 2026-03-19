@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, ValidateNested, IsEmail, IsInt, Matches } from "class-validator";
+import { IsString, IsNotEmpty, IsOptional, ValidateNested, IsEmail, IsInt, Matches, MaxLength } from "class-validator";
 import { AddressDTO } from "src/modules/auth/dto/address.dto";
 import { Type } from "class-transformer";
 
@@ -28,6 +28,7 @@ export class CreateAddressBookDTO {
 
     @IsString()
     @IsOptional()
+    @MaxLength(50)
     defaultInstructions?: string;
 
     @Matches(/^(0[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)$/i, {

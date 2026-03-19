@@ -13,5 +13,5 @@ export class PalletShippingLocationType {
     name!: string;
 
     @OneToMany(() => AddressBook, addressBook => addressBook.locationType)
-    addressBook = new Collection<AddressBook>(this);
+    addressBook? = new Collection<AddressBook>(this);
 }

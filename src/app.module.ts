@@ -16,6 +16,7 @@ import { getEnv } from './utils/getEnv';
 import { ENV } from './common/constants/env';
 import { AddressBookModule } from './modules/address-book/address-book.module';
 import { SignatureModule } from './modules/signature/signature.module';
+import { PalletShippingLocationTypeModule } from './modules/pallet-shipping-location-type/pallet-shiping-location-type.module';
 
 @Module({
   imports: [
@@ -35,7 +36,8 @@ import { SignatureModule } from './modules/signature/signature.module';
     PermissionModule,
     RoleModule,
     AddressBookModule,
-    SignatureModule
+    SignatureModule,
+    PalletShippingLocationTypeModule
   ],
   controllers: [AppController],
   providers: [AppService],

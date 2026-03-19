@@ -1,11 +1,9 @@
-import { Entity } from "@mikro-orm/core";
 import { IsOptional, IsString } from "class-validator";
 
-export class UpdateSignatureDTO {
+export class UpdatePalletShippingLocationTypeDTO {
     @IsOptional()
     @IsString()
-    type?: string;
-
+    locationType?: string;
 
     @IsOptional()
     @IsString()
