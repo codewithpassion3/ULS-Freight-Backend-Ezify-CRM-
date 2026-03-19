@@ -15,6 +15,7 @@ import { CompanyModule } from './modules/company/company.module';
 import { getEnv } from './utils/getEnv';
 import { ENV } from './common/constants/env';
 import { AddressBookModule } from './modules/address-book/address-book.module';
+import { SignatureModule } from './modules/signature/signature.module';
 
 @Module({
   imports: [
@@ -33,7 +34,8 @@ import { AddressBookModule } from './modules/address-book/address-book.module';
     OtpModule,
     PermissionModule,
     RoleModule,
-    AddressBookModule
+    AddressBookModule,
+    SignatureModule
   ],
   controllers: [AppController],
   providers: [AppService],

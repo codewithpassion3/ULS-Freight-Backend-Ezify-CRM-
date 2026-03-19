@@ -4,7 +4,7 @@ import { SessionAuthGuard } from "src/guards/sessionAuth.guard";
 import { CreateAddressBookDTO } from "../dto/create-addres-book.dto";
 import { CurrentUser } from "src/decorators/currentUser.decorator";
 
-@Controller("/address-book")
+@Controller("address-book")
 export class AddressBookController {
     constructor(private readonly addressBookService: AddressBookService) {}
 

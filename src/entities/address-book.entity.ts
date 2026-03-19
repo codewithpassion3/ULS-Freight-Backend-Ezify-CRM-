@@ -40,8 +40,8 @@ export class AddressBook {
     @Property({ onCreate: () => new Date()})
     createAt?: Date;
 
-    @Property({ onUpdate: () => new Date()})
-    upatedAt?: Date;
+    @Property({ onCreate: () => new Date(), onUpdate: () => new Date()})
+    updatedAt?: Date;
 
     @ManyToOne(() => User, { nullable: true })
     deletedBy?: User;
@@ -53,7 +53,7 @@ export class AddressBook {
     updatedBy?: User;
 
     @OneToMany(() => UserAddressBookUsage, usage => usage.addressBook)
-    userUsages = new Collection<UserAddressBookUsage>(this);
+    userUsages? = new Collection<UserAddressBookUsage>(this);
     
     @ManyToOne(() => Signature, { nullable: false })
     signature!: Signature;
