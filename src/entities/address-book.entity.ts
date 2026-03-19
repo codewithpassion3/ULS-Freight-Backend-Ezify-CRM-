@@ -34,11 +34,14 @@ export class AddressBook {
     @Property()
     palletShippingCloseTime!: string;
 
+    @Property({ default: false})
+    isResidential?: boolean;
+
     @Property({ default: false })
     isDeleted?: boolean;
 
     @Property({ onCreate: () => new Date()})
-    createAt?: Date;
+    createdAt?: Date;
 
     @Property({ onCreate: () => new Date(), onUpdate: () => new Date()})
     updatedAt?: Date;
