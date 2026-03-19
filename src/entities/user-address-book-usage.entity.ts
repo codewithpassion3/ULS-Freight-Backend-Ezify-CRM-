@@ -8,15 +8,15 @@ export class UserAddressBookUsage {
     @PrimaryKey()
     id!: number;
 
-    @ManyToOne(() => User)
+    @ManyToOne(() => User, { hidden: true })
     user!: User;
 
     @ManyToOne(() => AddressBook)
     addressBook!: AddressBook;
 
-    @Property({ type: DateTimeType, defaultRaw: "CURRENT_TIMESTAMP" })
-    lastUsedAt!: Date;
+    @Property({ onCreate: () => new Date(), type: DateTimeType, defaultRaw: "CURRENT_TIMESTAMP" })
+    lastUsedAt?: Date;
 
-    @Property({ type: DateTimeType, defaultRaw: "CURRENT_TIMESTAMP" })
-    createdAt!: Date;
+    @Property({ onCreate: () => new Date(), type: DateTimeType, defaultRaw: "CURRENT_TIMESTAMP" })
+    createdAt?: Date;
 }

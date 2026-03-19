@@ -1,5 +1,5 @@
 import { EntityManager, wrap } from "@mikro-orm/core";
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { CreateAddressBookDTO} from "../dto/create-addres-book.dto";
 import { User } from "src/entities/user.entity";
 import { PalletShippingLocationType } from "src/entities/pallet-shipping-location-type.entity";
@@ -7,6 +7,7 @@ import { Signature } from "src/entities/signature.entity";
 import { Address } from "src/entities/address.entity";
 import { AddressBook } from "src/entities/address-book.entity";
 import { GetAllAgainstCurrentUserQueryParams } from "../controller/address-book.controller";
+import { UserAddressBookUsage } from "src/entities/user-address-book-usage.entity";
 
 @Injectable()
 export class AddressBookService {
@@ -120,7 +121,7 @@ export class AddressBookService {
         }
 
         //6) Build filter
-        const filter: any = { createdBy: currentUserId };
+        const filter: any = { createdBy: this.em.getReference(User, currentUserId) };
 
         if (search) {
             filter.companyName = { $ilike: `${search}%` };
@@ -145,7 +146,22 @@ export class AddressBookService {
                 orderBy: Object.entries(orderBy).map(([field, direction]) => ({
                     [field]: direction
                 })),
-                populate: ["address"]
+                populate: ["address"],
+                fields: [
+                    "companyName",
+                    "contactId", 
+                    "contactName",
+                    "phoneNumber",
+                    "defaultInstructions",
+                    "email",
+                    "address.address1",
+                    "address.address2",
+                    "address.postalCode",
+                    "address.unit",
+                    "address.city",
+                    "address.state",
+                    "address.country"
+                ],
             }
         );
 
@@ -161,6 +177,109 @@ export class AddressBookService {
                 hasNextPage: page < totalPages,
                 hasPrevPage: page > 1,
                 sort: orderBy
+            }
+        };
+    }
+
+    async markAsRecentAgainstCurrentUser(
+        currentUserId: number,
+        addressBookContactId: number
+    ) {
+        //1) Get contact from address book 
+        const currentUser = this.em.getReference(User, currentUserId);
+
+        const addressBookContent = await this.em.findOne(AddressBook, { id: addressBookContactId, createdBy: currentUser });
+
+        //2) Throw error for invalid address book id
+        if (!addressBookContent) {
+            throw new NotFoundException(
+                "Address book contact not found or you are not allowed to access this resource."
+            );
+        }
+
+        //3) Check if address is already being used before
+        const existing = await this.em.findOne(UserAddressBookUsage, {
+            user: currentUserId,
+            addressBook: addressBookContactId
+        });
+
+        //4) If already used before update lastUsedAt field
+        if (existing) {
+            existing.lastUsedAt = new Date();
+            await this.em.flush();
+            return { message: "Contact is already marked as recent in address book"};
+        }
+
+        //5) Create new entry in user address book usage
+        const addressBookUsage = this.em.create(UserAddressBookUsage, {
+            user: currentUser,
+            addressBook: addressBookContent
+        });
+
+        //6) Persist changes
+        await this.em.persist(addressBookUsage).flush();
+
+        //7) Return back success response
+        return {
+            message: "Contact successfully marked as recent in address book"
+        };
+    }
+
+    async getAllrecentAgainstCurrentUser(
+        currentUserId: number,
+        queryParams: Record<keyof Partial<GetAllAgainstCurrentUserQueryParams>, any>
+    ) {
+        //1) Get user reference
+        const currentUser = this.em.getReference(User, currentUserId);
+
+        //2) Extract and sanitize query params
+        let page = Number(queryParams.page) || 1;
+        let limit = Number(queryParams.limit) || 10;
+
+        //3) Safety guards
+        page = Math.max(page, 1);
+        limit = Math.min(Math.max(limit, 1), 50);
+
+        const offset = (page - 1) * limit;
+
+        //4) Fetch paginated data
+        const [recentContacts, total] = await this.em.findAndCount(
+            UserAddressBookUsage,
+            { user: currentUser },
+            {
+                populate: ["addressBook","addressBook.address"],
+                fields: [
+                    "addressBook.companyName",
+                    "addressBook.contactId", 
+                    "addressBook.contactName",
+                    "addressBook.phoneNumber",
+                    "addressBook.defaultInstructions",
+                    "addressBook.email",
+                    "addressBook.address.address1",
+                    "addressBook.address.address2",
+                    "addressBook.address.postalCode",
+                    "addressBook.address.unit",
+                    "addressBook.address.city",
+                    "addressBook.address.state",
+                    "addressBook.address.country"
+                ],
+                orderBy: {
+                    lastUsedAt: "DESC"
+                },
+                limit,
+                offset
+            }
+        );
+
+        //5) Return response
+        return {
+            message: "Recent contacts retrieved successfully",
+            data: recentContacts,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
             }
         };
     }
