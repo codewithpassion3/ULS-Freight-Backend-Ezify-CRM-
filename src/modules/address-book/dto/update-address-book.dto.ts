@@ -1,4 +1,4 @@
-import { IsEmail, IsInt, IsOptional, IsString, Matches } from "class-validator"
+import { IsBoolean, IsEmail, IsInt, IsOptional, IsString, Matches } from "class-validator"
 
 export class UpdateAddressBook {
     @IsOptional()
@@ -57,6 +57,10 @@ export class UpdateAddressBook {
     @IsString()
     country: string;
 
+    @IsOptional()
+    @IsBoolean()
+    isResidential: boolean;
+    
     @IsOptional()
     @IsInt()
     locationTypeId!: number

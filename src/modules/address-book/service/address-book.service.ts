@@ -9,6 +9,8 @@ import { AddressBook } from "src/entities/address-book.entity";
 import { GetAllAgainstCurrentUserQueryParams } from "../controller/address-book.controller";
 import { UserAddressBookUsage } from "src/entities/user-address-book-usage.entity";
 import { UpdateAddressBook } from "../dto/update-address-book.dto";
+import { plainToInstance } from "class-transformer";
+import { AddressBookResponseDto } from "../dto/address-book.dto";
 
 @Injectable()
 export class AddressBookService {
@@ -193,6 +195,11 @@ export class AddressBookService {
                 "contactId", 
                 "contactName",
                 "phoneNumber",
+                "isResidential",
+                "signature",
+                "locationType",
+                "palletShippingReadyTime",
+                "palletShippingCloseTime",
                 "defaultInstructions",
                 "email",
                 "address.address1",
@@ -212,11 +219,13 @@ export class AddressBookService {
             );
         }
 
-        //3) Return back success response
+        //3) Return back success response 
          return {
             message: "Contact successfully retrieved from address book",
-            addressBookContent
-        };
+            addressBookContact: plainToInstance(AddressBookResponseDto, addressBookContent, {
+                excludeExtraneousValues: true,
+            }),
+            };
     }
 
    async updateSingleAgainstCurrentUser(
