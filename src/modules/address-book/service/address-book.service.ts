@@ -228,117 +228,106 @@ export class AddressBookService {
             };
     }
 
-   async updateSingleAgainstCurrentUser(
+    async updateSingleAgainstCurrentUser(
         currentUserId: number,
         addressBookContactId: number,
         dto: UpdateAddressBook
     ) {
-        //1) Check for empty payload
+        //1) Validate payload
         const hasValidField = Object.values(dto).some(
-        (value) => value !== undefined && value !== null && value !== ""
+            (value) => value !== undefined && value !== null && value !== ""
         );
 
-        //2) Throw error for empty payload
         if (!hasValidField) {
-        throw new BadRequestException("Provide at least one valid field to update");
+            throw new BadRequestException("Provide at least one valid field to update");
         }
 
-        //3) Extract fields from dto
-        const {
-            address1,
-            address2,
-            unit,
-            state,
-            country,
-            postalCode,
-            city,
-            signatureId,
-            locationTypeId,
-            ...restDTO
-        } = dto;
+        //2) Extract nested / relation fields
+        const { signatureId, locationTypeId, address, ...restDTO } = dto;
 
-        //4) Define signature and pallet shipping location type variables
-        let signature: Signature | null = null;
-        let palletShippingLocationType: PalletShippingLocationType | null = null;
+        let signatureRef: any = null;
+        let locationTypeRef: any = null;
 
-        //5) Check for valid signature entity only if signatureId is present
-        if(signatureId !== undefined){
+        //3) Validate Signature
+        if (signatureId !== undefined) {
+            const signature = await this.em.findOne(Signature, { id: signatureId });
 
-            signature = await this.em.findOne(Signature, { id: signatureId });
-            
-            //6) Throw error for invalid signatrue id
-            if(!signature){
-                throw new NotFoundException("Invalid signature id")
+            if (!signature) {
+                throw new NotFoundException("Invalid signature id");
             }
+
+            signatureRef = this.em.getReference(Signature, signatureId);
         }
 
-        //7) Validate location type id 
-        if(locationTypeId !== undefined){
-            palletShippingLocationType = await this.em.findOne(PalletShippingLocationType, { id: locationTypeId });
-            
-            //8) Throw error for invalid pallet shipping location type id
-            if(!palletShippingLocationType){
+        //4) Validate Location Type
+        if (locationTypeId !== undefined) {
+            const locationType = await this.em.findOne(PalletShippingLocationType, {
+                id: locationTypeId,
+            });
+
+            if (!locationType) {
                 throw new NotFoundException("Invalid location type id");
             }
+
+            locationTypeRef = this.em.getReference(
+                PalletShippingLocationType,
+                locationTypeId
+            );
         }
 
+        //5) Get user reference
+        const userRef = this.em.getReference(User, currentUserId);
 
-        //9) Get reference to user
-        const userEntity = this.em.getReference(User, currentUserId);
-
-        //10) Fetch address book with address
+        //6) Fetch AddressBook with address populated
         const addressBookContent = await this.em.findOne(
             AddressBook,
             {
                 id: addressBookContactId,
-                createdBy: userEntity,
+                createdBy: userRef,
             },
             {
                 populate: ["address"],
             }
         );
 
-        //11) Throw error for invalid address book content
         if (!addressBookContent) {
             throw new NotFoundException(
-                "Address book contact not found or you are not allowed to access this resource."
+                "Address book contact not found or access denied."
             );
         }
 
-        //12) Update AddressBook fields
-        const fieldsToUpdateForAddressBook = {
+        //7) Build update payload (ONLY entity-safe fields)
+        const updatePayload: Partial<AddressBook> = {
             ...restDTO,
-            updatedBy: userEntity,
+            updatedBy: userRef,
+        };
+
+        if (signatureRef) {
+            updatePayload.signature = signatureRef;
         }
 
-        //13) Update signature and location type in address book if present
-        if(signature) fieldsToUpdateForAddressBook["signature"] = signature;
-        if(palletShippingLocationType) fieldsToUpdateForAddressBook["locationType"] = palletShippingLocationType;
-        
-        //14) Update address book entity
-        this.em.assign(addressBookContent, fieldsToUpdateForAddressBook, {
+        if (locationTypeRef) {
+            updatePayload.locationType = locationTypeRef;
+        }
+
+        //8) Assign AddressBook fields
+        this.em.assign(addressBookContent, updatePayload, {
             ignoreUndefined: true,
         });
 
-        //15) Update address fields
-        this.em.assign(addressBookContent.address, {
-            address1,
-            address2,
-            unit,
-            state,
-            country,
-            postalCode,
-            city,
-        }, {
-            ignoreUndefined: true,
-        });
+        //9) Handle Address safely
+        if (address) {
+            this.em.assign(addressBookContent.address, address, {
+                ignoreUndefined: true,
+            });
+        }
 
-        //16) MikroORM will track changes automatically
+        //10) Flush changes
         await this.em.flush();
 
-        //17) Return back success response
+        //11) Return back success response
         return {
-            message: "Contact details updated successfully"
+            message: "Contact details updated successfully",
         };
     }
 
