@@ -121,13 +121,15 @@ export class AuthService{
         const { email, password } = dto;
 
         //2) Check user exists and throw error for invalid credentials
-        const user = await this.em.findOne(User, { email }, { populate: ["role"] });
+        const user = await this.em.findOne(User, { email }, { populate: ["role", "permissions"] });
+        console.log({user})
         if(!user){
             throw new UnauthorizedException("Invalid credentials")
         }
 
         //4) Compare password and throw error for invalid credentials
         const passwordMatched = await bcrypt.compare(password, user.password);
+        console.log({passwordMatched})
         if(!passwordMatched){
             throw new UnauthorizedException("Invalid credentials")
         }

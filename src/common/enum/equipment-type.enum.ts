@@ -1,0 +1,10 @@
+export enum EquipmentType {
+  TRUCK = 'TRUCK',
+  CAR = 'CAR',
+  VAN = 'VAN',
+  DRY_VAN = 'DRY_VAN',
+  REFRIGERATED = 'REFRIGERATED',
+  FLATBED = 'FLATBED',
+  VENTILATED = 'VENTILATED',
+  NEXT_FLIGHT_OUT = 'NEXT_FLIGHT_OUT',
+}

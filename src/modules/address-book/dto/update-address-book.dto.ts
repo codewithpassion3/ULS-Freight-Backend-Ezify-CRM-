@@ -1,4 +1,35 @@
-import { IsBoolean, IsEmail, IsInt, IsOptional, IsString, Matches } from "class-validator"
+import { Type } from "class-transformer";
+import { IsBoolean, IsEmail, IsInt, IsOptional, IsString, Matches, ValidateNested } from "class-validator"
+
+export class AddressDTO {
+    @IsOptional()
+    @IsString()
+    address1: string;
+    
+    @IsOptional()
+    @IsString()
+    address2: string;
+    
+    @IsOptional()
+    @IsString()
+    postalCode: string;
+
+    @IsOptional()
+    @IsString()
+    unit: string;
+
+    @IsOptional()
+    @IsString()
+    city: string;
+
+    @IsOptional()
+    @IsString()
+    state: string;
+
+    @IsOptional()
+    @IsString()
+    country: string;
+}
 
 export class UpdateAddressBook {
     @IsOptional()
@@ -30,37 +61,14 @@ export class UpdateAddressBook {
     email: string;
 
     @IsOptional()
-    @IsString()
-    address1: string;
-    
-    @IsOptional()
-    @IsString()
-    address2: string;
-    
-    @IsOptional()
-    @IsString()
-    postalCode: string;
-
-    @IsOptional()
-    @IsString()
-    unit: string;
-
-    @IsOptional()
-    @IsString()
-    city: string;
-
-    @IsOptional()
-    @IsString()
-    state: string;
-
-    @IsOptional()
-    @IsString()
-    country: string;
+    @ValidateNested()
+    @Type(() => AddressDTO)
+    address: AddressDTO;
 
     @IsOptional()
     @IsBoolean()
     isResidential: boolean;
-    
+
     @IsOptional()
     @IsInt()
     locationTypeId!: number

@@ -1,0 +1,8 @@
+export enum ShipmentType {
+  PACKAGE = 'PACKAGE',
+  PALLET = 'PALLET',
+  COURIER_PACK = 'COURIER_PACK',
+  LTL = 'LTL',
+  FTL = 'FTL',
+  TIME_CRITICAL = 'TIME_CRITICAL',
+}

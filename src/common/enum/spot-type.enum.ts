@@ -1,0 +1,5 @@
+export enum SpotType {
+  LTL = 'LTL_PARTIAL',
+  FTL = 'FULL_TRUCK_LOAD',
+  TIME_CRITICAL = 'TIME_CRITICAL',
+}
