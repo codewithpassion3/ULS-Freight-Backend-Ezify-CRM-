@@ -1,6 +1,6 @@
 import { EntityManager, wrap } from "@mikro-orm/core";
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { CreateAddressBookDTO} from "../dto/create-addres-book.dto";
+import { CreateAddressBookDTO} from "../dto/create-address-book.dto";
 import { User } from "src/entities/user.entity";
 import { PalletShippingLocationType } from "src/entities/pallet-shipping-location-type.entity";
 import { Signature } from "src/entities/signature.entity";
@@ -8,6 +8,7 @@ import { Address } from "src/entities/address.entity";
 import { AddressBook } from "src/entities/address-book.entity";
 import { GetAllAgainstCurrentUserQueryParams } from "../controller/address-book.controller";
 import { UserAddressBookUsage } from "src/entities/user-address-book-usage.entity";
+import { UpdateAddressBook } from "../dto/update-address-book.dto";
 
 @Injectable()
 export class AddressBookService {
@@ -178,6 +179,156 @@ export class AddressBookService {
                 hasPrevPage: page > 1,
                 sort: orderBy
             }
+        };
+    }
+
+    async getSingleAgainstCurrentUser(currentUserId: number, addressBookContactId: number){
+        //1) Fetch contact from address book against current user
+        const userEntity = this.em.getReference(User, currentUserId)
+
+        const addressBookContent = await this.em.findOne(AddressBook, { id: addressBookContactId, createdBy: userEntity }, {
+            populate: ["address"],
+            fields: [
+                "companyName",
+                "contactId", 
+                "contactName",
+                "phoneNumber",
+                "defaultInstructions",
+                "email",
+                "address.address1",
+                "address.address2",
+                "address.postalCode",
+                "address.unit",
+                "address.city",
+                "address.state",
+                "address.country"
+            ],
+        });
+
+        //2) Throw error for invalid address book contact
+        if (!addressBookContent) {
+            throw new NotFoundException(
+                "Address book contact not found or you are not allowed to access this resource."
+            );
+        }
+
+        //3) Return back success response
+         return {
+            message: "Contact successfully retrieved from address book",
+            addressBookContent
+        };
+    }
+
+   async updateSingleAgainstCurrentUser(
+        currentUserId: number,
+        addressBookContactId: number,
+        dto: UpdateAddressBook
+    ) {
+        //1) Check for empty payload
+        const hasValidField = Object.values(dto).some(
+        (value) => value !== undefined && value !== null && value !== ""
+        );
+
+        //2) Throw error for empty payload
+        if (!hasValidField) {
+        throw new BadRequestException("Provide at least one valid field to update");
+        }
+
+        //3) Extract fields from dto
+        const {
+            address1,
+            address2,
+            unit,
+            state,
+            country,
+            postalCode,
+            city,
+            signatureId,
+            locationTypeId,
+            ...restDTO
+        } = dto;
+
+        //4) Define signature and pallet shipping location type variables
+        let signature: Signature | null = null;
+        let palletShippingLocationType: PalletShippingLocationType | null = null;
+
+        //5) Check for valid signature entity only if signatureId is present
+        if(signatureId !== undefined){
+
+            signature = await this.em.findOne(Signature, { id: signatureId });
+            
+            //6) Throw error for invalid signatrue id
+            if(!signature){
+                throw new NotFoundException("Invalid signature id")
+            }
+        }
+
+        //7) Validate location type id 
+        if(locationTypeId !== undefined){
+            palletShippingLocationType = await this.em.findOne(PalletShippingLocationType, { id: locationTypeId });
+            
+            //8) Throw error for invalid pallet shipping location type id
+            if(!palletShippingLocationType){
+                throw new NotFoundException("Invalid location type id");
+            }
+        }
+
+
+        //9) Get reference to user
+        const userEntity = this.em.getReference(User, currentUserId);
+
+        //10) Fetch address book with address
+        const addressBookContent = await this.em.findOne(
+            AddressBook,
+            {
+                id: addressBookContactId,
+                createdBy: userEntity,
+            },
+            {
+                populate: ["address"],
+            }
+        );
+
+        //11) Throw error for invalid address book content
+        if (!addressBookContent) {
+            throw new NotFoundException(
+                "Address book contact not found or you are not allowed to access this resource."
+            );
+        }
+
+        //12) Update AddressBook fields
+        const fieldsToUpdateForAddressBook = {
+            ...restDTO
+        }
+
+        //13) Update signature and location type in address book if present
+        if(signature) fieldsToUpdateForAddressBook["signature"] = signature;
+        if(palletShippingLocationType) fieldsToUpdateForAddressBook["locationType"] = palletShippingLocationType;
+        
+        //14) Update address book entity
+        this.em.assign(addressBookContent, fieldsToUpdateForAddressBook, {
+            ignoreUndefined: true,
+        });
+
+        //15) Update address fields
+        this.em.assign(addressBookContent.address, {
+            address1,
+            address2,
+            unit,
+            state,
+            country,
+            postalCode,
+            city,
+        }, {
+            ignoreUndefined: true,
+        });
+
+        //16) MikroORM will track changes automatically
+        await this.em.flush();
+
+        //17) Return back success response
+        return {
+            message: "Contact details updated successfully"
         };
     }
 

@@ -22,10 +22,10 @@ export class AddressBook {
     @Property({ unique: true })
     phoneNumber!: string;
 
-    @Property({ unique: true, nullable: true })
+    @Property({ unique: true, nullable: true, default: null })
     email?: string;
 
-    @Property({ nullable: true })
+    @Property({ nullable: true, default: null })
     defaultInstructions?: string;
 
     @Property()

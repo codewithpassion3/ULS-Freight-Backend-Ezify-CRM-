@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Post, Query, Session, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Query, Session, UseGuards } from "@nestjs/common";
 import { AddressBookService } from "../service/address-book.service";
 import { SessionAuthGuard } from "src/guards/sessionAuth.guard";
-import { CreateAddressBookDTO } from "../dto/create-addres-book.dto";
+import { CreateAddressBookDTO } from "../dto/create-address-book.dto";
 import { CurrentUser } from "src/decorators/currentUser.decorator";
+import { UpdateAddressBook } from "../dto/update-address-book.dto";
 
 export interface GetAllAgainstCurrentUserQueryParams {
     page?: number;
@@ -24,6 +25,18 @@ export class AddressBookController {
     @Get("/")
     async GetAllAgainstCurrentUser(@CurrentUser() currentUserId: number, @Query() queryParams: Record<keyof GetAllAgainstCurrentUserQueryParams, any>){
         return this.addressBookService.getAllAgainstCurrentUser(currentUserId, queryParams);
+    }
+
+    @UseGuards(SessionAuthGuard)
+    @Get("/:id")
+    async GetSingleAgainstCurrentUser(@CurrentUser() currentUserId: number, @Param("id") addressBookContactId: number){
+        return this.addressBookService.getSingleAgainstCurrentUser(currentUserId, addressBookContactId);
+    }
+
+    @UseGuards(SessionAuthGuard)
+    @Patch("/:id")
+    async UpdateSingleAgainstCurrentUser(@CurrentUser() currentUserId: number, @Param("id") addressBookContactId: number, @Body() dto: UpdateAddressBook){
+        return this.addressBookService.updateSingleAgainstCurrentUser(currentUserId, addressBookContactId, dto);
     }
 
     @UseGuards(SessionAuthGuard)
