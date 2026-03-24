@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Session, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Session, UseGuards } from "@nestjs/common";
 import { AddressBookService } from "../service/address-book.service";
 import { SessionAuthGuard } from "src/guards/sessionAuth.guard";
 import { CreateAddressBookDTO } from "../dto/create-address-book.dto";
@@ -37,6 +37,12 @@ export class AddressBookController {
     @Patch("/:id")
     async UpdateSingleAgainstCurrentUser(@CurrentUser() currentUserId: number, @Param("id") addressBookContactId: number, @Body() dto: UpdateAddressBook){
         return this.addressBookService.updateSingleAgainstCurrentUser(currentUserId, addressBookContactId, dto);
+    }
+
+    @UseGuards(SessionAuthGuard)
+    @Delete("/:id")
+    async DeleteSingleAgainstCurrentUser(@CurrentUser() currentUserId: number, @Param("id") addressBookContactId: number) {
+        return this.addressBookService.deleteSingleAgainstCurrentUser(currentUserId, addressBookContactId);
     }
 
     @UseGuards(SessionAuthGuard)

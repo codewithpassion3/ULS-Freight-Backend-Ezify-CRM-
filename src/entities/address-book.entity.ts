@@ -37,17 +37,11 @@ export class AddressBook {
     @Property({ default: false})
     isResidential?: boolean;
 
-    @Property({ default: false })
-    isDeleted?: boolean;
-
     @Property({ onCreate: () => new Date()})
     createdAt?: Date;
 
     @Property({ onCreate: () => new Date(), onUpdate: () => new Date()})
     updatedAt?: Date;
-
-    @ManyToOne(() => User, { nullable: true })
-    deletedBy?: User;
 
     @ManyToOne(() => User, { nullable: false })
     createdBy!: User;
@@ -55,7 +49,7 @@ export class AddressBook {
     @ManyToOne(() => User, { nullable: true })
     updatedBy?: User;
 
-    @OneToMany(() => UserAddressBookUsage, usage => usage.addressBook)
+    @OneToMany(() => UserAddressBookUsage, usage => usage.addressBook, {cascade: [Cascade.REMOVE]})
     userUsages? = new Collection<UserAddressBookUsage>(this);
     
     @ManyToOne(() => Signature, { nullable: false })

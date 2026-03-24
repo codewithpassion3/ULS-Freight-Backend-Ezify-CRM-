@@ -298,7 +298,8 @@ export class AddressBookService {
 
         //12) Update AddressBook fields
         const fieldsToUpdateForAddressBook = {
-            ...restDTO
+            ...restDTO,
+            updatedBy: userEntity,
         }
 
         //13) Update signature and location type in address book if present
@@ -330,6 +331,37 @@ export class AddressBookService {
         return {
             message: "Contact details updated successfully"
         };
+    }
+
+    async deleteSingleAgainstCurrentUser(
+        currentUserId: number,
+        addressBookContactId: number
+    ) {
+        return this.em.transactional(async (em) => {
+            //1) Get user reference
+            const user = em.getReference(User, currentUserId);
+
+            //2) Validate address book exists
+            const addressBook = await em.findOne(AddressBook, {
+                id: addressBookContactId,
+                createdBy: user
+            }, { populate: ['userUsages'] });
+
+            //3) Throw if not found or unauthorized
+            if (!addressBook) {
+                throw new NotFoundException(
+                    "Address book not found or you are not allowed to access this resource."
+                );
+            }
+
+            //4) Delete the parent entity
+            await em.remove(addressBook).flush();
+
+            //5) Return success
+            return {
+                message: "Address book contact deleted successfully"
+            };
+        });
     }
 
     async markAsRecentAgainstCurrentUser(
