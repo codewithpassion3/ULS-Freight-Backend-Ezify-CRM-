@@ -86,8 +86,13 @@ export class AddressBookService {
     ) {
         //1) Parse params
         const search = params.search?.trim() || "";
-        const requestedPage = parseInt(params.page) || 1;
-        const limit = parseInt(params.limit) > 0 ? parseInt(params.limit) : 10;
+        
+        const pageNum = Number(params.page);
+        const limitNum = Number(params.limit);
+
+        const requestedPage = Number.isFinite(pageNum) && pageNum > 0 ? pageNum : 1;
+
+        const limit = Number.isFinite(limitNum) && limitNum > 0 ? Math.min(limitNum, 50) : 10;
 
         //2) Multi-sort param
         const sortParam = params.sort || "createdAt:desc";
@@ -414,8 +419,11 @@ export class AddressBookService {
         const currentUser = this.em.getReference(User, currentUserId);
 
         //2) Extract and sanitize query params
-        let page = Number(queryParams.page) || 1;
-        let limit = Number(queryParams.limit) || 10;
+        const num = Number(queryParams.page);
+        let page = Number.isFinite(num) && num > 0 ? num : 1;
+
+        const numLimit = Number(queryParams.limit);
+        let limit = Number.isFinite(numLimit) && numLimit > 0 ? numLimit : 10;
 
         //3) Safety guards
         page = Math.max(page, 1);
