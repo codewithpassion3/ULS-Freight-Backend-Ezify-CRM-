@@ -12,12 +12,12 @@ export class ShippingAddressMeta {
 
   // Only for FTL / special shipping
   @Property({ nullable: true })
-  includeStraps?: boolean;
+  includeStraps?: boolean | null;
 
   @Property({ nullable: true })
-  appointmentDelivery?: boolean;
+  appointmentDelivery?: boolean |  null;
 
   // Only for Spot / additional notes
   @Property({ nullable: true })
-  additionalNotes?: string;
+  additionalNotes?: string | null;
 }

@@ -1,5 +1,6 @@
-import { Entity, PrimaryKey, OneToOne, Property } from "@mikro-orm/core";
+import { Entity, PrimaryKey, OneToOne, Property, Enum } from "@mikro-orm/core";
 import { Quote } from "./quote.entity";
+import { Currency } from "src/common/enum/currency.enum";
 
 @Entity()
 export class Insurance {
@@ -12,4 +13,7 @@ export class Insurance {
 
   @Property()
   amount!: number;
+
+  @Enum(() => Currency)
+  currency!: Currency; 
 }

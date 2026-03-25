@@ -17,6 +17,7 @@ import { ENV } from './common/constants/env';
 import { AddressBookModule } from './modules/address-book/address-book.module';
 import { SignatureModule } from './modules/signature/signature.module';
 import { PalletShippingLocationTypeModule } from './modules/pallet-shipping-location-type/pallet-shiping-location-type.module';
+import { QuoteModule } from './modules/quote/quote.module';
 
 @Module({
   imports: [
@@ -37,7 +38,8 @@ import { PalletShippingLocationTypeModule } from './modules/pallet-shipping-loca
     RoleModule,
     AddressBookModule,
     SignatureModule,
-    PalletShippingLocationTypeModule
+    PalletShippingLocationTypeModule,
+    QuoteModule
   ],
   controllers: [AppController],
   providers: [AppService],

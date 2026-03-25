@@ -12,22 +12,31 @@ export class LineItemUnit {
 
   // Common fields (only include what's truly shared)
   @Property()
-  weight!: number;
+  weight!: number | null;
 
   @Property({ nullable: true })
-  length?: number;
+  length?: number | null;
 
   @Property({ nullable: true })
-  width?: number;
+  width?: number | null;
 
   @Property({ nullable: true })
-  height?: number;
+  height?: number | null;
 
   // Pallet-specific
   @Property({ nullable: true })
-  stackable?: boolean;
+  stackable?: boolean | null;
 
   // Package-specific
   @Property({ nullable: true })
-  quantity?: number;
+  quantity?: number | null;
+
+  // Package-specific
+  @Property({ nullable: true })
+  freightClass?: string | null;
+
+  // Pallet-specific
+  @Property({ nullable: true })
+  nmfc?: string | null ;
+
 }

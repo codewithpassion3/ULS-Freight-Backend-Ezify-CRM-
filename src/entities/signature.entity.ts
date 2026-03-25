@@ -1,4 +1,5 @@
-import { Entity, PrimaryKey, Property } from "@mikro-orm/core";
+import { Entity, OneToOne, PrimaryKey, Property } from "@mikro-orm/core";
+import { Quote } from "./quote.entity";
 
 @Entity()
 export class Signature{
@@ -10,4 +11,7 @@ export class Signature{
 
     @Property({ unique: true })
     name!: string;
+
+    @OneToOne(() => Quote, { nullable: true })
+    quote?: Quote;
 }

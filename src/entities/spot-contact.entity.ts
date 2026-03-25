@@ -26,5 +26,5 @@ export class SpotContact {
   deliveryDate!: Date;
 
   @Property({ nullable: true })
-  spotQuoteName?: string;
+  spotQuoteName?: string | null;
 }

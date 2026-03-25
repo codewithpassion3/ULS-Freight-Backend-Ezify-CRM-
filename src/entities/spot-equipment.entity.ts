@@ -4,12 +4,11 @@ import { EquipmentType } from "src/common/enum/equipment-type.enum";
 
 @Entity()
 export class SpotEquipment {
-
   @PrimaryKey()
   id!: number;
 
   @ManyToOne(() => SpotDetails)
-  spot!: SpotDetails;
+  spotDetail!: SpotDetails;
 
   @Enum(() => EquipmentType)
   type!: EquipmentType;
