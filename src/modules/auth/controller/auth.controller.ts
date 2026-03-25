@@ -18,7 +18,6 @@ export class AuthController {
       req.session.userId = user.id;
       req.session.role = user.role.name;
       req.session.companyId = user.company.id;
-      req.session.permissions = user.permissions.getItems().map(p => p.name);
 
       return {
          message: "Signup successfull",
@@ -33,8 +32,7 @@ export class AuthController {
       req.session.userId = user.id;
       req.session.role = user.role.name;
       req.session.companyId = user.company.id;
-      req.session.permissions = user.permissions.getItems().map(p => p.name);
-
+      req.session.permissions = (user as any).routePermissions;
       return {
          message: "Signin successfull",
          user

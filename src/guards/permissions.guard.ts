@@ -1,5 +1,6 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
+import { ROLES } from "src/common/constants/roles";
 
 @Injectable()
 export class PermissionsGuard implements CanActivate{
@@ -11,12 +12,13 @@ export class PermissionsGuard implements CanActivate{
         
         //2) Get user permissions
         const userPermissions = request.session?.permissions ?? [];
+        const userRole = request.session?.role;
 
         //3) Get the path uri
         const path = request.route?.path;
 
         //4) Extract permission resource from path
-        const normalizedPath = path?.split("/").filter(Boolean)[0];
+        const normalizedPath = path.match(/\/api\/[^\/]+\/([^\/]+)/)?.[1];
 
         //5) Define permission route mapping
         const routePermissionMapping: Record<string,string> = {
@@ -37,7 +39,7 @@ export class PermissionsGuard implements CanActivate{
         const hasAccess = userPermissions.includes(requiredPermission);
 
         //9) Throw error for missing permission
-        if (!hasAccess) {
+        if (!hasAccess && userRole === ROLES.USER) {
             throw new ForbiddenException(
                 `Missing permission: ${requiredPermission}`,
             );

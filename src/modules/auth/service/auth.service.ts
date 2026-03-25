@@ -137,6 +137,8 @@ export class AuthService{
         //5) Update last login field
         user.lastLogin = new Date();
 
+        (user as any).routePermissions = user.permissions.getItems().map(p => p.name);
+
         await this.em.persist(user).flush();
 
         //6) return user
