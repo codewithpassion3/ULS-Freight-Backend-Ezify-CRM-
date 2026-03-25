@@ -15,13 +15,33 @@ import { ENV } from './common/constants/env';
 import { getEnv } from './utils/getEnv';
 import { validateEnv } from './utils/validateEnv';
 import { runSeeders } from './seeders/main.seeder';
+import * as fs from 'fs';
+import path from 'path'
 
 async function bootstrap() {
     //1) Validate env keys
     validateEnv();
 
-    //2) Create nestjs app
-    const app = await NestFactory.create<NestExpressApplication>(AppModule);
+    //2) Check for certificates (.pem files) and create nestjs app
+    const httpsKeyPath = path.join(process.cwd(), getEnv("CERTIFICATE_KEY"));
+    const httpsCertPath = path.join(process.cwd(), getEnv("CERTIFICATE"));
+
+    let httpsOptions: Record<string, any> | undefined;
+
+    const hasCerts =
+      fs.existsSync(httpsKeyPath) &&
+      fs.existsSync(httpsCertPath);
+
+    if (hasCerts && process.env.ENABLE_HTTPS === 'true') {
+      httpsOptions = {
+        key: fs.readFileSync(httpsKeyPath),
+        cert: fs.readFileSync(httpsCertPath),
+      };
+    }
+
+    const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+      ...(httpsOptions ? { httpsOptions } : {}),
+    });
   
     //3) Get express app instance
     const expressApp = app.getHttpAdapter().getInstance();
