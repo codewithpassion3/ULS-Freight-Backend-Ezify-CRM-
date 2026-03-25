@@ -14,6 +14,9 @@ import { MulterModule } from '@nestjs/platform-express';
 import { CompanyModule } from './modules/company/company.module';
 import { getEnv } from './utils/getEnv';
 import { ENV } from './common/constants/env';
+import { AddressBookModule } from './modules/address-book/address-book.module';
+import { SignatureModule } from './modules/signature/signature.module';
+import { PalletShippingLocationTypeModule } from './modules/pallet-shipping-location-type/pallet-shiping-location-type.module';
 
 @Module({
   imports: [
@@ -31,7 +34,10 @@ import { ENV } from './common/constants/env';
     EmailModule,
     OtpModule,
     PermissionModule,
-    RoleModule
+    RoleModule,
+    AddressBookModule,
+    SignatureModule,
+    PalletShippingLocationTypeModule
   ],
   controllers: [AppController],
   providers: [AppService],

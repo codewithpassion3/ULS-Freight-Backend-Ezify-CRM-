@@ -20,7 +20,7 @@ export class User{
     @Property({ nullable: true })
     phoneNumber!: string;
 
-    @Property({ nullable: true })
+    @Property({ nullable: true, unique: true })
     username?: string;
 
     @Property({ hidden: true })

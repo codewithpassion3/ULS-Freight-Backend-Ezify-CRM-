@@ -13,7 +13,7 @@ import { multerConfig } from "src/config/multer.config";
 import { UpdatePasswordDTO } from "../dto/update-password.dto";
 import type { SessionData } from "express-session";
 import { UpdateSettingsDto } from "../dto/user-settings-update.dto";
-import { UpdateProfileByAdminDTO } from "../dto/update-profile-by-admin";
+import { UpdateProfileByAdminDTO } from "../dto/update-profile-by-admin.dto";
 
 @Controller("users")
 export class UserController {

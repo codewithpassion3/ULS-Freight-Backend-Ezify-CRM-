@@ -7,8 +7,6 @@ import { RoleNames, ROLES } from "src/common/constants/roles";
 export async function seedRolesAndPermissions(em: EntityManager) {
 
   await em.transactional(async (em) => {
-   
-
     // Permissions
     const existingPermissions = await em.find(Permission, {
       name: { $in: PermissionNames },
