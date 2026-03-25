@@ -7,7 +7,7 @@ export class ShippingAddressMeta {
   @PrimaryKey()
   id!: number;
 
-  @OneToOne(() => ShippingAddress)
+  @OneToOne(() => ShippingAddress, { hidden: true })
   shippingAddress!: ShippingAddress;
 
   // Only for FTL / special shipping

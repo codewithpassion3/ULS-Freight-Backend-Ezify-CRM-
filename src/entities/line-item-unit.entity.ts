@@ -7,7 +7,7 @@ export class LineItemUnit {
   @PrimaryKey()
   id!: number;
 
-  @ManyToOne(() => LineItem)
+  @ManyToOne(() => LineItem, { hidden: true })
   lineItem!: LineItem;
 
   // Common fields (only include what's truly shared)

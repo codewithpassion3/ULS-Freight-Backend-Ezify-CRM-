@@ -12,6 +12,6 @@ export class QuoteController{
     @UseGuards(SessionAuthGuard, PermissionsGuard)
     @Post("/")
     async Create(@Body() dto: CreateQuoteDTO, @CurrentUser() currentUserId: number){
-        this.quoteService.create(dto, currentUserId);
+        return this.quoteService.create(dto, currentUserId);
     }
 }

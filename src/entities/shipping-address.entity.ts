@@ -14,7 +14,7 @@ export class ShippingAddress{
     @Enum(() => AddressType)
     type!: AddressType;
 
-    @ManyToOne(() => Quote)
+    @ManyToOne(() => Quote, { hidden: true })
     quote!: Quote;
 
     //Use AddressBook ID if user picks from address book

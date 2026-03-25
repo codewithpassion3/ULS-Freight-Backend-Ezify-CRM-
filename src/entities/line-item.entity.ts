@@ -8,7 +8,7 @@ export class LineItem {
   @PrimaryKey()
   id!: number;
 
-  @OneToOne(() => Quote, { owner: true})
+  @OneToOne(() => Quote, { owner: true, hidden: true })
   quote!: Quote;
 
   @Enum(() => ShipmentType)

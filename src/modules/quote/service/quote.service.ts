@@ -24,26 +24,28 @@ export class QuoteService {
 
 
     async create(dto: CreateQuoteDTO, currentUserId: number) {
-        const { valid } = validateQuote(dto);
-
+        const { valid, errors } = validateQuote(dto);
         if (!valid) {
-            throw new BadRequestException(
-                `Invalid create quote payload for shipment type ${dto.shipmentType}`
-            );
+            throw new BadRequestException(`Invalid create quote payload for shipment type ${dto.shipmentType}`);
         }
 
         const em = this.em.fork();
 
-        const signature = await em.findOne(Signature, { id: dto.signature });
+        let signature: Signature | null = null;
 
-        if (!signature) {
-            throw new BadRequestException("Invalid signature id");
+        if(ShipmentType.COURIER_PACK === dto.shipmentType || ShipmentType.PACKAGE === dto.shipmentType){
+            signature = await em.findOne(Signature, { id: dto.signature });
+
+            if (!signature) {
+                throw new BadRequestException("Invalid signature id");
+            }
         }
 
         const quote = new Quote();
         quote.quoteType = dto.quoteType;
         quote.shipmentType = dto.shipmentType;
-        quote.signature = signature;
+
+        if(ShipmentType.COURIER_PACK  === dto.shipmentType || ShipmentType.PACKAGE === dto.shipmentType) quote.signature = signature;
 
         em.persist(quote);
 

@@ -7,7 +7,6 @@ export function validateAddress(dto: CreateAddressDto): string[] {
 
   if (isManual) {
     const requiredFields = [
-      'companyName',
       'address1',
       'city',
       'state',
