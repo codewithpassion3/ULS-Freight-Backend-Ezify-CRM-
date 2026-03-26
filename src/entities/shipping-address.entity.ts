@@ -1,4 +1,4 @@
-import { Entity, Enum, ManyToOne, OneToOne, PrimaryKey, Property } from "@mikro-orm/core";
+import { Cascade, Entity, Enum, ManyToOne, OneToOne, PrimaryKey, Property } from "@mikro-orm/core";
 import { AddressType } from "src/common/enum/address-type.enum";
 import { AddressBook } from "./address-book.entity";
 import { Quote } from "./quote.entity";
@@ -14,7 +14,7 @@ export class ShippingAddress{
     @Enum(() => AddressType)
     type!: AddressType;
 
-    @ManyToOne(() => Quote, { hidden: true })
+    @ManyToOne(() => Quote, { hidden: true, cascade: [Cascade.REMOVE] })
     quote!: Quote;
 
     //Use AddressBook ID if user picks from address book
@@ -22,7 +22,7 @@ export class ShippingAddress{
     addressBookEntry?: AddressBook | null;
 
     //If user inputs manually
-    @OneToOne(() => Address, { nullable: true })
+    @OneToOne(() => Address, { nullable: true , cascade: [Cascade.REMOVE]})
     address?: Address | null;
 
     //For SPOT quote

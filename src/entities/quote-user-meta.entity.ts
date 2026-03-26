@@ -1,4 +1,4 @@
-import { Entity, ManyToOne, PrimaryKey, Property } from "@mikro-orm/core";
+import { Cascade, Entity, ManyToOne, PrimaryKey, Property } from "@mikro-orm/core";
 import { Quote } from "./quote.entity";
 import { User } from "./user.entity";
 
@@ -10,7 +10,7 @@ export class QuoteUserMeta {
   @ManyToOne(() => User)
   user!: User;
 
-  @ManyToOne(() => Quote)
+  @ManyToOne(() => Quote, {cascade: [Cascade.REMOVE]})
   quote!: Quote;
 
   @Property({ default: false })

@@ -22,7 +22,6 @@ const packageRules: FieldRule[] = [
   { field: 'height', required: true },
   { field: 'weight', required: true },
   { field: 'description', required: true },
-  { field: 'dangerousGoods', required: false },
 ];
 
 const palletRules: FieldRule[] = [
@@ -132,7 +131,7 @@ export function validateQuote(dto: CreateQuoteDTO): ValidationResult {
   }
 
   // NOT ALLOWED
-  if (dto.shipmentType === ShipmentType.FTL) {
+  if (dto.shipmentType === ShipmentType.STANDARD_FTL) {
     if (dto.lineItem) {
       errors.push(`Line items are not allowed for FTL shipments`);
     }
@@ -155,11 +154,12 @@ export function validateQuote(dto: CreateQuoteDTO): ValidationResult {
   // Map required services per shipment type
   const requiredServiceFields: Record<ShipmentType, string[]> = {
     [ShipmentType.PALLET]: ['limitedAccess', 'appointmentDelivery', 'thresholdDelivery', 'thresholdPickup'],
-    [ShipmentType.FTL]: ['looseFreight', 'pallets'],
-    [ShipmentType.LTL]: ['inbound', 'protectFromFreeze', 'limitedAccess'],
+    [ShipmentType.STANDARD_FTL]: ['looseFreight', 'pallets'],
+    [ShipmentType.SPOT_LTL]: ['inbound', 'protectFromFreeze', 'limitedAccess'],
     [ShipmentType.PACKAGE]: [],
     [ShipmentType.COURIER_PACK]: [],
     [ShipmentType.TIME_CRITICAL]: [],
+    [ShipmentType.SPOT_FTL]: []
   };
 
   // Check required services

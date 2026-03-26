@@ -1,5 +1,5 @@
 import { EntityManager } from "@mikro-orm/postgresql";
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { CreateQuoteDTO } from "../dto/create-quote.dto";
 import { Quote } from "src/entities/quote.entity";
 import { ShipmentType } from "src/common/enum/shipment-type.enum";
@@ -20,17 +20,27 @@ import { EquipmentType } from "src/common/enum/equipment-type.enum";
 import { User } from "src/entities/user.entity";
 import { PaginationParams } from "src/types/pagination";
 import { buildQuery } from "src/utils/api-query";
+import { PalletServices } from "src/entities/pallet-services.entity";
+import { StandardFtlServices } from "src/entities/standard-ftl-services.entity";
+import { SpotLtlServices } from "src/entities/spot-ltl-services.entity";
+import { SpotFtlServices } from "src/entities/spot-ftl-services.entity";
+import { QuoteType } from "src/common/enum/quote-type.enum";
 
 @Injectable()
 export class QuoteService {
     constructor(private readonly em: EntityManager) {}
 
     async create(dto: CreateQuoteDTO, currentUserId: number) {
+        //1) Validate payload
         const { valid, errors } = validateQuote(dto);
         
+        //2) Throw exception with errors for invalid payload
         if (!valid) { throw new BadRequestException(errors); }
+        
+        //3) Create a fork out of entity manager
         const em = this.em.fork();
 
+        //4) Validate signature
         let signature: Signature | null = null;
 
         if(ShipmentType.COURIER_PACK === dto.shipmentType || ShipmentType.PACKAGE === dto.shipmentType){
@@ -41,6 +51,7 @@ export class QuoteService {
             }
         }
 
+        //5) Construct quote entity and start populating it
         const quote = new Quote();
         quote.quoteType = dto.quoteType;
         quote.shipmentType = dto.shipmentType;
@@ -48,10 +59,8 @@ export class QuoteService {
 
         if(ShipmentType.COURIER_PACK  === dto.shipmentType || ShipmentType.PACKAGE === dto.shipmentType) quote.signature = signature;
 
-        em.persist(quote);
-
-        /* -------------------- ADDRESSES -------------------- */
-        if (dto.addresses?.length) {
+        //6) Construct shipping address and shipping address meta entities and start populating 
+        if(dto.addresses?.length) {
             for (const addrDto of dto.addresses) {
                 const shippingAddress = new ShippingAddress();
                 const shippingAddressMeta = new ShippingAddressMeta();
@@ -59,13 +68,14 @@ export class QuoteService {
                 shippingAddress.type = addrDto.type;
                 shippingAddress.quote = quote;
 
-                // Address book vs manual address (mutually exclusive)
+                //7) Check for address book entry
                 if (addrDto.addressBookId) {
                     shippingAddress.addressBookEntry = em.getReference(
                         AddressBook,
                         addrDto.addressBookId
                     );
                 } else {
+                    //8) Construct address entity and start populating
                     const address = new Address();
 
                     address.address1 = addrDto.address1!;
@@ -87,10 +97,10 @@ export class QuoteService {
                     }
                 }
 
-                // Meta rules
+                //9) Handle shipping address meta fields
                 if (
                     dto.quoteType !== 'SPOT' &&
-                    dto.shipmentType === ShipmentType.FTL
+                    dto.shipmentType === ShipmentType.STANDARD_FTL
                 ) {
                     shippingAddressMeta.includeStraps =
                         addrDto.includeStraps ?? null;
@@ -109,35 +119,52 @@ export class QuoteService {
             }
         }
 
-        /* -------------------- LINE ITEMS -------------------- */
-        if (dto.lineItem) {
+        //10) Construct line item entity and start populating
+        if(dto.lineItem) {
             const lineItem = new LineItem();
 
             lineItem.quote = quote;
             lineItem.type = dto.lineItem.type;
-            lineItem.dangerousGoods = dto.lineItem.dangerousGoods ?? null;
+            if(ShipmentType.PACKAGE){
+                 lineItem.dangerousGoods = dto.lineItem.dangerousGoods ?? null;
+            }
             lineItem.description = dto.lineItem.description ?? null;
             em.persist(lineItem);
 
             for (const unitDto of dto.lineItem.units) {
+                //11) Construct line item unit entity and start populating
                 const unit = new LineItemUnit();
 
                 unit.lineItem = lineItem;
-                unit.quantity = unitDto.quantity ?? null;
-                unit.length = unitDto.length ?? null;
-                unit.width = unitDto.width ?? null;
-                unit.height = unitDto.height ?? null;
-                unit.weight = unitDto.weight ?? null;
-                unit.freightClass = unitDto.freightClass ?? null;
-                unit.nmfc = unitDto.nmfc ?? null;
-                unit.stackable = unitDto.stackable ?? null;
+                if([ShipmentType.PACKAGE, ShipmentType.PALLET].includes(dto.shipmentType)){
+                    unit.length = unitDto.length ?? null;
+                    unit.width = unitDto.width ?? null;
+                    unit.height = unitDto.height ?? null;
+                }
+
+                if(dto.shipmentType === ShipmentType.COURIER_PACK) {
+                    unit.quantity = unitDto.quantity ?? null;
+                    unit.weight = unitDto.weight ?? null;
+                }
+
+                if([ShipmentType.COURIER_PACK, ShipmentType.PACKAGE].includes(dto.shipmentType)){
+                    unit.description = unitDto.description ?? null;
+                }
+
+               
+                if(ShipmentType.PALLET){
+                    unit.freightClass = unitDto.freightClass ?? null;
+                    unit.nmfc = unitDto.nmfc ?? null;
+                    unit.stackable = unitDto.stackable ?? null;
+                    unit.unitsOnPallet = unitDto.unitsOnPallet ?? null;
+                }
 
                 em.persist(unit);
             }
         }
 
-        /* -------------------- INSURANCE -------------------- */
-        if (dto.insurance) {
+        //12) Construct insurance entity and start populating
+        if(dto.insurance) {
             const insurance = new Insurance();
 
             insurance.quote = quote;
@@ -147,8 +174,8 @@ export class QuoteService {
             em.persist(insurance);
         }
 
-        /* -------------------- SPOT DETAILS -------------------- */
-        if (dto.spotDetails) {
+        //13) Construct spot details entity and start populating
+        if(dto.quoteType === QuoteType.SPOT && dto.spotDetails) {
             const spot = new SpotDetails();
             const spotEquipment = new SpotEquipment();
             const spotContact = new SpotContact();
@@ -178,10 +205,35 @@ export class QuoteService {
             em.persist([spot, spotContact, spotEquipment]);
         }
 
-        /* -------------------- FINAL FLUSH -------------------- */
+        if (dto.services && ![ShipmentType.COURIER_PACK, ShipmentType.PACKAGE, ShipmentType.TIME_CRITICAL].includes(dto.shipmentType)) {
+            const shipmentTypeToServicesSchemaMapping = {
+                "PALLET": PalletServices,
+                "STANDARD_FTL": StandardFtlServices,
+                "SPOT_LTL": SpotLtlServices,
+                "SPOT_FTL": SpotFtlServices
+            };
+
+            const ServiceEntity = shipmentTypeToServicesSchemaMapping[dto.shipmentType];
+            const serviceSchema = new ServiceEntity();
+
+            for (let service of Object.keys(dto.services)) {
+                serviceSchema[service] = dto.services[service];
+            }
+
+            if(dto.shipmentType === ShipmentType.PALLET) quote.palletServices = serviceSchema;
+            if(dto.shipmentType === ShipmentType.SPOT_FTL) quote.spotFtlServices = serviceSchema;
+            if(dto.shipmentType === ShipmentType.SPOT_LTL) quote.spotLtlServices = serviceSchema;
+            if(dto.shipmentType === ShipmentType.STANDARD_FTL) quote.standardFTLService = serviceSchema;
+
+            em.persist(quote);
+        }
+
+
+        //14) Persist (save) all entities
         await em.flush();
 
-        return quote;
+        //15) Return back success response
+        return { message: "Quote created successfully" }
     }
 
     async getSingleAgainstCurrentUser(quoteId: number, currentUserId: number){
@@ -284,5 +336,41 @@ export class QuoteService {
                 sort: orderBy
             }
         };
+    }
+
+    async deleteSingleAgainstCurrentUser(quoteId: number, currentUserId: number){
+        //1) Get the user reference
+        const user = this.em.getReference(User, currentUserId);
+
+        //2) Check for valid quote
+        const quote = await this.em.findOne(Quote, { id: quoteId, createdBy: user },
+            {
+                populate: [
+                    'lineItems',
+                    'lineItems.units',
+                    'spotDetails',
+                    'insurance',
+                    'signature',
+                    'standardFTLService',
+                    'palletServices',
+                    'spotFtlServices',
+                    'spotLtlServices',
+                    'userMeta',
+                    'addresses'
+                ]
+            }
+        );
+        
+        //3) Throw error for invalid quote
+        if(!quote){
+            throw new NotFoundException("Quote not found or you are not allowed to access this resource.");
+        }
+
+        //4) Delete quote
+        this.em.remove(quote)
+        await this.em.flush();
+        
+        //5) Return back success response
+        return { message: 'Quote deleted successfully' };
     }
 }

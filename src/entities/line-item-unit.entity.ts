@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, ManyToOne, Property } from "@mikro-orm/core";
+import { Entity, PrimaryKey, ManyToOne, Property, Cascade } from "@mikro-orm/core";
 import { LineItem } from "./line-item.entity";
 
 @Entity()
@@ -7,7 +7,7 @@ export class LineItemUnit {
   @PrimaryKey()
   id!: number;
 
-  @ManyToOne(() => LineItem, { hidden: true })
+  @ManyToOne(() => LineItem, { hidden: true , cascade: [Cascade.REMOVE],})
   lineItem!: LineItem;
 
   // Common fields (only include what's truly shared)
@@ -37,6 +37,11 @@ export class LineItemUnit {
 
   // Pallet-specific
   @Property({ nullable: true })
-  nmfc?: string | null ;
+  nmfc?: string | null;
 
+  @Property({ nullable: true })
+  description?: string | null;
+
+  @Property({ nullable: true })
+  unitsOnPallet?: number | null;
 }

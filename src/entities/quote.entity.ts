@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, Enum, Property, OneToMany, Collection, OneToOne, ManyToOne, BeforeCreate } from "@mikro-orm/core";
+import { Entity, PrimaryKey, Enum, Property, OneToMany, Collection, OneToOne, ManyToOne, BeforeCreate, Cascade } from "@mikro-orm/core";
 import { Currency } from "src/common/enum/currency.enum";
 import { QuoteType } from "src/common/enum/quote-type.enum";
 import { ShipmentType } from "src/common/enum/shipment-type.enum";
@@ -7,10 +7,10 @@ import { LineItem } from "./line-item.entity";
 import { ShippingAddress } from "./shipping-address.entity";
 import { SpotDetails } from "./spot-details.entity";
 import { Signature } from "./signature.entity";
-import { StandardPalletServices } from "./standard-pallet-services.entity";
+import { PalletServices } from "./pallet-services.entity";
 import { SpotFtlServices } from "./spot-ftl-services.entity";
 import { SpotLtlServices } from "./spot-ltl-services.entity";
-import { StandardFTLServices } from "./standard-ftl-services.entity";
+import { StandardFtlServices } from "./standard-ftl-services.entity";
 import { User } from "./user.entity";
 import { QuoteUserMeta } from "./quote-user-meta.entity";
 import { randomBytes } from "crypto";
@@ -68,31 +68,27 @@ export class Quote {
   signature?: Signature | null;
 
    /* -------------------- SERVICES -------------------- */
-   @OneToOne(() => StandardFTLServices, standardFTL => standardFTL.quote, {
+   @OneToOne(() => StandardFtlServices, standardFTL => standardFTL.quote, {
     nullable: true,
     mappedBy: 'quote',
-    orphanRemoval: true,
   })
-  standardFTLService?: StandardFTLServices;
+  standardFTLService?: StandardFtlServices;
 
-  @OneToOne(() => StandardPalletServices, pallet => pallet.quote, {
+  @OneToOne(() => PalletServices, pallet => pallet.quote, {
     nullable: true,
     mappedBy: 'quote',
-    orphanRemoval: true,
   })
-  palletServices?: StandardPalletServices;
+  palletServices?: PalletServices;
 
   @OneToOne(() => SpotFtlServices, spotFTL => spotFTL.quote, {
     nullable: true,
     mappedBy: 'quote',
-    orphanRemoval: true,
   })
   spotFtlServices?: SpotFtlServices;
 
   @OneToOne(() => SpotLtlServices, spotLTL => spotLTL.quote, {
     nullable: true,
     mappedBy: 'quote',
-    orphanRemoval: true,
   })
   spotLtlServices?: SpotLtlServices;
 }

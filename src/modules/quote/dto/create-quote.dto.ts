@@ -16,8 +16,8 @@ import { Currency } from 'src/common/enum/currency.enum';
 import { AddressType } from 'src/common/enum/address-type.enum';
 import { SpotFtlServices } from 'src/entities/spot-ftl-services.entity';
 import { SpotLtlServices } from 'src/entities/spot-ltl-services.entity';
-import { StandardFTLServices } from 'src/entities/standard-ftl-services.entity';
-import { StandardPalletServices } from 'src/entities/standard-pallet-services.entity';
+import { StandardFtlServices } from 'src/entities/standard-ftl-services.entity';
+import { PalletServices } from 'src/entities/pallet-services.entity';
 
 /* ---------------- ADDRESS ---------------- */
 
@@ -113,6 +113,10 @@ export class CreateLineItemUnitDto {
   @IsOptional()
   @IsNumber()
   unitsOnPallet?: number;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
 }
 
 /* ---------------- LINE ITEM ---------------- */
@@ -207,5 +211,5 @@ export class CreateQuoteDTO {
   spotDetails?: CreateSpotDetailsDto;
 
   @IsOptional()
-  services?: SpotFtlServices | SpotLtlServices | StandardFTLServices | StandardPalletServices;
+  services?: SpotFtlServices | SpotLtlServices | StandardFtlServices | PalletServices;
 }

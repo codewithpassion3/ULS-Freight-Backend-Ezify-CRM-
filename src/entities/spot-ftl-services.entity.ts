@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, Property, OneToOne } from "@mikro-orm/core";
+import { Entity, PrimaryKey, Property, OneToOne, Cascade } from "@mikro-orm/core";
 import { Quote } from "./quote.entity";
 
 @Entity()
@@ -14,6 +14,7 @@ export class SpotFtlServices {
 
   @OneToOne(() => Quote, {
     owner: true,
+    cascade: [Cascade.REMOVE],
   })
   quote!: Quote;
 }

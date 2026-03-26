@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, OneToOne, Enum, OneToMany } from "@mikro-orm/core";
+import { Entity, PrimaryKey, OneToOne, Enum, OneToMany, Cascade } from "@mikro-orm/core";
 import { Quote } from "./quote.entity";
 import { SpotType } from "src/common/enum/spot-type.enum";
 import { SpotContact } from "./spot-contact.entity";
@@ -10,7 +10,7 @@ export class SpotDetails {
   @PrimaryKey()
   id!: number;
 
-  @OneToOne(() => Quote)
+  @OneToOne(() => Quote, {cascade: [Cascade.REMOVE]})
   quote!: Quote;
 
   @Enum(() => SpotType)

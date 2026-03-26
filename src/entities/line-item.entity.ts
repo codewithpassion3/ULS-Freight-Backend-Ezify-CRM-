@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, ManyToOne, Enum, OneToMany, Collection, OneToOne, Property } from "@mikro-orm/core";
+import { Entity, PrimaryKey, ManyToOne, Enum, OneToMany, Collection, OneToOne, Property, Cascade } from "@mikro-orm/core";
 import { Quote } from "./quote.entity";
 import { ShipmentType } from "src/common/enum/shipment-type.enum";
 import { LineItemUnit } from "./line-item-unit.entity";
@@ -8,7 +8,7 @@ export class LineItem {
   @PrimaryKey()
   id!: number;
 
-  @OneToOne(() => Quote, { owner: true, hidden: true })
+  @OneToOne(() => Quote, { owner: true, hidden: true, cascade: [Cascade.REMOVE] })
   quote!: Quote;
 
   @Enum(() => ShipmentType)
