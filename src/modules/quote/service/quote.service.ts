@@ -18,6 +18,8 @@ import { SpotEquipment } from "src/entities/spot-equipment.entity";
 import { SpotContact } from "src/entities/spot-contact.entity";
 import { EquipmentType } from "src/common/enum/equipment-type.enum";
 import { User } from "src/entities/user.entity";
+import { PaginationParams } from "src/types/pagination";
+import { buildQuery } from "src/utils/api-query";
 
 @Injectable()
 export class QuoteService {
@@ -203,5 +205,84 @@ export class QuoteService {
             message: "Successfully retrieved quote",
             quote
         }
+    }
+
+    async getAllAgainstCurrentUser(currentUser: number, params: PaginationParams) {
+        //1) Define fields allowed for search and filter by oder
+       const allowedFields = {
+            quoteNumber: "quoteNumber",
+            shipmentType: "shipmentType",
+            status: "status",
+            createdAt: "createdAt",
+        };
+
+        //2) Pass query params and allowed field to build query pagination params
+        const { search, page, limit, orderBy } = buildQuery(params, allowedFields);
+        
+        //3) Build filter for query
+        const filter: any = { createdBy: this.em.getReference(User, currentUser) };
+
+        //4) Handle search
+        if (search) {
+            filter.quoteNumber = { $ilike: `${search}%` };
+        }
+
+        //5) Handle shipment type filter
+        if (params.shipmentType) {
+            filter.shipmentType = params.shipmentType;
+        }
+
+        //6) Handle Date range filter
+        if (params.dateFrom || params.dateTo) {
+            filter.createdAt = {};
+            if (params.dateFrom) filter.createdAt.$gte = new Date(params.dateFrom);
+            if (params.dateTo) filter.createdAt.$lte = new Date(params.dateTo);
+        }
+
+        //7) Count total quotes and pages
+        const total = await this.em.count(Quote, filter);
+        const totalPages = Math.ceil(total / limit) || 1;
+
+        //8) Clamp page based on total page and default page limit
+        const clampedPage = Math.min(page, totalPages);
+        const offset = (page - 1) * limit;
+
+        //9) Fetch data with all requested relations
+        const quotes = await this.em.find(
+            Quote,
+            filter,
+            {
+                limit,
+                offset,
+                orderBy: Object.entries(orderBy).map(([field, direction]) => ({ [field]: direction })),
+                populate: [
+                    "addresses",
+                    "addresses.addressBookEntry",
+                    "lineItems",
+                    "lineItems.units",
+                    "palletServices",
+                    "spotFtlServices",
+                    "spotLtlServices",
+                    "standardFTLService",
+                    "signature",
+                    "spotDetails"
+                ]
+            }
+        );
+
+        //10) Return success response
+        return {
+            message: "Quotes retrieved successfully",
+            data: quotes,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages,
+                hasNextPage: clampedPage < totalPages,
+                hasPrevPage: clampedPage > 1,
+                sort: orderBy
+            }
+        };
     }
 }
