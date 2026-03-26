@@ -11,6 +11,7 @@ import { UserAddressBookUsage } from "src/entities/user-address-book-usage.entit
 import { UpdateAddressBook } from "../dto/update-address-book.dto";
 import { plainToInstance } from "class-transformer";
 import { AddressBookResponseDto } from "../dto/address-book.dto";
+import { buildQuery } from "src/utils/api-query";
 
 @Injectable()
 export class AddressBookService {
@@ -84,20 +85,8 @@ export class AddressBookService {
         currentUserId: number,
         params: Record<string, any>
     ) {
-        //1) Parse params
-        const search = params.search?.trim() || "";
-        
-        const pageNum = Number(params.page);
-        const limitNum = Number(params.limit);
 
-        const requestedPage = Number.isFinite(pageNum) && pageNum > 0 ? pageNum : 1;
-
-        const limit = Number.isFinite(limitNum) && limitNum > 0 ? Math.min(limitNum, 50) : 10;
-
-        //2) Multi-sort param
-        const sortParam = params.sort || "createdAt:desc";
-
-        //3) Allowed fields (API → DB mapping)
+        //1) Specify fields allowed for search and filters
         const allowedFields: Record<string, string> = {
             phoneNumber: "phoneNumber",
             companyName: "companyName",
@@ -105,46 +94,27 @@ export class AddressBookService {
             // address: "address.city" // works if MikroORM can resolve it
         };
 
-        //4) Prepare sort fields
-        const orderBy: Record<string, any> = {};
+        //2) Pass query params and allowed field to build query pagination params
+        const { search, page, limit, orderBy } = buildQuery(params, allowedFields);
 
-        const sortParts = sortParam.split(",");
-
-        for (const part of sortParts) {
-            const [field, directionRaw] = part.split(":");
-
-            if (!allowedFields[field]) continue;
-
-            const direction =
-                (directionRaw || "asc").toLowerCase() === "asc" ? "ASC" : "DESC";
-
-            const mappedField = allowedFields[field];
-
-            orderBy[mappedField] = direction;
-        }
-
-        //5) Fallback
-        if (Object.keys(orderBy).length === 0) {
-            orderBy.createdAt = "DESC";
-        }
-
-        //6) Build filter
+        //3) Build filter query
         const filter: any = { createdBy: this.em.getReference(User, currentUserId) };
 
+        //4) Handle search filter
         if (search) {
             filter.companyName = { $ilike: `${search}%` };
+            console.log("search", search, filter)
         }
 
-        //7) Count total
+        //5) Count total address books and pages
         const total = await this.em.count(AddressBook, filter);
-
         const totalPages = Math.ceil(total / limit) || 1;
 
-        //8) Clamp page
-        const page = Math.min(requestedPage, totalPages);
-        const offset = (page - 1) * limit;
+        //6) Clamp page based on default limit and total address book pages\
+        const clampedPage = Math.min(page, totalPages);
+        const offset = (clampedPage - 1) * limit;
 
-        //9) Fetch data (multi-sort supported here)
+        //7) Fetch data
         const addressBook = await this.em.find(
             AddressBook,
             filter,
@@ -173,7 +143,7 @@ export class AddressBookService {
             }
         );
 
-        //10) Response
+        //10) Return success response
         return {
             message: "Address book contacts retrieved successfully",
             data: addressBook,
@@ -182,8 +152,8 @@ export class AddressBookService {
                 page,
                 limit,
                 totalPages,
-                hasNextPage: page < totalPages,
-                hasPrevPage: page > 1,
+                hasNextPage: clampedPage < totalPages,
+                hasPrevPage: clampedPage > 1,
                 sort: orderBy
             }
         };
@@ -418,20 +388,11 @@ export class AddressBookService {
         //1) Get user reference
         const currentUser = this.em.getReference(User, currentUserId);
 
-        //2) Extract and sanitize query params
-        const num = Number(queryParams.page);
-        let page = Number.isFinite(num) && num > 0 ? num : 1;
-
-        const numLimit = Number(queryParams.limit);
-        let limit = Number.isFinite(numLimit) && numLimit > 0 ? numLimit : 10;
-
-        //3) Safety guards
-        page = Math.max(page, 1);
-        limit = Math.min(Math.max(limit, 1), 50);
-
+        //2) Use buildQuery for pagination (no allowedFields needed)
+        const { page, limit } = buildQuery(queryParams, {});
         const offset = (page - 1) * limit;
-
-        //4) Fetch paginated data
+        
+        //3) Fetch paginated data
         const [recentContacts, total] = await this.em.findAndCount(
             UserAddressBookUsage,
             { user: currentUser },
@@ -460,7 +421,7 @@ export class AddressBookService {
             }
         );
 
-        //5) Return response
+        //4) Return response
         return {
             message: "Recent contacts retrieved successfully",
             data: recentContacts,
