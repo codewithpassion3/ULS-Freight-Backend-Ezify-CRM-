@@ -14,6 +14,10 @@ import { QuoteType } from 'src/common/enum/quote-type.enum';
 import { ShipmentType } from 'src/common/enum/shipment-type.enum';
 import { Currency } from 'src/common/enum/currency.enum';
 import { AddressType } from 'src/common/enum/address-type.enum';
+import { SpotFtlServices } from 'src/entities/spot-ftl-services.entity';
+import { SpotLtlServices } from 'src/entities/spot-ltl-services.entity';
+import { StandardFTLServices } from 'src/entities/standard-ftl-services.entity';
+import { StandardPalletServices } from 'src/entities/standard-pallet-services.entity';
 
 /* ---------------- ADDRESS ---------------- */
 
@@ -105,6 +109,10 @@ export class CreateLineItemUnitDto {
   @IsOptional()
   @IsBoolean()
   stackable?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  unitsOnPallet?: number;
 }
 
 /* ---------------- LINE ITEM ---------------- */
@@ -197,4 +205,7 @@ export class CreateQuoteDTO {
   @ValidateNested()
   @Type(() => CreateSpotDetailsDto)
   spotDetails?: CreateSpotDetailsDto;
+
+  @IsOptional()
+  services?: SpotFtlServices | SpotLtlServices | StandardFTLServices | StandardPalletServices;
 }

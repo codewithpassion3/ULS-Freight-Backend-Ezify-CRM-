@@ -1,7 +1,9 @@
-import { Collection, Entity, ManyToMany, ManyToOne, PrimaryKey, Property } from "@mikro-orm/core";
+import { Collection, Entity, ManyToMany, ManyToOne, OneToMany, PrimaryKey, Property } from "@mikro-orm/core";
 import { Company } from "./company.entity";
 import { Role } from "./role.entity";
 import { Permission } from "./permission.entity";
+import { Quote } from "./quote.entity";
+import { QuoteUserMeta } from "./quote-user-meta.entity";
 
 @Entity()
 export class User{
@@ -70,4 +72,10 @@ export class User{
 
     @ManyToMany(() => Permission, permission => permission.user,{ owner: true})
     permissions = new Collection<Permission>(this)
+
+    @OneToMany(() => Quote, quote => quote.createdBy)
+    quotes = new Collection<Quote>(this)
+
+    @OneToMany(() => QuoteUserMeta, meta => meta.user)
+    quoteMeta = new Collection<QuoteUserMeta>(this);
 }

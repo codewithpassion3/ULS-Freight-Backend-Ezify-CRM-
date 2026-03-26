@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, Enum, Property, OneToMany, Collection, OneToOne } from "@mikro-orm/core";
+import { Entity, PrimaryKey, Enum, Property, OneToMany, Collection, OneToOne, ManyToOne, BeforeCreate } from "@mikro-orm/core";
 import { Currency } from "src/common/enum/currency.enum";
 import { QuoteType } from "src/common/enum/quote-type.enum";
 import { ShipmentType } from "src/common/enum/shipment-type.enum";
@@ -11,12 +11,23 @@ import { StandardPalletServices } from "./standard-pallet-services.entity";
 import { SpotFtlServices } from "./spot-ftl-services.entity";
 import { SpotLtlServices } from "./spot-ltl-services.entity";
 import { StandardFTLServices } from "./standard-ftl-services.entity";
+import { User } from "./user.entity";
+import { QuoteUserMeta } from "./quote-user-meta.entity";
+import { randomBytes } from "crypto";
 
 @Entity()
 export class Quote {
   @PrimaryKey()
   id!: number;
 
+  @Property({ unique: true })
+  quoteId!: string;
+
+  @BeforeCreate()
+  generateQuoteId() {
+    this.quoteId = randomBytes(4).toString('hex').toUpperCase();
+  }
+  
   @Enum(() => QuoteType)
   quoteType!: QuoteType;
 
@@ -34,7 +45,13 @@ export class Quote {
 
   @Property({ onCreate: () => new Date(), onUpdate: () => new Date() })
   updatedAt = new Date();
+  
+  @ManyToOne(() => User)
+  createdBy! : User;
 
+  @OneToMany(() => QuoteUserMeta, meta => meta.quote)
+  userMeta = new Collection<QuoteUserMeta>(this);
+  
   @OneToMany(() => ShippingAddress, addr => addr.quote)
   addresses = new Collection<ShippingAddress>(this);
 

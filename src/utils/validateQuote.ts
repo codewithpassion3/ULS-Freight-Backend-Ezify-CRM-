@@ -34,6 +34,7 @@ const palletRules: FieldRule[] = [
   { field: 'freightClass', required: true },
   { field: 'nmfc', required: true },
   { field: 'stackable', required: false },
+  { field: 'unitsOnPallet', required: true }
 ];
 
 const courierRules: FieldRule[] = [
@@ -44,20 +45,24 @@ const courierRules: FieldRule[] = [
 
 /* -------------------- UNIT VALIDATION -------------------- */
 
-export function validateUnit(data: any, rules: FieldRule[]): ValidationResult {
+export function validateUnit(
+  data: any,
+  rules: FieldRule[],
+  context?: { unitIndex?: number }
+): ValidationResult {
   const errors: string[] = [];
 
   for (const rule of rules) {
     const value = data[rule.field];
 
-    if (rule.required) {
-      if (value === undefined || value === null || value === '') {
-        errors.push(`${rule.field} is required`);
-      }
+    if (rule.required && (value === undefined || value === null || value === '')) {
+      const prefix = context?.unitIndex !== undefined ? `Line Item Unit #${context.unitIndex + 1}: ` : '';
+      errors.push(`${prefix}${rule.field} is required`);
     }
 
     if (rule.condition && !rule.condition(data)) {
-      errors.push(`${rule.field} failed conditional validation`);
+      const prefix = context?.unitIndex !== undefined ? `Line Item Unit #${context.unitIndex + 1}: ` : '';
+      errors.push(`${prefix}${rule.field} failed conditional validation`);
     }
   }
 
@@ -120,6 +125,10 @@ export function validateQuote(dto: CreateQuoteDTO): ValidationResult {
     if (!dto.lineItem.units?.length) {
       errors.push(`At least one unit is required for ${dto.shipmentType}`);
     }
+
+    if (dto.lineItem.type !== dto.shipmentType) {
+      errors.push(`Line item type (${dto.lineItem.type}) must match shipment type (${dto.shipmentType})`);
+    }
   }
 
   // NOT ALLOWED
@@ -134,11 +143,41 @@ export function validateQuote(dto: CreateQuoteDTO): ValidationResult {
   if (dto.lineItem?.units?.length) {
     const rules = getRules(dto.shipmentType);
 
-    for (const unit of dto.lineItem.units) {
-      const result = validateUnit(unit, rules);
+    dto.lineItem.units.forEach((unit, idx) => {
+      const result = validateUnit(unit, rules, { unitIndex: idx });
       errors.push(...result.errors);
-    }
+    });
   }
+
+  /* -------------------- SERVICES VALIDATION -------------------- */
+  const services = dto.services || {};
+
+  // Map required services per shipment type
+  const requiredServiceFields: Record<ShipmentType, string[]> = {
+    [ShipmentType.PALLET]: ['limitedAccess', 'appointmentDelivery', 'thresholdDelivery', 'thresholdPickup'],
+    [ShipmentType.FTL]: ['looseFreight', 'pallets'],
+    [ShipmentType.LTL]: ['inbound', 'protectFromFreeze', 'limitedAccess'],
+    [ShipmentType.PACKAGE]: [],
+    [ShipmentType.COURIER_PACK]: [],
+    [ShipmentType.TIME_CRITICAL]: [],
+  };
+
+  // Check required services
+  const requiredFields = requiredServiceFields[dto.shipmentType] || [];
+  requiredFields.forEach(field => {
+    if (services[field] === undefined) {
+      errors.push(`${field} is required for ${dto.shipmentType} shipments`);
+    }
+  });
+
+  // Validate boolean fields
+  Object.entries(services).forEach(([field, value]) => {
+    if (typeof value !== 'boolean') {
+      errors.push(`services field "${field}" must be boolean`);
+    }
+  });
+
+    
 
   return {
     valid: errors.length === 0,

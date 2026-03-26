@@ -17,18 +17,16 @@ import { ShippingAddressMeta } from "src/entities/shipping-address-meta.entity";
 import { SpotEquipment } from "src/entities/spot-equipment.entity";
 import { SpotContact } from "src/entities/spot-contact.entity";
 import { EquipmentType } from "src/common/enum/equipment-type.enum";
+import { User } from "src/entities/user.entity";
 
 @Injectable()
 export class QuoteService {
     constructor(private readonly em: EntityManager) {}
 
-
     async create(dto: CreateQuoteDTO, currentUserId: number) {
         const { valid, errors } = validateQuote(dto);
-        if (!valid) {
-            throw new BadRequestException(`Invalid create quote payload for shipment type ${dto.shipmentType}`);
-        }
-
+        
+        if (!valid) { throw new BadRequestException(errors); }
         const em = this.em.fork();
 
         let signature: Signature | null = null;
@@ -44,6 +42,7 @@ export class QuoteService {
         const quote = new Quote();
         quote.quoteType = dto.quoteType;
         quote.shipmentType = dto.shipmentType;
+        quote.createdBy = em.getReference(User, currentUserId);
 
         if(ShipmentType.COURIER_PACK  === dto.shipmentType || ShipmentType.PACKAGE === dto.shipmentType) quote.signature = signature;
 
