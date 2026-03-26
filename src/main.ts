@@ -57,7 +57,8 @@ async function bootstrap() {
     app.enableCors({
       origin:  [
         getEnv(ENV.NG_ROK_ORIGIN_FRONTEND),
-        getEnv(ENV.LOCALHOST_ORIGIN)     
+        getEnv(ENV.LOCALHOST_ORIGIN),
+        getEnv(ENV.LIVE_ORIGIN_FRONTEND)     
       ],
       credentials: true,
       methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
