@@ -22,8 +22,8 @@ export class SessionAuthGuard implements CanActivate {
             User,
             { id: userId },
             {
-                populate: ["role", "company"],
-                fields: ["id", "role.name", "company.id"],
+                populate: ["role", "company", "permissions"],
+                fields: ["id", "role.name", "company.id", "permissions"],
             }
         );
 
@@ -39,6 +39,7 @@ export class SessionAuthGuard implements CanActivate {
         request.session.userId = user.id;
         request.session.role = user.role.name;
         request.session.companyId = user.company.id;
+        request.session.permissions =  user.permissions.getItems().map(p => p.name);
 
         return true;
     }

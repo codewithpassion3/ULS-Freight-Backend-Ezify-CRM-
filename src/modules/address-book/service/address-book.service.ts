@@ -115,7 +115,7 @@ export class AddressBookService {
         const offset = (clampedPage - 1) * limit;
 
         //7) Fetch data
-        const addressBook = await this.em.find(
+        let addressBook = await this.em.find(
             AddressBook,
             filter,
             {
@@ -130,6 +130,7 @@ export class AddressBookService {
                     "contactId", 
                     "contactName",
                     "phoneNumber",
+                    "locationType",
                     "defaultInstructions",
                     "email",
                     "address.address1",
@@ -143,10 +144,14 @@ export class AddressBookService {
             }
         );
 
+       const result = addressBook.map(item => plainToInstance(AddressBookResponseDto, item, {
+                            excludeExtraneousValues: true,
+                        })
+                    );
         //10) Return success response
         return {
             message: "Address book contacts retrieved successfully",
-            data: addressBook,
+            data: result,
             meta: {
                 total,
                 page,

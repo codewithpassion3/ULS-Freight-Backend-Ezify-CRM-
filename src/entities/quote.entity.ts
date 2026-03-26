@@ -35,9 +35,6 @@ export class Quote {
   shipmentType!: ShipmentType;
 
   @Property({ nullable: true })
-  knownShipper?: boolean | null;
-
-  @Property({ nullable: true })
   description?: string | null;
 
   @Property({ onCreate: () => new Date() })
@@ -49,10 +46,10 @@ export class Quote {
   @ManyToOne(() => User)
   createdBy! : User;
 
-  @OneToMany(() => QuoteUserMeta, meta => meta.quote)
+  @OneToMany(() => QuoteUserMeta, meta => meta.quote, { cascade: [Cascade.REMOVE] })
   userMeta = new Collection<QuoteUserMeta>(this);
   
-  @OneToMany(() => ShippingAddress, addr => addr.quote)
+  @OneToMany(() => ShippingAddress, addr => addr.quote, { cascade: [Cascade.REMOVE] })
   addresses = new Collection<ShippingAddress>(this);
 
   @OneToOne(() => LineItem, item => item.quote, { nullable: true, mappedBy: 'quote' })
@@ -64,11 +61,11 @@ export class Quote {
   @OneToOne(() => Insurance, ins => ins.quote, { nullable: true })
   insurance?: Insurance;
 
-  @OneToOne(() => Signature, signature => signature.quote, { nullable: true })
+  @OneToOne(() => Signature, { nullable: true })
   signature?: Signature | null;
 
    /* -------------------- SERVICES -------------------- */
-   @OneToOne(() => StandardFtlServices, standardFTL => standardFTL.quote, {
+  @OneToOne(() => StandardFtlServices, standardFTL => standardFTL.quote, {
     nullable: true,
     mappedBy: 'quote',
   })

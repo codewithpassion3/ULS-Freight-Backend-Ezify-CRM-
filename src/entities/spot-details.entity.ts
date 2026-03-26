@@ -16,9 +16,9 @@ export class SpotDetails {
   @Enum(() => SpotType)
   spotType!: SpotType;
 
-  @OneToOne(() => SpotContact)
+  @OneToOne(() => SpotContact, contact => contact.spotDetail)
   spotContact?: SpotContact;
 
-  @OneToMany(() => SpotEquipment, spotEquipment => spotEquipment.spotDetail, { nullable: true })
+  @OneToOne(() => SpotEquipment, eq => eq.spotDetail)
   spotEquipment?: SpotEquipment;
 }

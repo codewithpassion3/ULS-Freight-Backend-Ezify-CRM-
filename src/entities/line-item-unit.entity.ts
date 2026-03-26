@@ -23,19 +23,12 @@ export class LineItemUnit {
   @Property({ nullable: true })
   height?: number | null;
 
-  // Pallet-specific
-  @Property({ nullable: true })
-  stackable?: boolean | null;
-
-  // Package-specific
   @Property({ nullable: true })
   quantity?: number | null;
 
-  // Package-specific
   @Property({ nullable: true })
   freightClass?: string | null;
 
-  // Pallet-specific
   @Property({ nullable: true })
   nmfc?: string | null;
 
@@ -44,4 +37,7 @@ export class LineItemUnit {
 
   @Property({ nullable: true })
   unitsOnPallet?: number | null;
+
+  @Property({ nullable: true })
+  specialHandlingRequired?: boolean | null;
 }

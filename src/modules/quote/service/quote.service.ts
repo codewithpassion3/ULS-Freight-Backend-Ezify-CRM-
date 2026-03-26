@@ -57,6 +57,8 @@ export class QuoteService {
         quote.shipmentType = dto.shipmentType;
         quote.createdBy = em.getReference(User, currentUserId);
 
+        em.persist(quote);
+
         if(ShipmentType.COURIER_PACK  === dto.shipmentType || ShipmentType.PACKAGE === dto.shipmentType) quote.signature = signature;
 
         //6) Construct shipping address and shipping address meta entities and start populating 
@@ -70,10 +72,14 @@ export class QuoteService {
 
                 //7) Check for address book entry
                 if (addrDto.addressBookId) {
-                    shippingAddress.addressBookEntry = em.getReference(
-                        AddressBook,
-                        addrDto.addressBookId
-                    );
+                        //5) Validate address book 
+                    const addressBookEntry = await em.findOne(AddressBook,{ id: addrDto.addressBookId }, { fields: ["id"]})
+                    
+                    if(!addressBookEntry){
+                        throw new NotFoundException("Address book not found, invalid address book id")
+                    }
+
+                    shippingAddress.addressBookEntry = addressBookEntry as AddressBook;
                 } else {
                     //8) Construct address entity and start populating
                     const address = new Address();
@@ -86,31 +92,32 @@ export class QuoteService {
 
                     shippingAddress.address = address;
                     shippingAddress.isResidential = addrDto.isResidential!;
-
                     em.persist(address);
 
-                    if (addrDto.locationType) {
-                        shippingAddress.locationType = em.getReference(
-                            PalletShippingLocationType,
-                            addrDto.locationType
-                        );
+                    if (dto.quoteType === QuoteType.SPOT && addrDto.locationType ) {
+                        const locationEntity = await em.findOne(PalletShippingLocationType, { id: addrDto.locationType });
+
+                        if(!locationEntity){
+                            throw new NotFoundException("Location type not found, invalid location type id")
+                        }
+
+                        shippingAddress.locationType = locationEntity;
                     }
+
+                    if (dto.quoteType === QuoteType.SPOT && addrDto.additionalNotes ) {
+                        shippingAddressMeta.additionalNotes = addrDto.additionalNotes;
+                    }
+
                 }
 
                 //9) Handle shipping address meta fields
-                if (
-                    dto.quoteType !== 'SPOT' &&
-                    dto.shipmentType === ShipmentType.STANDARD_FTL
-                ) {
-                    shippingAddressMeta.includeStraps =
-                        addrDto.includeStraps ?? null;
-                    shippingAddressMeta.appointmentDelivery =
-                        addrDto.appointmentDelivery ?? null;
+                if (dto.quoteType !== 'SPOT' && dto.shipmentType === ShipmentType.STANDARD_FTL) {
+                    shippingAddressMeta.includeStraps = addrDto.includeStraps ?? null;
+                    shippingAddressMeta.appointmentDelivery = addrDto.appointmentDelivery ?? null;
                 }
 
                 if (dto.quoteType === 'SPOT') {
-                    shippingAddressMeta.additionalNotes =
-                        addrDto.additionalNotes ?? null;
+                    shippingAddressMeta.additionalNotes = addrDto.additionalNotes ?? null;
                 }
 
                 shippingAddress.meta = shippingAddressMeta;
@@ -125,10 +132,20 @@ export class QuoteService {
 
             lineItem.quote = quote;
             lineItem.type = dto.lineItem.type;
-            if(ShipmentType.PACKAGE){
-                 lineItem.dangerousGoods = dto.lineItem.dangerousGoods ?? null;
+            
+            if([ShipmentType.COURIER_PACK, ShipmentType.PACKAGE, ShipmentType.PALLET].includes(dto.shipmentType)){
+                    lineItem.measurementUnit = dto.lineItem.measurementUnit;
             }
-            lineItem.description = dto.lineItem.description ?? null;
+
+            if(dto.shipmentType === ShipmentType.PACKAGE || dto.shipmentType === ShipmentType.PALLET){
+                    lineItem.dangerousGoods = dto.lineItem.dangerousGoods ?? null;
+            }
+
+            if(dto.shipmentType === ShipmentType.PALLET){
+                lineItem.stackable = dto.lineItem.stackable ?? null;
+                lineItem.description = dto.lineItem.description ?? null;
+            }
+            
             em.persist(lineItem);
 
             for (const unitDto of dto.lineItem.units) {
@@ -136,26 +153,30 @@ export class QuoteService {
                 const unit = new LineItemUnit();
 
                 unit.lineItem = lineItem;
+                
                 if([ShipmentType.PACKAGE, ShipmentType.PALLET].includes(dto.shipmentType)){
                     unit.length = unitDto.length ?? null;
                     unit.width = unitDto.width ?? null;
                     unit.height = unitDto.height ?? null;
                 }
 
-                if(dto.shipmentType === ShipmentType.COURIER_PACK) {
-                    unit.quantity = unitDto.quantity ?? null;
+                if([ShipmentType.PACKAGE, ShipmentType.COURIER_PACK].includes(dto.shipmentType)){
                     unit.weight = unitDto.weight ?? null;
                 }
 
+
                 if([ShipmentType.COURIER_PACK, ShipmentType.PACKAGE].includes(dto.shipmentType)){
                     unit.description = unitDto.description ?? null;
+                    unit.quantity = unitDto.quantity ?? null;
                 }
 
-               
-                if(ShipmentType.PALLET){
+                if(dto.shipmentType === ShipmentType.PACKAGE) {
+                    unit.specialHandlingRequired = unitDto.specialHandlingRequired ?? null;
+                }
+                
+                if(dto.shipmentType === ShipmentType.PALLET){
                     unit.freightClass = unitDto.freightClass ?? null;
                     unit.nmfc = unitDto.nmfc ?? null;
-                    unit.stackable = unitDto.stackable ?? null;
                     unit.unitsOnPallet = unitDto.unitsOnPallet ?? null;
                 }
 
@@ -176,33 +197,50 @@ export class QuoteService {
 
         //13) Construct spot details entity and start populating
         if(dto.quoteType === QuoteType.SPOT && dto.spotDetails) {
-            const spot = new SpotDetails();
+            const spotDetail = new SpotDetails();
             const spotEquipment = new SpotEquipment();
             const spotContact = new SpotContact();
 
-            spot.quote = quote;
+            spotDetail.quote = quote;
+            spotDetail.spotType = dto.spotDetails.spotType;
+            spotContact.contactName = dto.spotDetails.spotContact.contactName;
+            spotContact.phoneNumber = dto.spotDetails.spotContact.phoneNumber;
+            spotContact.email = dto.spotDetails.spotContact.email;
+            spotContact.shipDate = new Date(dto.spotDetails.spotContact.shipDate);
 
-            spotContact.contactName = dto.spotDetails.contactName;
-            spotContact.phoneNumber = dto.spotDetails.phoneNumber;
-            spotContact.email = dto.spotDetails.email;
-            spotContact.shipDate = new Date(dto.spotDetails.shipDate);
-            spotContact.deliveryDate = new Date(
-                dto.spotDetails.deliveryDate
-            );
-            spotContact.spotQuoteName =
-                dto.spotDetails.spotQuoteName ?? null;
-
-            if (dto.spotDetails.equipmentType) {
-                spotEquipment.type = dto.spotDetails
-                    .equipmentType as EquipmentType;
+            if(dto.shipmentType === ShipmentType.TIME_CRITICAL){
+                spotContact.deliveryDate = new Date(dto.spotDetails.spotContact.deliveryDate);
             }
 
-            quote.knownShipper = dto.spotDetails.knownShipper ?? false;
+            spotContact.spotQuoteName = dto.spotDetails.spotContact.spotQuoteName ?? null;
 
-            spot.spotContact = spotContact;
-            spot.spotEquipment = spotEquipment;
+             if (dto.spotDetails.spotEquipment) {
+                const eq = dto.spotDetails.spotEquipment;
 
-            em.persist([spot, spotContact, spotEquipment]);
+                Object.assign(spotEquipment, {
+                car: eq.car ?? null,
+                dryVan: eq.dryVan ?? null,
+                flatbed: eq.flatbed ?? null,
+                truck: eq.truck ?? null,
+                van: eq.van ?? null,
+                ventilated: eq.ventilated ?? null,
+
+                refrigerated: eq.refrigerated
+                    ? { type: eq.refrigerated.type }
+                    : null,
+
+                nextFlightOut: eq.nextFlightOut
+                    ? { knownShipper: eq.nextFlightOut.knownShipper ?? false }
+                    : null,
+                });
+            }
+
+            spotContact.spotDetail = spotDetail;
+            spotEquipment.spotDetail = spotDetail;
+            spotDetail.spotContact = spotContact;
+            spotDetail.spotEquipment = spotEquipment;
+
+            em.persist([spotDetail, spotContact, spotEquipment]);
         }
 
         if (dto.services && ![ShipmentType.COURIER_PACK, ShipmentType.PACKAGE, ShipmentType.TIME_CRITICAL].includes(dto.shipmentType)) {
@@ -244,7 +282,7 @@ export class QuoteService {
         },{
             populate: ["addresses", "addresses.addressBookEntry","lineItems", "lineItems.units",
                         "palletServices", "spotFtlServices", "spotLtlServices", "standardFTLService", 
-                        "signature", "spotDetails"]
+                        "signature", "spotDetails", "spotDetails.spotContact", "spotDetails.spotEquipment"]
         });
 
         //2) Throw error for invalid quote
@@ -310,6 +348,7 @@ export class QuoteService {
                 populate: [
                     "addresses",
                     "addresses.addressBookEntry",
+                    "addresses.address",
                     "lineItems",
                     "lineItems.units",
                     "palletServices",

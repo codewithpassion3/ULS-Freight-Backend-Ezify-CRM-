@@ -2,6 +2,9 @@ import { Expose, Transform, Type } from "class-transformer";
 
 export class AddressDto {
   @Expose()
+  id: number;
+  
+  @Expose()
   address1: string;
 
   @Expose()
@@ -24,6 +27,9 @@ export class AddressDto {
 }
 
 export class AddressBookResponseDto {
+  @Expose()
+  id: number;
+
   @Expose()
   companyName: string;
 

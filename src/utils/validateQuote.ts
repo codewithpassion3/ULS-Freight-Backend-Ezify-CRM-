@@ -1,13 +1,16 @@
 import { ShipmentType } from "src/common/enum/shipment-type.enum";
 import { CreateQuoteDTO } from "src/modules/quote/dto/create-quote.dto";
 import { validateAddress } from "./validateAddress";
+import { validateSpotDetails } from "./validateSpotDetails";
+import { QuoteType } from "src/common/enum/quote-type.enum";
+import { SpotType } from "src/common/enum/spot-type.enum";
 
-type ValidationResult = {
+interface ValidationResult {
   valid: boolean;
   errors: string[];
 };
 
-type FieldRule = {
+interface FieldRule {
   field: string;
   required: boolean;
   condition?: (data: any) => boolean;
@@ -22,6 +25,7 @@ const packageRules: FieldRule[] = [
   { field: 'height', required: true },
   { field: 'weight', required: true },
   { field: 'description', required: true },
+  { field: 'specialHandlingRequired', required: true}
 ];
 
 const palletRules: FieldRule[] = [
@@ -33,7 +37,7 @@ const palletRules: FieldRule[] = [
   { field: 'freightClass', required: true },
   { field: 'nmfc', required: true },
   { field: 'stackable', required: false },
-  { field: 'unitsOnPallet', required: true }
+  { field: 'unitsOnPallet', required: true },
 ];
 
 const courierRules: FieldRule[] = [
@@ -91,9 +95,41 @@ export function getRules(shipmentType: ShipmentType) {
 export function validateQuote(dto: CreateQuoteDTO): ValidationResult {
   const errors: string[] = [];
 
+  const SPOT_TYPES = [
+    ShipmentType.SPOT_FTL,
+    ShipmentType.SPOT_LTL,
+    ShipmentType.TIME_CRITICAL,
+  ];
+
+  if (dto.quoteType === QuoteType.SPOT && !SPOT_TYPES.includes(dto.shipmentType)) {
+    errors.push('SPOT quote cannot use SPOT shipment types only');
+  }
+
+  if (dto.quoteType === QuoteType.STANDARD && SPOT_TYPES.includes(dto.shipmentType)) {
+    errors.push("STANDARD quote cannot use SPOT shipment types");
+  }
+
+  const SHIPMENT_TO_SPOT_TYPE_MAP = {
+    [ShipmentType.TIME_CRITICAL]: SpotType.TIME_CRITICAL,
+    [ShipmentType.SPOT_FTL]: SpotType.FTL,
+    [ShipmentType.SPOT_LTL]: SpotType.LTL,
+  };
+
+  if (dto.spotDetails) {
+    const expectedSpotType = SHIPMENT_TO_SPOT_TYPE_MAP[dto.shipmentType as ShipmentType];
+
+    if (!expectedSpotType) {
+      errors.push(`Unsupported shipmentType: ${dto.shipmentType}`);
+    } else if (dto.spotDetails.spotType !== expectedSpotType) {
+      errors.push(
+        `spotDetails.spotType must be ${expectedSpotType} for shipmentType ${dto.shipmentType}`
+      );
+    }
+  }
+
   /* -------------------- ADDRESS VALIDATION -------------------- */
   for (const address of dto.addresses ?? []) {
-    errors.push(...validateAddress(address));
+    errors.push(...validateAddress(address, dto.quoteType));
   }
 
   /* -------------------- SIGNATURE RULE -------------------- */
@@ -106,6 +142,10 @@ export function validateQuote(dto: CreateQuoteDTO): ValidationResult {
     errors.push(`Signature is required for ${dto.shipmentType}`);
   }
 
+  if (dto.quoteType === QuoteType.SPOT && dto.signature) {
+    errors.push(`Signatures are not allowed for spot shipments`);
+  }
+
   /* -------------------- LINE ITEM RULES -------------------- */
 
   const requiresLineItem = [
@@ -116,6 +156,7 @@ export function validateQuote(dto: CreateQuoteDTO): ValidationResult {
 
   // REQUIRED
   if (requiresLineItem) {
+
     if (!dto.lineItem) {
       errors.push(`Line item is required for ${dto.shipmentType}`);
       return { valid: false, errors };
@@ -131,11 +172,28 @@ export function validateQuote(dto: CreateQuoteDTO): ValidationResult {
   }
 
   // NOT ALLOWED
-  if (dto.shipmentType === ShipmentType.STANDARD_FTL) {
+  if (dto.shipmentType === ShipmentType.STANDARD_FTL || dto.quoteType === QuoteType.SPOT) {
     if (dto.lineItem) {
-      errors.push(`Line items are not allowed for FTL shipments`);
+      errors.push(`Line items are not allowed for ${dto.shipmentType} shipments`);
     }
   }
+
+  if(dto.shipmentType === ShipmentType.PALLET && !dto.lineItem?.description){
+        errors.push(`Line items for type ${dto.shipmentType} is missing description field`)
+  }
+
+  if([ShipmentType.COURIER_PACK, ShipmentType.PACKAGE, ShipmentType.PALLET].includes(dto.shipmentType) && !dto.lineItem?.measurementUnit){
+      errors.push(`Line items for type ${dto.shipmentType} is missing measurementUnit field`)
+  }
+
+  if(dto.shipmentType === ShipmentType.PALLET && !dto.lineItem?.stackable){
+      errors.push(`Line items for type ${dto.shipmentType} is missing stackable field`)
+  }
+
+  if((dto.shipmentType === ShipmentType.PACKAGE || dto.shipmentType === ShipmentType.PALLET) && dto.lineItem?.dangerousGoods === undefined){
+      errors.push(`Line items for type ${dto.shipmentType} is missing dangerousGoods field`)
+  }
+
 
   /* -------------------- UNIT VALIDATION -------------------- */
 
@@ -146,6 +204,16 @@ export function validateQuote(dto: CreateQuoteDTO): ValidationResult {
       const result = validateUnit(unit, rules, { unitIndex: idx });
       errors.push(...result.errors);
     });
+  }
+
+  /* -------------------- SPOT DETAILS VALIDATION -------------------- */
+
+  if (dto.quoteType === QuoteType.SPOT) {
+    errors.push(...validateSpotDetails(dto.spotDetails, dto.shipmentType));
+  }
+
+  if (dto.quoteType === QuoteType.SPOT && dto.insurance) {
+    errors.push(`Insurance is not allowed for ${dto.quoteType} shipments`);
   }
 
   /* -------------------- SERVICES VALIDATION -------------------- */

@@ -14,7 +14,7 @@ export class ShippingAddress{
     @Enum(() => AddressType)
     type!: AddressType;
 
-    @ManyToOne(() => Quote, { hidden: true, cascade: [Cascade.REMOVE] })
+    @ManyToOne(() => Quote, { hidden: true })
     quote!: Quote;
 
     //Use AddressBook ID if user picks from address book
@@ -22,7 +22,7 @@ export class ShippingAddress{
     addressBookEntry?: AddressBook | null;
 
     //If user inputs manually
-    @OneToOne(() => Address, { nullable: true , cascade: [Cascade.REMOVE]})
+    @OneToOne(() => Address, { nullable: true , owner: true, cascade: [Cascade.REMOVE]})
     address?: Address | null;
 
     //For SPOT quote

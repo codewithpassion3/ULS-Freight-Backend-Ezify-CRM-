@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, OneToOne, Property } from "@mikro-orm/core";
+import { Entity, PrimaryKey, OneToOne, Property, Cascade } from "@mikro-orm/core";
 import { ShippingAddress } from "./shipping-address.entity";
 
 @Entity()
@@ -7,7 +7,7 @@ export class ShippingAddressMeta {
   @PrimaryKey()
   id!: number;
 
-  @OneToOne(() => ShippingAddress, { hidden: true })
+  @OneToOne(() => ShippingAddress, { hidden: true, cascade: [Cascade.REMOVE] })
   shippingAddress!: ShippingAddress;
 
   // Only for FTL / special shipping

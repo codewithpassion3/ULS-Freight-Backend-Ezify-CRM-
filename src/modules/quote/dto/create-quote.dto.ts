@@ -7,9 +7,10 @@ import {
   IsNumber,
   IsString,
   IsBoolean,
+  IsEmail,
+  IsDate,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-
 import { QuoteType } from 'src/common/enum/quote-type.enum';
 import { ShipmentType } from 'src/common/enum/shipment-type.enum';
 import { Currency } from 'src/common/enum/currency.enum';
@@ -18,6 +19,9 @@ import { SpotFtlServices } from 'src/entities/spot-ftl-services.entity';
 import { SpotLtlServices } from 'src/entities/spot-ltl-services.entity';
 import { StandardFtlServices } from 'src/entities/standard-ftl-services.entity';
 import { PalletServices } from 'src/entities/pallet-services.entity';
+import { MeasurementUnits } from 'src/common/enum/measurement-units.enum';
+import { SpotType } from 'src/common/enum/spot-type.enum';
+import { RefrigeratedType } from 'src/common/enum/refrigerated.enum';
 
 /* ---------------- ADDRESS ---------------- */
 
@@ -117,6 +121,14 @@ export class CreateLineItemUnitDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  dangerousGoods?: boolean;
+  
+  @IsOptional()
+  @IsBoolean()
+  specialHandlingRequired?: boolean;
 }
 
 /* ---------------- LINE ITEM ---------------- */
@@ -130,9 +142,16 @@ export class CreateLineItemDto {
   @Type(() => CreateLineItemUnitDto)
   units!: CreateLineItemUnitDto[];
 
+  @IsEnum(MeasurementUnits)
+  measurementUnit!: MeasurementUnits
+  
   @IsOptional()
   @IsBoolean()
   dangerousGoods?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  stackable?: boolean;
 
   @IsOptional()
   @IsString()
@@ -150,30 +169,97 @@ export class CreateInsuranceDto {
 }
 
 /* ---------------- SPOT DETAILS ---------------- */
-
-export class CreateSpotDetailsDto {
+export class CreateSpotContactDto {
+  @IsNotEmpty()
   @IsString()
   contactName!: string;
 
+  @IsNotEmpty()
   @IsString()
   phoneNumber!: string;
 
-  @IsString()
+  @IsNotEmpty()
+  @IsEmail()
   email!: string;
 
-  @IsString()
-  shipDate!: string;
+  @IsNotEmpty()
+  @Type(() => Date)
+  @IsDate()
+  shipDate!: Date;
 
-  @IsString()
-  deliveryDate!: string;
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  deliveryDate!: Date;
 
   @IsOptional()
   @IsString()
   spotQuoteName?: string;
+}
+
+export class RefrigeratedDto {
+  @IsOptional()
+  @IsEnum(RefrigeratedType)
+  type?: RefrigeratedType;
+}
+
+export class NextFlightOutDto {
+  @IsOptional()
+  @IsBoolean()
+  knownShipper?: boolean;
+}
+
+
+export class CreateSpotEquipmentDto {
+  @IsOptional()
+  @IsBoolean()
+  truck?: boolean;
 
   @IsOptional()
-  @IsString()
-  equipmentType?: string;
+  @IsBoolean()
+  car?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  van?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  dryVan?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  flatbed?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  ventilated?: boolean;
+
+  // Nested object
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RefrigeratedDto)
+  refrigerated?: RefrigeratedDto;
+
+  // Nested object
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => NextFlightOutDto)
+  nextFlightOut?: NextFlightOutDto;
+}
+
+export class CreateSpotDetailsDto {
+  @IsNotEmpty()
+  @IsEnum(SpotType)
+  spotType: SpotType;
+
+  @ValidateNested()
+  @Type(() => CreateSpotContactDto)
+  spotContact!: CreateSpotContactDto
+
+  @ValidateNested()
+  @Type(() => CreateSpotEquipmentDto)
+  spotEquipment!: CreateSpotEquipmentDto
 
   @IsOptional()
   @IsBoolean()
@@ -201,7 +287,7 @@ export class CreateQuoteDTO {
   @ValidateNested()
   @Type(() => CreateLineItemDto)
   lineItem?: CreateLineItemDto;
-
+  
   @ValidateNested()
   @Type(() => CreateInsuranceDto)
   insurance?: CreateInsuranceDto;

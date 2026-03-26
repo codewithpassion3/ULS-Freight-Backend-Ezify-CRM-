@@ -10,7 +10,7 @@ export class QuoteUserMeta {
   @ManyToOne(() => User)
   user!: User;
 
-  @ManyToOne(() => Quote, {cascade: [Cascade.REMOVE]})
+  @ManyToOne(() => Quote)
   quote!: Quote;
 
   @Property({ default: false })

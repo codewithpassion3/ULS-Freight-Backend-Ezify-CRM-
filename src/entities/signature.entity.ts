@@ -11,7 +11,4 @@ export class Signature{
 
     @Property({ unique: true })
     name!: string;
-
-    @OneToOne(() => Quote, { nullable: true })
-    quote?: Quote;
 }
