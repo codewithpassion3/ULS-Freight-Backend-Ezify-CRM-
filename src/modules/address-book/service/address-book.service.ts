@@ -157,6 +157,7 @@ export class AddressBookService {
                     "phoneNumber",
                     "defaultInstructions",
                     "email",
+                    "locationType",
                     "address.address1",
                     "address.address2",
                     "address.postalCode",
