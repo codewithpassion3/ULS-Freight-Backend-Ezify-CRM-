@@ -181,4 +181,27 @@ export class QuoteService {
 
         return quote;
     }
+
+    async getSingleAgainstCurrentUser(quoteId: number, currentUserId: number){
+        //1) Get the quote against current user
+        const quote = await this.em.findOne(Quote, {
+            id: quoteId,
+            createdBy: this.em.getReference(User, currentUserId)
+        },{
+            populate: ["addresses", "addresses.addressBookEntry","lineItems", "lineItems.units",
+                        "palletServices", "spotFtlServices", "spotLtlServices", "standardFTLService", 
+                        "signature", "spotDetails"]
+        });
+
+        //2) Throw error for invalid quote
+        if(!quote){
+            throw new BadRequestException("Invalid quote id or you are not allowed to access this resource")
+        }
+
+        //3) Return back success response
+        return {
+            message: "Successfully retrieved quote",
+            quote
+        }
+    }
 }

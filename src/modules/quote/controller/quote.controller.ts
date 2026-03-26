@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Session, UseGuards } from "@nestjs/common";
 import { QuoteService } from "../service/quote.service";
 import { SessionAuthGuard } from "src/guards/sessionAuth.guard";
 import { PermissionsGuard } from "src/guards/permissions.guard";
@@ -13,5 +13,11 @@ export class QuoteController{
     @Post("/")
     async Create(@Body() dto: CreateQuoteDTO, @CurrentUser() currentUserId: number){
         return this.quoteService.create(dto, currentUserId);
+    }
+
+    @UseGuards(SessionAuthGuard, PermissionsGuard)
+    @Get("/:id")
+    async GetSingleAgainstCurrentUser(@Param("id") quoteId: number, @CurrentUser() currentUserId: number){
+        return this.quoteService.getSingleAgainstCurrentUser(quoteId, currentUserId);
     }
 }
