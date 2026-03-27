@@ -12,9 +12,7 @@ export function validateAddress(dto: CreateAddressDto, quoteType: string): strin
       'city',
       'state',
       'country',
-      'postalCode',
-      'locationType',
-      'additionalNotes'
+      'postalCode'
     ];
 
     for (const field of requiredFields) {

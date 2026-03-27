@@ -22,6 +22,7 @@ import { PalletServices } from 'src/entities/pallet-services.entity';
 import { MeasurementUnits } from 'src/common/enum/measurement-units.enum';
 import { SpotType } from 'src/common/enum/spot-type.enum';
 import { RefrigeratedType } from 'src/common/enum/refrigerated.enum';
+import { QuoteStatus } from 'src/common/enum/quote-status';
 
 /* ---------------- ADDRESS ---------------- */
 
@@ -269,6 +270,9 @@ export class CreateSpotDetailsDto {
 /* ---------------- ROOT DTO ---------------- */
 
 export class CreateQuoteDTO {
+  @IsEnum(QuoteStatus)
+  status!: QuoteStatus;
+  
   @IsEnum(QuoteType)
   quoteType!: QuoteType;
 

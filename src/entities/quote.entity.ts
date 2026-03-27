@@ -14,6 +14,8 @@ import { StandardFtlServices } from "./standard-ftl-services.entity";
 import { User } from "./user.entity";
 import { QuoteUserMeta } from "./quote-user-meta.entity";
 import { randomBytes } from "crypto";
+import { QuoteStatus } from "src/common/enum/quote-status";
+import { QuoteFavorite } from "./quote-favorite.entity";
 
 @Entity()
 export class Quote {
@@ -33,6 +35,9 @@ export class Quote {
 
   @Enum(() => ShipmentType)
   shipmentType!: ShipmentType;
+
+  @Enum(() => QuoteStatus)
+  status!: QuoteStatus;
 
   @Property({ nullable: true })
   description?: string | null;
@@ -64,7 +69,10 @@ export class Quote {
   @OneToOne(() => Signature, { nullable: true })
   signature?: Signature | null;
 
-   /* -------------------- SERVICES -------------------- */
+  @OneToMany(() => QuoteFavorite, fav => fav.quote, { cascade: [Cascade.REMOVE] })
+  favorites = new Collection<QuoteFavorite>(this);
+
+  /* -------------------- SERVICES -------------------- */
   @OneToOne(() => StandardFtlServices, standardFTL => standardFTL.quote, {
     nullable: true,
     mappedBy: 'quote',

@@ -1,5 +1,5 @@
 import { EntityManager } from "@mikro-orm/postgresql";
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { CreateQuoteDTO } from "../dto/create-quote.dto";
 import { Quote } from "src/entities/quote.entity";
 import { ShipmentType } from "src/common/enum/shipment-type.enum";
@@ -25,6 +25,8 @@ import { StandardFtlServices } from "src/entities/standard-ftl-services.entity";
 import { SpotLtlServices } from "src/entities/spot-ltl-services.entity";
 import { SpotFtlServices } from "src/entities/spot-ftl-services.entity";
 import { QuoteType } from "src/common/enum/quote-type.enum";
+import { UpdateQuoteDTO } from "../dto/update-quote.dto";
+import { QuoteFavorite } from "src/entities/quote-favorite.entity";
 
 @Injectable()
 export class QuoteService {
@@ -32,7 +34,7 @@ export class QuoteService {
 
     async create(dto: CreateQuoteDTO, currentUserId: number) {
         //1) Validate payload
-        const { valid, errors } = validateQuote(dto);
+        const { valid, errors } = validateQuote(dto, "create");
         
         //2) Throw exception with errors for invalid payload
         if (!valid) { throw new BadRequestException(errors); }
@@ -54,6 +56,7 @@ export class QuoteService {
         //5) Construct quote entity and start populating it
         const quote = new Quote();
         quote.quoteType = dto.quoteType;
+        quote.status = dto.status;
         quote.shipmentType = dto.shipmentType;
         quote.createdBy = em.getReference(User, currentUserId);
 
@@ -274,6 +277,315 @@ export class QuoteService {
         return { message: "Quote created successfully" }
     }
 
+    async update(quoteId: number, dto: UpdateQuoteDTO, currentUserId: number) {
+       
+        const em = this.em.fork();
+
+        // 1) Fetch quote with relations
+        const quote = await em.findOne(
+            Quote,
+            { id: quoteId },
+            {
+                populate: [
+                    "createdBy",
+                    "addresses.address",
+                    "addresses.meta",
+                    "lineItems",
+                    "lineItems.units",
+                    "insurance",
+                    "spotDetails.spotContact",
+                    "spotDetails.spotEquipment",
+                ],
+            }
+        );
+
+        if (!quote) {
+            throw new NotFoundException("Quote not found");
+        }
+
+         const { valid, errors } = validateQuote(dto, "update", quote);
+        console.log({valid, errors})
+        if (!valid) {
+            throw new BadRequestException(errors);
+        }
+
+
+        // 2) Ownership check
+        if (quote.createdBy.id !== currentUserId) {
+            throw new ForbiddenException("You are not allowed to update this quote");
+        }
+
+        // 3) Resolve effective values (VERY IMPORTANT)
+        const effectiveQuoteType = dto.quoteType ?? quote.quoteType;
+        const effectiveShipmentType = dto.shipmentType ?? quote.shipmentType;
+
+        // 4) Update base fields safely
+        if (dto.quoteType !== undefined) {
+            quote.quoteType = dto.quoteType;
+        }
+
+        if (dto.shipmentType !== undefined) {
+            quote.shipmentType = dto.shipmentType;
+        }
+
+        // 5) Signature handling (only if shipmentType is relevant)
+        if (dto.shipmentType !== undefined) {
+            if ([ShipmentType.COURIER_PACK, ShipmentType.PACKAGE].includes(effectiveShipmentType)) {
+                if (!dto.signature) {
+                    throw new BadRequestException("Signature is required for this shipment type");
+                }
+
+                const signature = await em.findOne(Signature, { id: dto.signature });
+
+                if (!signature) {
+                    throw new BadRequestException("Invalid signature id");
+                }
+
+                quote.signature = signature;
+            } else {
+                quote.signature = null;
+            }
+        }
+
+        // -------------------------
+        // 6) Addresses (replace strategy)
+        // -------------------------
+        if (dto.addresses) {
+            for (const addr of quote.addresses) {
+                em.remove(addr);
+            }
+            quote.addresses.removeAll();
+
+            for (const addrDto of dto.addresses) {
+                const shippingAddress = new ShippingAddress();
+                const meta = new ShippingAddressMeta();
+
+                shippingAddress.type = addrDto.type;
+                shippingAddress.quote = quote;
+
+                if (addrDto.addressBookId) {
+                    const addressBook = await em.findOne(AddressBook, { id: addrDto.addressBookId });
+                    if (!addressBook) {
+                        throw new NotFoundException("Address book not found");
+                    }
+                    shippingAddress.addressBookEntry = addressBook;
+                } else {
+                    const address = new Address();
+
+                    address.address1 = addrDto.address1!;
+                    address.city = addrDto.city!;
+                    address.state = addrDto.state!;
+                    address.country = addrDto.country!;
+                    address.postalCode = addrDto.postalCode!;
+
+                    shippingAddress.address = address;
+                    shippingAddress.isResidential = addrDto.isResidential!;
+
+                    em.persist(address);
+
+                    // Spot-specific
+                    if (effectiveQuoteType === QuoteType.SPOT && addrDto.additionalNotes) {
+                        meta.additionalNotes = addrDto.additionalNotes;
+                    }
+                }
+
+                // Standard FTL meta
+                if (
+                    effectiveQuoteType !== QuoteType.SPOT &&
+                    effectiveShipmentType === ShipmentType.STANDARD_FTL
+                ) {
+                    meta.includeStraps = addrDto.includeStraps ?? null;
+                    meta.appointmentDelivery = addrDto.appointmentDelivery ?? null;
+                }
+
+                shippingAddress.meta = meta;
+
+                em.persist([shippingAddress, meta]);
+                quote.addresses.add(shippingAddress);
+            }
+        }
+
+        // -------------------------
+        // 7) Line Item (replace)
+        // -------------------------
+        if (dto.lineItem) {
+            if (quote.lineItems) {
+                em.remove(quote.lineItems);
+            }
+
+            const lineItem = new LineItem();
+            lineItem.quote = quote;
+            lineItem.type = dto.lineItem.type;
+
+            if (
+                [ShipmentType.COURIER_PACK, ShipmentType.PACKAGE, ShipmentType.PALLET].includes(
+                    effectiveShipmentType
+                )
+            ) {
+                lineItem.measurementUnit = dto.lineItem.measurementUnit;
+            }
+
+            if (
+                [ShipmentType.PACKAGE, ShipmentType.PALLET].includes(effectiveShipmentType)
+            ) {
+                lineItem.dangerousGoods = dto.lineItem.dangerousGoods ?? null;
+            }
+
+            if (effectiveShipmentType === ShipmentType.PALLET) {
+                lineItem.stackable = dto.lineItem.stackable ?? null;
+                lineItem.description = dto.lineItem.description ?? null;
+            }
+
+            em.persist(lineItem);
+
+            for (const unitDto of dto.lineItem.units) {
+                const unit = new LineItemUnit();
+                unit.lineItem = lineItem;
+
+                if ([ShipmentType.PACKAGE, ShipmentType.PALLET].includes(effectiveShipmentType)) {
+                    unit.length = unitDto.length ?? null;
+                    unit.width = unitDto.width ?? null;
+                    unit.height = unitDto.height ?? null;
+                }
+
+                if (
+                    [ShipmentType.COURIER_PACK, ShipmentType.PACKAGE].includes(effectiveShipmentType)
+                ) {
+                    unit.weight = unitDto.weight ?? null;
+                    unit.quantity = unitDto.quantity ?? null;
+                    unit.description = unitDto.description ?? null;
+                }
+
+                if (effectiveShipmentType === ShipmentType.PACKAGE) {
+                    unit.specialHandlingRequired = unitDto.specialHandlingRequired ?? null;
+                }
+
+                if (effectiveShipmentType === ShipmentType.PALLET) {
+                    unit.freightClass = unitDto.freightClass ?? null;
+                    unit.nmfc = unitDto.nmfc ?? null;
+                    unit.unitsOnPallet = unitDto.unitsOnPallet ?? null;
+                }
+
+                em.persist(unit);
+            }
+        }
+
+        // -------------------------
+        // 8) Insurance (upsert)
+        // -------------------------
+        if (dto.insurance) {
+            if (!quote.insurance) {
+                const insurance = new Insurance();
+                insurance.quote = quote;
+                quote.insurance = insurance;
+                em.persist(insurance);
+            }
+
+            quote.insurance.amount = dto.insurance.amount;
+            quote.insurance.currency = dto.insurance.currency;
+        }
+
+        // -------------------------
+        // 9) Spot Details
+        // -------------------------
+        if (effectiveQuoteType === QuoteType.SPOT && dto.spotDetails) {
+            let spotDetail = quote.spotDetails;
+
+            if (!spotDetail) {
+                spotDetail = new SpotDetails();
+                spotDetail.quote = quote;
+            }
+
+            spotDetail.spotType = dto.spotDetails.spotType;
+
+            // Contact
+            const contact = spotDetail.spotContact ?? new SpotContact();
+
+            contact.contactName = dto.spotDetails.spotContact.contactName;
+            contact.phoneNumber = dto.spotDetails.spotContact.phoneNumber;
+            contact.email = dto.spotDetails.spotContact.email;
+            contact.shipDate = new Date(dto.spotDetails.spotContact.shipDate);
+
+            if (effectiveShipmentType === ShipmentType.TIME_CRITICAL) {
+                contact.deliveryDate = new Date(dto.spotDetails.spotContact.deliveryDate);
+            }
+
+            contact.spotQuoteName = dto.spotDetails.spotContact.spotQuoteName ?? null;
+
+            // Equipment
+            const equipment = spotDetail.spotEquipment ?? new SpotEquipment();
+
+            if (dto.spotDetails.spotEquipment) {
+                const eq = dto.spotDetails.spotEquipment;
+
+                Object.assign(equipment, {
+                    car: eq.car ?? null,
+                    dryVan: eq.dryVan ?? null,
+                    flatbed: eq.flatbed ?? null,
+                    truck: eq.truck ?? null,
+                    van: eq.van ?? null,
+                    ventilated: eq.ventilated ?? null,
+                    refrigerated: eq.refrigerated ? { type: eq.refrigerated.type } : null,
+                    nextFlightOut: eq.nextFlightOut
+                        ? { knownShipper: eq.nextFlightOut.knownShipper ?? false }
+                        : null,
+                });
+            }
+
+            contact.spotDetail = spotDetail;
+            equipment.spotDetail = spotDetail;
+
+            spotDetail.spotContact = contact;
+            spotDetail.spotEquipment = equipment;
+
+            em.persist([spotDetail, contact, equipment]);
+        } else if (quote.spotDetails && effectiveQuoteType !== QuoteType.SPOT) {
+            em.remove(quote.spotDetails);
+        }
+
+        // -------------------------
+        // 10) Services
+        // -------------------------
+        if (dto.services) {
+            const mapping = {
+                PALLET: PalletServices,
+                STANDARD_FTL: StandardFtlServices,
+                SPOT_LTL: SpotLtlServices,
+                SPOT_FTL: SpotFtlServices,
+            };
+
+            const ServiceEntity = mapping[effectiveShipmentType];
+
+            if (ServiceEntity) {
+                const serviceSchema = new ServiceEntity();
+
+                Object.assign(serviceSchema, dto.services);
+
+                if (effectiveShipmentType === ShipmentType.PALLET) {
+                    quote.palletServices = serviceSchema;
+                }
+                if (effectiveShipmentType === ShipmentType.SPOT_FTL) {
+                    quote.spotFtlServices = serviceSchema;
+                }
+                if (effectiveShipmentType === ShipmentType.SPOT_LTL) {
+                    quote.spotLtlServices = serviceSchema;
+                }
+                if (effectiveShipmentType === ShipmentType.STANDARD_FTL) {
+                    quote.standardFTLService = serviceSchema;
+                }
+
+                em.persist(serviceSchema);
+            }
+        }
+
+        // -------------------------
+        // 11) Flush
+        // -------------------------
+        await em.flush();
+
+        return { message: "Quote updated successfully" };
+    }
+
     async getSingleAgainstCurrentUser(quoteId: number, currentUserId: number){
         //1) Get the quote against current user
         const quote = await this.em.findOne(Quote, {
@@ -411,5 +723,85 @@ export class QuoteService {
         
         //5) Return back success response
         return { message: 'Quote deleted successfully' };
+    }
+
+    async markQuoteFavoriteAgainstCurrentUser(quoteId: number, currentUserId: number) {
+        //1) Get the quote
+        const quote = await this.em.findOne(Quote, { id: quoteId }, { 
+            populate: ['createdBy'],
+            fields: ['id', 'createdBy'] 
+        });
+
+        //2) Throw exception for invalid quote
+        if (!quote) {
+            throw new NotFoundException('Quote not found');
+        }
+
+        //3) Throw exception if quote doesn't belong to current user
+        if (quote.createdBy.id !== currentUserId) {
+            throw new ForbiddenException('You can only favorite your own quotes');
+        }
+
+        //4) Set quote as favorite
+        const existing = await this.em.findOne(QuoteFavorite, {
+            quote: quoteId,
+            user: currentUserId,
+        });
+
+        //5) Throw error if it's already favorited
+        if (existing) {
+            throw new ConflictException('Already favorited');
+        }
+
+        //6) Mark as favorite
+        const favorite = this.em.create(QuoteFavorite, {
+            quote: this.em.getReference(Quote, quoteId),
+            user: this.em.getReference(User, currentUserId),
+        });
+
+        //7) Persist changes
+        await this.em.persist(favorite).flush();
+        
+        //8) Return back success response
+        return {
+            message: "Marked quote as favorite successfully"
+        }
+    }
+
+    async unmarkQuoteFavoriteAgainstCurrentUser(quoteId: number, currentUserId: number) {
+        // 1) Verify quote exists and belongs to current user
+        const quote = await this.em.findOne(Quote, { 
+            id: quoteId, 
+            createdBy: currentUserId 
+        }, { 
+            fields: ['id'] 
+        });
+
+        //2) Throw exception for invalid quote 
+        if (!quote) {
+            throw new NotFoundException("Quote not found or you don't have the required permissions");
+        }
+
+        //3) Find the favorite to remove
+        const favorite = await this.em.findOne(QuoteFavorite, {
+            quote: quoteId,
+            user: currentUserId,
+        });
+
+        //4) Throw exception for invalid favorite quote
+        if (!favorite) {
+            throw new NotFoundException('Favorite quote not found, Quote has been already unmaked as favorite');
+        }
+
+        //5) Remove and flush
+        this.em.remove(favorite);
+        
+        //6) Commit the changes
+        await this.em.flush();
+
+        //7) Return success message
+        return {
+            message: "Unmarked quote as favorite successfully"
+        }
     }
 }
