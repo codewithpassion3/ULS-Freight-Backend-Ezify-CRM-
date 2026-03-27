@@ -29,6 +29,7 @@ import { UpdateQuoteDTO } from "../dto/update-quote.dto";
 import { QuoteFavorite } from "src/entities/quote-favorite.entity";
 import { VALID_STATUS_TRANSITIONS } from "src/common/constants/valid-quote-status";
 import { UpdateQuoteStatusDTO } from "../dto/update-quote-status.dto";
+import { QuoteStatus } from "src/common/enum/quote-status";
 
 @Injectable()
 export class QuoteService {
@@ -626,32 +627,46 @@ export class QuoteService {
         //3) Build filter for query
         const filter: any = { createdBy: this.em.getReference(User, currentUser) };
 
-        //4) Handle search
+        //4) Handle status filter
+        if (params?.status) {
+            const normalized = params.status.toUpperCase();
+            const validStatuses = Object.values(QuoteStatus);
+            
+            if (!validStatuses.includes(normalized as QuoteStatus)) {
+                throw new BadRequestException(
+                    `Invalid status '${params.status}'. Allowed: ${validStatuses.join(', ')}`
+                );
+            }
+            
+            filter.status = normalized;
+        }
+
+        //5) Handle search
         if (search) {
             filter.quoteNumber = { $ilike: `${search}%` };
         }
 
-        //5) Handle shipment type filter
+        //6) Handle shipment type filter
         if (params.shipmentType) {
             filter.shipmentType = params.shipmentType;
         }
 
-        //6) Handle Date range filter
+        //7) Handle Date range filter
         if (params.dateFrom || params.dateTo) {
             filter.createdAt = {};
             if (params.dateFrom) filter.createdAt.$gte = new Date(params.dateFrom);
             if (params.dateTo) filter.createdAt.$lte = new Date(params.dateTo);
         }
 
-        //7) Count total quotes and pages
+        //8) Count total quotes and pages
         const total = await this.em.count(Quote, filter);
         const totalPages = Math.ceil(total / limit) || 1;
 
-        //8) Clamp page based on total page and default page limit
+        //9) Clamp page based on total page and default page limit
         const clampedPage = Math.min(page, totalPages);
         const offset = (page - 1) * limit;
 
-        //9) Fetch data with all requested relations
+        //10) Fetch data with all requested relations
         const quotes = await this.em.find(
             Quote,
             filter,
@@ -675,7 +690,7 @@ export class QuoteService {
             }
         );
 
-        //10) Return success response
+        //11) Return success response
         return {
             message: "Quotes retrieved successfully",
             data: quotes,
