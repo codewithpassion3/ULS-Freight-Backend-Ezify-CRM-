@@ -6,6 +6,7 @@ import { CurrentUser } from "src/decorators/currentUser.decorator";
 import { CreateQuoteDTO } from "../dto/create-quote.dto";
 import type { PaginationParams } from "src/types/pagination";
 import { UpdateQuoteDTO } from "../dto/update-quote.dto";
+import { UpdateQuoteStatusDTO } from "../dto/update-quote-status.dto";
 
 @Controller("quotes")
 export class QuoteController{
@@ -49,8 +50,18 @@ export class QuoteController{
 
     @UseGuards(SessionAuthGuard, PermissionsGuard)
     @Delete(':id/favorite')
-    async UnmarkFavorite(@Param('id') quoteId: number, @CurrentUser() currentUserId: number) {
+    async UnmarkFavoriteAgainstCurrentUser(@Param('id') quoteId: number, @CurrentUser() currentUserId: number) {
         return this.quoteService.unmarkQuoteFavoriteAgainstCurrentUser(quoteId, currentUserId);
+    }
+
+    @UseGuards(SessionAuthGuard, PermissionsGuard)
+    @Patch(':id/status')
+    async UpdateStatus(
+        @Param('id') quoteId: number, 
+        @Body() dto: UpdateQuoteStatusDTO,
+        @CurrentUser() currentUserId: number
+    ) {
+        return this.quoteService.updateStatus(quoteId, dto, currentUserId);
     }
 
 }

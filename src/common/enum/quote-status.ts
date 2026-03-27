@@ -1,5 +1,6 @@
 export enum QuoteStatus {
     DRAFT = "DRAFT",
     ARCHIVED = "ARCHIVED",
-    SAVED = "SAVED"
+    SAVED = "SAVED",
+    SUBMITTED = "SUBMITTED"
 }

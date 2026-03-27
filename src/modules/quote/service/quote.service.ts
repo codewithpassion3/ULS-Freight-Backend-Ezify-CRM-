@@ -27,6 +27,8 @@ import { SpotFtlServices } from "src/entities/spot-ftl-services.entity";
 import { QuoteType } from "src/common/enum/quote-type.enum";
 import { UpdateQuoteDTO } from "../dto/update-quote.dto";
 import { QuoteFavorite } from "src/entities/quote-favorite.entity";
+import { VALID_STATUS_TRANSITIONS } from "src/common/constants/valid-quote-status";
+import { UpdateQuoteStatusDTO } from "../dto/update-quote-status.dto";
 
 @Injectable()
 export class QuoteService {
@@ -803,5 +805,42 @@ export class QuoteService {
         return {
             message: "Unmarked quote as favorite successfully"
         }
+    }
+
+    async updateStatus(quoteId: number, dto: UpdateQuoteStatusDTO, currentUserId: number) {
+        //1) Extract status 
+        const { status } = dto;
+        
+        //2) Find the quote against current user
+        const quote = await this.em.findOne(Quote, {
+            id: quoteId,
+            createdBy: currentUserId,
+        });
+
+        //3) Throw error for invalid quote id
+        if (!quote) {
+            throw new NotFoundException("Quote not found or you don't have the required permissions");
+        }
+
+        //4) Check if transition is valid
+        const allowedTransitions = VALID_STATUS_TRANSITIONS[quote.status];
+        
+        //5) Throw exception for invalid transition status
+        if (!allowedTransitions?.includes(status)) {
+            throw new BadRequestException(
+                `Invalid status transition: ${quote.status} → ${status}`
+            );
+        }
+
+        //6) Update status
+        quote.status = status;
+        
+        //7) Persist changes
+        await this.em.flush();
+
+        //8) Rturn success response
+        return {
+            message: "Quote status updated successfully"
+        };
     }
 }
