@@ -1,35 +1,50 @@
 import { ShipmentType } from "src/common/enum/shipment-type.enum";
-import { CreateQuoteDTO } from "src/modules/quote/dto/create-quote.dto";
-import { validateAddress } from "./validateAddress";
-import { validateSpotDetails } from "./validateSpotDetails";
 import { QuoteType } from "src/common/enum/quote-type.enum";
 import { SpotType } from "src/common/enum/spot-type.enum";
+import { validateAddress } from "./validateAddress";
+import { validateSpotDetails } from "./validateSpotDetails";
+import { CreateQuoteDTO } from "src/modules/quote/dto/create-quote.dto";
+import { UpdateQuoteDTO } from "src/modules/quote/dto/update-quote.dto";
+import { Quote } from "src/entities/quote.entity";
 
 interface ValidationResult {
   valid: boolean;
   errors: string[];
-};
+}
 
 interface FieldRule {
   field: string;
   required: boolean;
   condition?: (data: any) => boolean;
-};
+}
 
+/* -------------------- Line Item Fields --------------*/
+export function getLineItemFields(shipmentType: ShipmentType): string[] {
+  const common = ['type', 'units'];
+  
+  switch (shipmentType) {
+    case ShipmentType.PACKAGE:
+      return [...common, 'measurementUnit', 'dangerousGoods', 'description'];
+    case ShipmentType.PALLET:
+      return [...common, 'measurementUnit', 'dangerousGoods', 'stackable', 'description'];
+    case ShipmentType.COURIER_PAK:
+      return [...common, 'measurementUnit', 'description'];
+    default:
+      return common;
+  }
+}
 /* -------------------- RULES -------------------- */
 
 const packageRules: FieldRule[] = [
-  { field: 'quantity', required: true },
   { field: 'length', required: true },
   { field: 'width', required: true },
   { field: 'height', required: true },
   { field: 'weight', required: true },
   { field: 'description', required: true },
-  { field: 'specialHandlingRequired', required: true}
+  { field: 'specialHandlingRequired', required: true }
 ];
 
 const palletRules: FieldRule[] = [
-  { field: 'quantity', required: true },
   { field: 'length', required: true },
   { field: 'width', required: true },
   { field: 'height', required: true },
@@ -38,10 +53,12 @@ const palletRules: FieldRule[] = [
   { field: 'nmfc', required: true },
   { field: 'stackable', required: false },
   { field: 'unitsOnPallet', required: true },
+  { field: 'palletUnitType', required: true },
+  { field: 'description', required: true },
+
 ];
 
 const courierRules: FieldRule[] = [
-  { field: 'quantity', required: true },
   { field: 'weight', required: true },
   { field: 'description', required: true },
 ];
@@ -59,12 +76,18 @@ export function validateUnit(
     const value = data[rule.field];
 
     if (rule.required && (value === undefined || value === null || value === '')) {
-      const prefix = context?.unitIndex !== undefined ? `Line Item Unit #${context.unitIndex + 1}: ` : '';
+      const prefix =
+        context?.unitIndex !== undefined
+          ? `Line Item Unit #${context.unitIndex + 1}: `
+          : '';
       errors.push(`${prefix}${rule.field} is required`);
     }
 
     if (rule.condition && !rule.condition(data)) {
-      const prefix = context?.unitIndex !== undefined ? `Line Item Unit #${context.unitIndex + 1}: ` : '';
+      const prefix =
+        context?.unitIndex !== undefined
+          ? `Line Item Unit #${context.unitIndex + 1}: `
+          : '';
       errors.push(`${prefix}${rule.field} failed conditional validation`);
     }
   }
@@ -83,7 +106,7 @@ export function getRules(shipmentType: ShipmentType) {
       return packageRules;
     case ShipmentType.PALLET:
       return palletRules;
-    case ShipmentType.COURIER_PACK:
+    case ShipmentType.COURIER_PAK:
       return courierRules;
     default:
       return [];
@@ -92,8 +115,35 @@ export function getRules(shipmentType: ShipmentType) {
 
 /* -------------------- MAIN VALIDATOR -------------------- */
 
-export function validateQuote(dto: CreateQuoteDTO): ValidationResult {
+export function validateQuote(
+  dto: CreateQuoteDTO | UpdateQuoteDTO,
+  mode: 'create' | 'update',
+  existing?: Quote
+): ValidationResult {
   const errors: string[] = [];
+
+  /* -------------------- EFFECTIVE STATE -------------------- */
+
+  const effective =
+    mode === 'update'
+      ? { ...existing, ...dto }
+      : dto;
+
+  const shipmentType = effective.shipmentType as ShipmentType;
+  const quoteType = effective.quoteType;
+
+  /* -------------------- BASIC REQUIRED FIELDS -------------------- */
+
+  if (mode === 'create') {
+    if (!dto.shipmentType) errors.push('shipmentType is required');
+    if (!dto.quoteType) errors.push('quoteType is required');
+  }
+
+  if (mode === 'update' && !existing) {
+    throw new Error('Existing quote is required for update validation');
+  }
+
+  /* -------------------- QUOTE TYPE RULES -------------------- */
 
   const SPOT_TYPES = [
     ShipmentType.SPOT_FTL,
@@ -101,13 +151,15 @@ export function validateQuote(dto: CreateQuoteDTO): ValidationResult {
     ShipmentType.TIME_CRITICAL,
   ];
 
-  if (dto.quoteType === QuoteType.SPOT && !SPOT_TYPES.includes(dto.shipmentType)) {
-    errors.push('SPOT quote cannot use SPOT shipment types only');
+  if (quoteType === QuoteType.SPOT && !SPOT_TYPES.includes(shipmentType)) {
+    errors.push('SPOT quote must use SPOT shipment types');
   }
 
-  if (dto.quoteType === QuoteType.STANDARD && SPOT_TYPES.includes(dto.shipmentType)) {
-    errors.push("STANDARD quote cannot use SPOT shipment types");
+  if (quoteType === QuoteType.STANDARD && SPOT_TYPES.includes(shipmentType)) {
+    errors.push('STANDARD quote cannot use SPOT shipment types');
   }
+
+  /* -------------------- SPOT DETAILS -------------------- */
 
   const SHIPMENT_TO_SPOT_TYPE_MAP = {
     [ShipmentType.TIME_CRITICAL]: SpotType.TIME_CRITICAL,
@@ -115,137 +167,151 @@ export function validateQuote(dto: CreateQuoteDTO): ValidationResult {
     [ShipmentType.SPOT_LTL]: SpotType.LTL,
   };
 
-  if (dto.spotDetails) {
-    const expectedSpotType = SHIPMENT_TO_SPOT_TYPE_MAP[dto.shipmentType as ShipmentType];
+  if (effective.spotDetails) {
+    const expectedSpotType = SHIPMENT_TO_SPOT_TYPE_MAP[shipmentType];
 
     if (!expectedSpotType) {
-      errors.push(`Unsupported shipmentType: ${dto.shipmentType}`);
-    } else if (dto.spotDetails.spotType !== expectedSpotType) {
+      errors.push(`Unsupported shipmentType: ${shipmentType}`);
+    } else if (effective.spotDetails.spotType !== expectedSpotType) {
       errors.push(
-        `spotDetails.spotType must be ${expectedSpotType} for shipmentType ${dto.shipmentType}`
+        `spotDetails.spotType must be ${expectedSpotType} for shipmentType ${shipmentType}`
       );
     }
   }
 
   /* -------------------- ADDRESS VALIDATION -------------------- */
-  for (const address of dto.addresses ?? []) {
-    errors.push(...validateAddress(address, dto.quoteType));
-  }
+
+ const normalizedAddresses = (effective.addresses ?? []).map((addr: any) => ({
+  ...addr,
+  locationType: addr.locationType ?? undefined,
+}));
+
+for (const address of normalizedAddresses) {
+  errors.push(...validateAddress(address, quoteType as QuoteType));
+}
 
   /* -------------------- SIGNATURE RULE -------------------- */
+
   const requiresSignature = [
     ShipmentType.PACKAGE,
-    ShipmentType.COURIER_PACK,
-  ].includes(dto.shipmentType);
+    ShipmentType.COURIER_PAK,
+  ].includes(shipmentType);
 
-  if (requiresSignature && !dto.signature) {
-    errors.push(`Signature is required for ${dto.shipmentType}`);
+  if (requiresSignature && !effective.signature) {
+    errors.push(`Signature is required for ${shipmentType}`);
   }
 
-  if (dto.quoteType === QuoteType.SPOT && dto.signature) {
-    errors.push(`Signatures are not allowed for spot shipments`);
+  if (quoteType === QuoteType.SPOT && effective.signature) {
+    errors.push(`Signature not allowed for SPOT shipments`);
   }
 
-  /* -------------------- LINE ITEM RULES -------------------- */
+  /* -------------------- LINE ITEM -------------------- */
 
   const requiresLineItem = [
     ShipmentType.PACKAGE,
     ShipmentType.PALLET,
-    ShipmentType.COURIER_PACK,
-  ].includes(dto.shipmentType);
+    ShipmentType.COURIER_PAK,
+  ].includes(shipmentType);
 
-  // REQUIRED
+  const lineItem = effective.lineItem;
+
   if (requiresLineItem) {
-
-    if (!dto.lineItem) {
-      errors.push(`Line item is required for ${dto.shipmentType}`);
+    if (!lineItem) {
+      errors.push(`Line item is required for ${shipmentType}`);
       return { valid: false, errors };
     }
 
-    if (!dto.lineItem.units?.length) {
-      errors.push(`At least one unit is required for ${dto.shipmentType}`);
+    if (!lineItem.units?.length) {
+      errors.push(`At least one unit is required for ${shipmentType}`);
     }
 
-    if (dto.lineItem.type !== dto.shipmentType) {
-      errors.push(`Line item type (${dto.lineItem.type}) must match shipment type (${dto.shipmentType})`);
-    }
-  }
-
-  // NOT ALLOWED
-  if (dto.shipmentType === ShipmentType.STANDARD_FTL || dto.quoteType === QuoteType.SPOT) {
-    if (dto.lineItem) {
-      errors.push(`Line items are not allowed for ${dto.shipmentType} shipments`);
+    if (lineItem.type !== shipmentType) {
+      errors.push(
+        `Line item type must match shipment type (${shipmentType})`
+      );
     }
   }
 
-  if(dto.shipmentType === ShipmentType.PALLET && !dto.lineItem?.description){
-        errors.push(`Line items for type ${dto.shipmentType} is missing description field`)
+  if (
+    shipmentType === ShipmentType.STANDARD_FTL ||
+    quoteType === QuoteType.SPOT
+  ) {
+    if (lineItem) {
+      errors.push(`Line items not allowed for ${shipmentType}`);
+    }
   }
 
-  if([ShipmentType.COURIER_PACK, ShipmentType.PACKAGE, ShipmentType.PALLET].includes(dto.shipmentType) && !dto.lineItem?.measurementUnit){
-      errors.push(`Line items for type ${dto.shipmentType} is missing measurementUnit field`)
+  if (
+    [ShipmentType.COURIER_PAK, ShipmentType.PACKAGE, ShipmentType.PALLET].includes(shipmentType) &&
+    !lineItem?.measurementUnit
+  ) {
+    errors.push(`Line item requires measurementUnit`);
   }
 
-  if(dto.shipmentType === ShipmentType.PALLET && !dto.lineItem?.stackable){
-      errors.push(`Line items for type ${dto.shipmentType} is missing stackable field`)
+  if (shipmentType === ShipmentType.PALLET && !lineItem?.stackable) {
+    errors.push(`Pallet shipments require stackable field`);
   }
 
-  if((dto.shipmentType === ShipmentType.PACKAGE || dto.shipmentType === ShipmentType.PALLET) && dto.lineItem?.dangerousGoods === undefined){
-      errors.push(`Line items for type ${dto.shipmentType} is missing dangerousGoods field`)
+  if (
+    [ShipmentType.PACKAGE, ShipmentType.PALLET].includes(shipmentType) &&
+    lineItem?.dangerousGoods === undefined
+  ) {
+    errors.push(`dangerousGoods is required`);
   }
-
 
   /* -------------------- UNIT VALIDATION -------------------- */
 
-  if (dto.lineItem?.units?.length) {
-    const rules = getRules(dto.shipmentType);
+  if (lineItem?.units?.length) {
+    const rules = getRules(shipmentType);
 
-    dto.lineItem.units.forEach((unit, idx) => {
+    lineItem.units.forEach((unit: any, idx: number) => {
       const result = validateUnit(unit, rules, { unitIndex: idx });
       errors.push(...result.errors);
     });
   }
 
-  /* -------------------- SPOT DETAILS VALIDATION -------------------- */
+  /* -------------------- SPOT VALIDATION -------------------- */
 
-  if (dto.quoteType === QuoteType.SPOT) {
-    errors.push(...validateSpotDetails(dto.spotDetails, dto.shipmentType));
+  if (quoteType === QuoteType.SPOT) {
+    errors.push(...validateSpotDetails(effective.spotDetails, shipmentType));
   }
 
-  if (dto.quoteType === QuoteType.SPOT && dto.insurance) {
-    errors.push(`Insurance is not allowed for ${dto.quoteType} shipments`);
+  if (quoteType === QuoteType.SPOT && effective.insurance) {
+    errors.push(`Insurance not allowed for SPOT shipments`);
   }
 
-  /* -------------------- SERVICES VALIDATION -------------------- */
-  const services = dto.services || {};
+  /* -------------------- SERVICES -------------------- */
 
-  // Map required services per shipment type
+  const services = effective.services || {};
+
   const requiredServiceFields: Record<ShipmentType, string[]> = {
-    [ShipmentType.PALLET]: ['limitedAccess', 'appointmentDelivery', 'thresholdDelivery', 'thresholdPickup'],
+    [ShipmentType.PALLET]: [
+      'limitedAccess',
+      'appointmentDelivery',
+      'thresholdDelivery',
+      'thresholdPickup',
+    ],
     [ShipmentType.STANDARD_FTL]: ['looseFreight', 'pallets'],
     [ShipmentType.SPOT_LTL]: ['inbound', 'protectFromFreeze', 'limitedAccess'],
     [ShipmentType.PACKAGE]: [],
-    [ShipmentType.COURIER_PACK]: [],
+    [ShipmentType.COURIER_PAK]: [],
     [ShipmentType.TIME_CRITICAL]: [],
-    [ShipmentType.SPOT_FTL]: []
+    [ShipmentType.SPOT_FTL]: [],
   };
 
-  // Check required services
-  const requiredFields = requiredServiceFields[dto.shipmentType] || [];
+  const requiredFields = requiredServiceFields[shipmentType] || [];
+
   requiredFields.forEach(field => {
     if (services[field] === undefined) {
-      errors.push(`${field} is required for ${dto.shipmentType} shipments`);
+      errors.push(`${field} is required for ${shipmentType}`);
     }
   });
 
-  // Validate boolean fields
   Object.entries(services).forEach(([field, value]) => {
     if (typeof value !== 'boolean') {
-      errors.push(`services field "${field}" must be boolean`);
+      errors.push(`services.${field} must be boolean`);
     }
   });
-
-    
 
   return {
     valid: errors.length === 0,

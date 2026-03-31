@@ -30,6 +30,10 @@ import { QuoteFavorite } from "src/entities/quote-favorite.entity";
 import { VALID_STATUS_TRANSITIONS } from "src/common/constants/valid-quote-status";
 import { UpdateQuoteStatusDTO } from "../dto/update-quote-status.dto";
 import { QuoteStatus } from "src/common/enum/quote-status";
+import { validateUpdateQuote } from "src/utils/validate-quote-update-fields";
+import { RefrigeratedType } from "src/common/enum/refrigerated.enum";
+import { AddressType } from "src/common/enum/address-type.enum";
+import { hasValidField } from "src/utils/has-valid-fields";
 
 @Injectable()
 export class QuoteService {
@@ -48,7 +52,7 @@ export class QuoteService {
         //4) Validate signature
         let signature: Signature | null = null;
 
-        if(ShipmentType.COURIER_PACK === dto.shipmentType || ShipmentType.PACKAGE === dto.shipmentType){
+        if(ShipmentType.COURIER_PAK === dto.shipmentType || ShipmentType.PACKAGE === dto.shipmentType){
             signature = await em.findOne(Signature, { id: dto.signature });
 
             if (!signature) {
@@ -65,7 +69,7 @@ export class QuoteService {
 
         em.persist(quote);
 
-        if(ShipmentType.COURIER_PACK  === dto.shipmentType || ShipmentType.PACKAGE === dto.shipmentType) quote.signature = signature;
+        if(ShipmentType.COURIER_PAK  === dto.shipmentType || ShipmentType.PACKAGE === dto.shipmentType) quote.signature = signature;
 
         //6) Construct shipping address and shipping address meta entities and start populating 
         if(dto.addresses?.length) {
@@ -139,7 +143,7 @@ export class QuoteService {
             lineItem.quote = quote;
             lineItem.type = dto.lineItem.type;
             
-            if([ShipmentType.COURIER_PACK, ShipmentType.PACKAGE, ShipmentType.PALLET].includes(dto.shipmentType)){
+            if([ShipmentType.COURIER_PAK, ShipmentType.PACKAGE, ShipmentType.PALLET].includes(dto.shipmentType)){
                     lineItem.measurementUnit = dto.lineItem.measurementUnit;
             }
 
@@ -149,7 +153,11 @@ export class QuoteService {
 
             if(dto.shipmentType === ShipmentType.PALLET){
                 lineItem.stackable = dto.lineItem.stackable ?? null;
-                lineItem.description = dto.lineItem.description ?? null;
+               
+            }
+
+            if([ShipmentType.PACKAGE, ShipmentType.PALLET].includes(dto.shipmentType)){
+                lineItem.quantity = dto.lineItem.units.length;
             }
             
             em.persist(lineItem);
@@ -159,6 +167,8 @@ export class QuoteService {
                 const unit = new LineItemUnit();
 
                 unit.lineItem = lineItem;
+                unit.createdBy = this.em.getReference(User, currentUserId)
+                unit.type = dto.shipmentType as ShipmentType;
                 
                 if([ShipmentType.PACKAGE, ShipmentType.PALLET].includes(dto.shipmentType)){
                     unit.length = unitDto.length ?? null;
@@ -166,14 +176,13 @@ export class QuoteService {
                     unit.height = unitDto.height ?? null;
                 }
 
-                if([ShipmentType.PACKAGE, ShipmentType.COURIER_PACK].includes(dto.shipmentType)){
+                if([ShipmentType.PACKAGE, ShipmentType.COURIER_PAK].includes(dto.shipmentType)){
                     unit.weight = unitDto.weight ?? null;
                 }
 
 
-                if([ShipmentType.COURIER_PACK, ShipmentType.PACKAGE].includes(dto.shipmentType)){
+                if([ShipmentType.COURIER_PAK, ShipmentType.PACKAGE].includes(dto.shipmentType)){
                     unit.description = unitDto.description ?? null;
-                    unit.quantity = unitDto.quantity ?? null;
                 }
 
                 if(dto.shipmentType === ShipmentType.PACKAGE) {
@@ -184,6 +193,8 @@ export class QuoteService {
                     unit.freightClass = unitDto.freightClass ?? null;
                     unit.nmfc = unitDto.nmfc ?? null;
                     unit.unitsOnPallet = unitDto.unitsOnPallet ?? null;
+                    unit.palletUnitType = unitDto.palletUnitType ?? null;
+
                 }
 
                 em.persist(unit);
@@ -249,7 +260,7 @@ export class QuoteService {
             em.persist([spotDetail, spotContact, spotEquipment]);
         }
 
-        if (dto.services && ![ShipmentType.COURIER_PACK, ShipmentType.PACKAGE, ShipmentType.TIME_CRITICAL].includes(dto.shipmentType)) {
+        if (dto.services && ![ShipmentType.COURIER_PAK, ShipmentType.PACKAGE, ShipmentType.TIME_CRITICAL].includes(dto.shipmentType)) {
             const shipmentTypeToServicesSchemaMapping = {
                 "PALLET": PalletServices,
                 "STANDARD_FTL": StandardFtlServices,
@@ -280,8 +291,14 @@ export class QuoteService {
         return { message: "Quote created successfully" }
     }
 
-    async update(quoteId: number, dto: UpdateQuoteDTO, currentUserId: number) {
-       
+
+    async update(quoteId: number, rawDto: UpdateQuoteDTO, currentUserId: number) {
+        const isValidPayload = hasValidField(rawDto);
+        
+        if (!isValidPayload) {
+            throw new BadRequestException("Provide at least one valid field to update");
+        }
+        
         const em = this.em.fork();
 
         // 1) Fetch quote with relations
@@ -289,16 +306,20 @@ export class QuoteService {
             Quote,
             { id: quoteId },
             {
-                populate: [
-                    "createdBy",
-                    "addresses.address",
-                    "addresses.meta",
-                    "lineItems",
-                    "lineItems.units",
-                    "insurance",
-                    "spotDetails.spotContact",
-                    "spotDetails.spotEquipment",
-                ],
+            populate: [
+                "createdBy",
+                "addresses.address",
+                "addresses.meta",
+                "lineItems",
+                "lineItems.units",
+                "insurance",
+                "spotDetails.spotContact",
+                "spotDetails.spotEquipment",
+                "palletServices",
+                "standardFTLService",
+                "spotLtlServices",
+                "spotFtlServices",
+            ],
             }
         );
 
@@ -306,288 +327,308 @@ export class QuoteService {
             throw new NotFoundException("Quote not found");
         }
 
-         const { valid, errors } = validateQuote(dto, "update", quote);
-        console.log({valid, errors})
-        if (!valid) {
-            throw new BadRequestException(errors);
-        }
-
-
         // 2) Ownership check
         if (quote.createdBy.id !== currentUserId) {
             throw new ForbiddenException("You are not allowed to update this quote");
         }
 
-        // 3) Resolve effective values (VERY IMPORTANT)
-        const effectiveQuoteType = dto.quoteType ?? quote.quoteType;
-        const effectiveShipmentType = dto.shipmentType ?? quote.shipmentType;
-
-        // 4) Update base fields safely
-        if (dto.quoteType !== undefined) {
-            quote.quoteType = dto.quoteType;
+        // 3) VALIDATE & FILTER
+        const validation = validateUpdateQuote(rawDto, quote);
+        console.log({validation})
+        if (!validation.valid) {
+            throw new BadRequestException({
+                message: validation.errors,
+            });
         }
 
-        if (dto.shipmentType !== undefined) {
-            quote.shipmentType = dto.shipmentType;
+        if (validation.removedFields) {
+            console.log(`[Audit] Quote ${quoteId}: Removed fields:`, validation.removedFields);
         }
 
-        // 5) Signature handling (only if shipmentType is relevant)
-        if (dto.shipmentType !== undefined) {
-            if ([ShipmentType.COURIER_PACK, ShipmentType.PACKAGE].includes(effectiveShipmentType)) {
-                if (!dto.signature) {
-                    throw new BadRequestException("Signature is required for this shipment type");
-                }
+        const dto = validation.filteredDto!;
 
+        // 4) Update operations
+
+        // 4.1 Status & knownShipper
+        if (dto.status) quote.status = dto.status as QuoteStatus;
+
+        if (dto.knownShipper !== undefined) {
+            if (quote.spotDetails?.spotEquipment?.nextFlightOut) {
+                quote.spotDetails.spotEquipment.nextFlightOut.knownShipper = dto.knownShipper;
+            }
+        }
+
+        // 4.2 Signature
+        if (dto.signature !== undefined) {
+            if ([ShipmentType.COURIER_PAK, ShipmentType.PACKAGE].includes(quote.shipmentType as ShipmentType)) {
                 const signature = await em.findOne(Signature, { id: dto.signature });
-
-                if (!signature) {
-                    throw new BadRequestException("Invalid signature id");
-                }
-
+                if (!signature) throw new BadRequestException("Invalid signature id");
                 quote.signature = signature;
-            } else {
-                quote.signature = null;
             }
         }
 
-        // -------------------------
-        // 6) Addresses (replace strategy)
-        // -------------------------
-        if (dto.addresses) {
-            for (const addr of quote.addresses) {
-                em.remove(addr);
-            }
-            quote.addresses.removeAll();
-
+        // 4.3 Addresses
+        if (dto.addresses && dto.addresses.length > 0) {
             for (const addrDto of dto.addresses) {
-                const shippingAddress = new ShippingAddress();
-                const meta = new ShippingAddressMeta();
+                const addressType = addrDto.type!;
+                const existingAddress = quote.addresses.getItems().find(a => a.type === addressType);
 
-                shippingAddress.type = addrDto.type;
-                shippingAddress.quote = quote;
+                if (!existingAddress) continue; // Shouldn't happen due to validation
 
-                if (addrDto.addressBookId) {
+                const hasManualFields = addrDto.address1 || addrDto.city || addrDto.state || 
+                                    addrDto.country || addrDto.postalCode;
+                const sendingAddressBookId = addrDto.addressBookId !== undefined;
+
+                // SCENARIO 1: Manual exists
+                if (existingAddress.address && !existingAddress.addressBookEntry) {
+                
+                if (sendingAddressBookId && !hasManualFields) {
+                    // Manual → AddressBook
+                    em.remove(existingAddress.address);
+                    existingAddress.address = undefined;
+                    
                     const addressBook = await em.findOne(AddressBook, { id: addrDto.addressBookId });
-                    if (!addressBook) {
-                        throw new NotFoundException("Address book not found");
-                    }
-                    shippingAddress.addressBookEntry = addressBook;
-                } else {
-                    const address = new Address();
+                    if (!addressBook) throw new NotFoundException(`Address book ${addrDto.addressBookId} not found`);
+                    existingAddress.addressBookEntry = addressBook;
+                    
+                } else if (hasManualFields) {
+                    // Partial update
+                    const address = existingAddress.address;
+                    if (addrDto.address1 !== undefined) address.address1 = addrDto.address1;
+                    if (addrDto.address2 !== undefined) address.address2 = addrDto.address2;
+                    if (addrDto.city !== undefined) address.city = addrDto.city;
+                    if (addrDto.state !== undefined) address.state = addrDto.state;
+                    if (addrDto.country !== undefined) address.country = addrDto.country;
+                    if (addrDto.postalCode !== undefined) address.postalCode = addrDto.postalCode;
+                }
+                }
 
+                // SCENARIO 2: AddressBook exists
+                else if (!existingAddress.address && existingAddress.addressBookEntry) {
+                
+                if (sendingAddressBookId && !hasManualFields) {
+                    // Update to new address book entry
+                    if (existingAddress.addressBookEntry.id !== addrDto.addressBookId) {
+                    const addressBook = await em.findOne(AddressBook, { id: addrDto.addressBookId });
+                    if (!addressBook) throw new NotFoundException(`Address book ${addrDto.addressBookId} not found`);
+                    existingAddress.addressBookEntry = addressBook;
+                    }
+                    
+                } else if (hasManualFields) {
+                    // AddressBook → Manual (full switch)
+                    existingAddress.addressBookEntry = undefined;
+
+                    const address = new Address();
                     address.address1 = addrDto.address1!;
+                    address.address2 = addrDto.address2;
                     address.city = addrDto.city!;
                     address.state = addrDto.state!;
                     address.country = addrDto.country!;
                     address.postalCode = addrDto.postalCode!;
-
-                    shippingAddress.address = address;
-                    shippingAddress.isResidential = addrDto.isResidential!;
-
+                    
+                    existingAddress.address = address;
                     em.persist(address);
-
-                    // Spot-specific
-                    if (effectiveQuoteType === QuoteType.SPOT && addrDto.additionalNotes) {
-                        meta.additionalNotes = addrDto.additionalNotes;
-                    }
+                }
                 }
 
-                // Standard FTL meta
-                if (
-                    effectiveQuoteType !== QuoteType.SPOT &&
-                    effectiveShipmentType === ShipmentType.STANDARD_FTL
-                ) {
-                    meta.includeStraps = addrDto.includeStraps ?? null;
-                    meta.appointmentDelivery = addrDto.appointmentDelivery ?? null;
+                // Update meta fields (all scenarios)
+                if (!existingAddress.meta) {
+                existingAddress.meta = new ShippingAddressMeta();
+                em.persist(existingAddress.meta);
                 }
 
-                shippingAddress.meta = meta;
+                if (quote.quoteType === QuoteType.SPOT && addrDto.additionalNotes !== undefined) {
+                existingAddress.meta.additionalNotes = addrDto.additionalNotes;
+                }
 
-                em.persist([shippingAddress, meta]);
-                quote.addresses.add(shippingAddress);
+                if (quote.quoteType !== QuoteType.SPOT && quote.shipmentType === ShipmentType.STANDARD_FTL) {
+                if (addrDto.includeStraps !== undefined) existingAddress.meta.includeStraps = addrDto.includeStraps;
+                if (addrDto.appointmentDelivery !== undefined) existingAddress.meta.appointmentDelivery = addrDto.appointmentDelivery;
+                }
+
+                if (addrDto.isResidential !== undefined) {
+                existingAddress.isResidential = addrDto.isResidential;
+                }
             }
         }
-
-        // -------------------------
-        // 7) Line Item (replace)
-        // -------------------------
+        // 4.4 Line Item
         if (dto.lineItem) {
-            if (quote.lineItems) {
-                em.remove(quote.lineItems);
-            }
+            if (quote.lineItems) em.remove(quote.lineItems);
 
             const lineItem = new LineItem();
             lineItem.quote = quote;
-            lineItem.type = dto.lineItem.type;
+            lineItem.type = (dto.lineItem.type || quote.shipmentType) as ShipmentType;
 
-            if (
-                [ShipmentType.COURIER_PACK, ShipmentType.PACKAGE, ShipmentType.PALLET].includes(
-                    effectiveShipmentType
-                )
-            ) {
-                lineItem.measurementUnit = dto.lineItem.measurementUnit;
+            if ([ShipmentType.COURIER_PAK, ShipmentType.PACKAGE, ShipmentType.PALLET].includes(quote.shipmentType as ShipmentType)) {
+                lineItem.measurementUnit = dto.lineItem.measurementUnit!;
             }
 
-            if (
-                [ShipmentType.PACKAGE, ShipmentType.PALLET].includes(effectiveShipmentType)
-            ) {
+            if ([ShipmentType.PACKAGE, ShipmentType.PALLET].includes(quote.shipmentType as ShipmentType)) {
                 lineItem.dangerousGoods = dto.lineItem.dangerousGoods ?? null;
             }
 
-            if (effectiveShipmentType === ShipmentType.PALLET) {
+            if (quote.shipmentType === ShipmentType.PALLET) {
                 lineItem.stackable = dto.lineItem.stackable ?? null;
-                lineItem.description = dto.lineItem.description ?? null;
+                lineItem.quantity = dto.lineItem.quantity ?? null;
             }
 
             em.persist(lineItem);
 
-            for (const unitDto of dto.lineItem.units) {
-                const unit = new LineItemUnit();
-                unit.lineItem = lineItem;
+            if (dto.lineItem.units && dto.lineItem.units.length > 0) {
+                for (const unitDto of dto.lineItem.units) {
+                    const unit = new LineItemUnit();
+                    unit.lineItem = lineItem;
+                    unit.type = dto.shipmentType as ShipmentType;
 
-                if ([ShipmentType.PACKAGE, ShipmentType.PALLET].includes(effectiveShipmentType)) {
-                    unit.length = unitDto.length ?? null;
-                    unit.width = unitDto.width ?? null;
-                    unit.height = unitDto.height ?? null;
+                    if ([ShipmentType.PACKAGE, ShipmentType.PALLET].includes(quote.shipmentType as ShipmentType)) {
+                        unit.length = unitDto.length ?? null;
+                        unit.width = unitDto.width ?? null;
+                        unit.height = unitDto.height ?? null;
+                    }
+
+                    if ([ShipmentType.COURIER_PAK, ShipmentType.PACKAGE].includes(quote.shipmentType as ShipmentType)) {
+                        unit.weight = unitDto.weight ?? null;
+                        unit.description = unitDto.description ?? null;
+                    }
+
+                    if (quote.shipmentType === ShipmentType.PACKAGE) {
+                        unit.specialHandlingRequired = unitDto.specialHandlingRequired ?? null;
+                    }
+
+                    if (quote.shipmentType === ShipmentType.PALLET) {
+                        unit.freightClass = unitDto.freightClass ?? null;
+                        unit.nmfc = unitDto.nmfc ?? null;
+                        unit.unitsOnPallet = unitDto.unitsOnPallet ?? null;
+                    }
+
+                    em.persist(unit);
                 }
-
-                if (
-                    [ShipmentType.COURIER_PACK, ShipmentType.PACKAGE].includes(effectiveShipmentType)
-                ) {
-                    unit.weight = unitDto.weight ?? null;
-                    unit.quantity = unitDto.quantity ?? null;
-                    unit.description = unitDto.description ?? null;
-                }
-
-                if (effectiveShipmentType === ShipmentType.PACKAGE) {
-                    unit.specialHandlingRequired = unitDto.specialHandlingRequired ?? null;
-                }
-
-                if (effectiveShipmentType === ShipmentType.PALLET) {
-                    unit.freightClass = unitDto.freightClass ?? null;
-                    unit.nmfc = unitDto.nmfc ?? null;
-                    unit.unitsOnPallet = unitDto.unitsOnPallet ?? null;
-                }
-
-                em.persist(unit);
             }
         }
 
-        // -------------------------
-        // 8) Insurance (upsert)
-        // -------------------------
+        // 4.5 Insurance
         if (dto.insurance) {
             if (!quote.insurance) {
-                const insurance = new Insurance();
-                insurance.quote = quote;
-                quote.insurance = insurance;
+            const insurance = new Insurance();
+            insurance.quote = quote;
+            quote.insurance = insurance;
                 em.persist(insurance);
             }
-
-            quote.insurance.amount = dto.insurance.amount;
-            quote.insurance.currency = dto.insurance.currency;
+            quote.insurance.amount = dto.insurance.amount ?? 0;
+            quote.insurance.currency = dto.insurance.currency!;
         }
 
-        // -------------------------
-        // 9) Spot Details
-        // -------------------------
-        if (effectiveQuoteType === QuoteType.SPOT && dto.spotDetails) {
+        // 4.6 Spot Details - FIXED: Added proper null checks
+        if (quote.quoteType === QuoteType.SPOT && dto.spotDetails) {
             let spotDetail = quote.spotDetails;
 
             if (!spotDetail) {
-                spotDetail = new SpotDetails();
-                spotDetail.quote = quote;
+            spotDetail = new SpotDetails();
+            spotDetail.quote = quote;
             }
 
-            spotDetail.spotType = dto.spotDetails.spotType;
+            spotDetail.spotType = dto.spotDetails.spotType!;
 
-            // Contact
+            // Contact - with null checks
+            if (dto.spotDetails.spotContact) {
+            const contactDto = dto.spotDetails.spotContact;
             const contact = spotDetail.spotContact ?? new SpotContact();
-
-            contact.contactName = dto.spotDetails.spotContact.contactName;
-            contact.phoneNumber = dto.spotDetails.spotContact.phoneNumber;
-            contact.email = dto.spotDetails.spotContact.email;
-            contact.shipDate = new Date(dto.spotDetails.spotContact.shipDate);
-
-            if (effectiveShipmentType === ShipmentType.TIME_CRITICAL) {
-                contact.deliveryDate = new Date(dto.spotDetails.spotContact.deliveryDate);
+            
+            contact.contactName = contactDto.contactName!;
+            contact.phoneNumber = contactDto.phoneNumber!;
+            contact.email = contactDto.email!;
+            contact.shipDate = new Date(contactDto.shipDate!);
+            
+            if (quote.shipmentType === ShipmentType.TIME_CRITICAL && contactDto.deliveryDate) {
+                contact.deliveryDate = new Date(contactDto.deliveryDate);
             }
-
-            contact.spotQuoteName = dto.spotDetails.spotContact.spotQuoteName ?? null;
-
-            // Equipment
-            const equipment = spotDetail.spotEquipment ?? new SpotEquipment();
-
-            if (dto.spotDetails.spotEquipment) {
-                const eq = dto.spotDetails.spotEquipment;
-
-                Object.assign(equipment, {
-                    car: eq.car ?? null,
-                    dryVan: eq.dryVan ?? null,
-                    flatbed: eq.flatbed ?? null,
-                    truck: eq.truck ?? null,
-                    van: eq.van ?? null,
-                    ventilated: eq.ventilated ?? null,
-                    refrigerated: eq.refrigerated ? { type: eq.refrigerated.type } : null,
-                    nextFlightOut: eq.nextFlightOut
-                        ? { knownShipper: eq.nextFlightOut.knownShipper ?? false }
-                        : null,
-                });
-            }
+            
+            contact.spotQuoteName = contactDto.spotQuoteName ?? null;
 
             contact.spotDetail = spotDetail;
-            equipment.spotDetail = spotDetail;
-
             spotDetail.spotContact = contact;
-            spotDetail.spotEquipment = equipment;
+            em.persist(contact);
+            }
 
-            em.persist([spotDetail, contact, equipment]);
-        } else if (quote.spotDetails && effectiveQuoteType !== QuoteType.SPOT) {
-            em.remove(quote.spotDetails);
+            // Equipment - with null checks
+            if (dto.spotDetails.spotEquipment) {
+            const equipment = spotDetail.spotEquipment ?? new SpotEquipment();
+            const eq = dto.spotDetails.spotEquipment;
+
+            equipment.car = eq.car ?? null;
+            equipment.dryVan = eq.dryVan ?? null;
+            equipment.flatbed = eq.flatbed ?? null;
+            equipment.truck = eq.truck ?? null;
+            equipment.van = eq.van ?? null;
+            equipment.ventilated = eq.ventilated ?? null;
+            equipment.refrigerated = eq.refrigerated ? { type: eq.refrigerated.type  as RefrigeratedType } : null;
+            equipment.nextFlightOut = eq.nextFlightOut
+                ? { knownShipper: eq.nextFlightOut.knownShipper ?? false }
+                : null;
+
+            equipment.spotDetail = spotDetail;
+            spotDetail.spotEquipment = equipment;
+            em.persist(equipment);
+            }
+
+            em.persist(spotDetail);
         }
 
-        // -------------------------
-        // 10) Services
-        // -------------------------
+        // 4.7 Services
         if (dto.services) {
-            const mapping = {
-                PALLET: PalletServices,
-                STANDARD_FTL: StandardFtlServices,
-                SPOT_LTL: SpotLtlServices,
-                SPOT_FTL: SpotFtlServices,
+            const mapping: Record<string, any> = {
+            [ShipmentType.PALLET]: PalletServices,
+            [ShipmentType.STANDARD_FTL]: StandardFtlServices,
+            [ShipmentType.SPOT_LTL]: SpotLtlServices,
+            [ShipmentType.SPOT_FTL]: SpotFtlServices,
             };
 
-            const ServiceEntity = mapping[effectiveShipmentType];
+            const ServiceEntity = mapping[quote.shipmentType as ShipmentType];
 
             if (ServiceEntity) {
-                const serviceSchema = new ServiceEntity();
+            const existingService = this.getExistingService(quote, quote.shipmentType as ShipmentType);
+            if (existingService) em.remove(existingService);
 
-                Object.assign(serviceSchema, dto.services);
+            const serviceSchema = new ServiceEntity();
+            Object.assign(serviceSchema, dto.services);
 
-                if (effectiveShipmentType === ShipmentType.PALLET) {
-                    quote.palletServices = serviceSchema;
-                }
-                if (effectiveShipmentType === ShipmentType.SPOT_FTL) {
-                    quote.spotFtlServices = serviceSchema;
-                }
-                if (effectiveShipmentType === ShipmentType.SPOT_LTL) {
-                    quote.spotLtlServices = serviceSchema;
-                }
-                if (effectiveShipmentType === ShipmentType.STANDARD_FTL) {
-                    quote.standardFTLService = serviceSchema;
-                }
+            switch (quote.shipmentType) {
+                case ShipmentType.PALLET:
+                quote.palletServices = serviceSchema;
+                break;
+                case ShipmentType.SPOT_FTL:
+                quote.spotFtlServices = serviceSchema;
+                break;
+                case ShipmentType.SPOT_LTL:
+                quote.spotLtlServices = serviceSchema;
+                break;
+                case ShipmentType.STANDARD_FTL:
+                quote.standardFTLService = serviceSchema;
+                break;
+            }
 
-                em.persist(serviceSchema);
+            em.persist(serviceSchema);
             }
         }
 
-        // -------------------------
-        // 11) Flush
-        // -------------------------
+        // 5) Flush
         await em.flush();
 
         return { message: "Quote updated successfully" };
     }
+
+    // Helper method
+    private getExistingService(quote: Quote, shipmentType: ShipmentType): any {
+        switch (shipmentType) {
+            case ShipmentType.PALLET: return quote.palletServices;
+            case ShipmentType.SPOT_FTL: return quote.spotFtlServices;
+            case ShipmentType.SPOT_LTL: return quote.spotLtlServices;
+            case ShipmentType.STANDARD_FTL: return quote.standardFTLService;
+            default: return null;
+        }
+    }
+
+
 
     async getSingleAgainstCurrentUser(quoteId: number, currentUserId: number){
         //1) Get the quote against current user
@@ -595,9 +636,9 @@ export class QuoteService {
             id: quoteId,
             createdBy: this.em.getReference(User, currentUserId)
         },{
-            populate: ["addresses", "addresses.addressBookEntry","lineItems", "lineItems.units",
+            populate: ["addresses", "addresses.addressBookEntry", "addresses.address","lineItems", "lineItems.units",
                         "palletServices", "spotFtlServices", "spotLtlServices", "standardFTLService", 
-                        "signature", "spotDetails", "spotDetails.spotContact", "spotDetails.spotEquipment"]
+                        "signature", "insurance","spotDetails", "spotDetails.spotContact", "spotDetails.spotEquipment"]
         });
 
         //2) Throw error for invalid quote

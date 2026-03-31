@@ -13,9 +13,9 @@ export class QuoteUserMeta {
   @ManyToOne(() => Quote)
   quote!: Quote;
 
-  @Property({ default: false })
+  @Property({ type: 'boolean', default: false })
   isFavourite!: boolean;
 
-  @Property({ default: false })
+  @Property({ type: 'boolean', default: false })
   isSaved!: boolean;
 }

@@ -23,6 +23,7 @@ import { MeasurementUnits } from 'src/common/enum/measurement-units.enum';
 import { SpotType } from 'src/common/enum/spot-type.enum';
 import { RefrigeratedType } from 'src/common/enum/refrigerated.enum';
 import { QuoteStatus } from 'src/common/enum/quote-status';
+import { LineItemUnitType } from 'src/common/enum/line-item-unit-type';
 
 /* ---------------- ADDRESS ---------------- */
 
@@ -130,6 +131,11 @@ export class CreateLineItemUnitDto {
   @IsOptional()
   @IsBoolean()
   specialHandlingRequired?: boolean;
+
+  @IsEnum(LineItemUnitType)
+  @IsOptional()
+  palletUnitType?: LineItemUnitType
+
 }
 
 /* ---------------- LINE ITEM ---------------- */
@@ -153,10 +159,6 @@ export class CreateLineItemDto {
   @IsOptional()
   @IsBoolean()
   stackable?: boolean;
-
-  @IsOptional()
-  @IsString()
-  description?: string;
 }
 
 /* ---------------- INSURANCE ---------------- */

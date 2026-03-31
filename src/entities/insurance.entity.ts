@@ -11,7 +11,7 @@ export class Insurance {
   @OneToOne(() => Quote, { cascade: [Cascade.REMOVE]})
   quote!: Quote;
 
-  @Property()
+  @Property({ type: 'int'})
   amount!: number;
 
   @Enum(() => Currency)

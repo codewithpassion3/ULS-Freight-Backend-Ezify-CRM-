@@ -18,14 +18,14 @@ export class LineItem {
   @Enum(() => MeasurementUnits)
   measurementUnit!: MeasurementUnits
   
-  @Property({ nullable: true })
+  @Property({  type: 'boolean', nullable: true })
   dangerousGoods?: boolean | null;
 
-  @Property({ nullable: true })
+  @Property({ type: 'boolean', nullable: true })
   stackable?: boolean | null;
 
-  @Property({ nullable: true })
-  description?: string | null;
+  @Property({ type: 'int', nullable: true })
+  quantity?: number | null;
 
   @OneToMany(() => LineItemUnit, unit => unit.lineItem)
   units = new Collection<LineItemUnit>(this);

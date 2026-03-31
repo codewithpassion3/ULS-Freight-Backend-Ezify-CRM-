@@ -4,6 +4,7 @@ import { Role } from "./role.entity";
 import { Permission } from "./permission.entity";
 import { Quote } from "./quote.entity";
 import { QuoteUserMeta } from "./quote-user-meta.entity";
+import { LineItemUnit } from "./line-item-unit.entity";
 
 @Entity()
 export class User{
@@ -78,4 +79,7 @@ export class User{
 
     @OneToMany(() => QuoteUserMeta, meta => meta.user)
     quoteMeta = new Collection<QuoteUserMeta>(this);
+
+    @OneToMany(() => LineItemUnit, itemUnit => itemUnit.createdBy)
+    lineItemUnits = new Collection<LineItemUnit>(this);
 }

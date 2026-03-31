@@ -29,7 +29,7 @@ export class ShippingAddress{
     @ManyToOne(() => PalletShippingLocationType, { nullable: true })
     locationType?: PalletShippingLocationType | null;
     
-    @Property({ nullable: true})
+    @Property({ type: 'boolean', nullable: true})
     isResidential?: boolean | null;
 
     // Optional metadata (FTL / Spot fields)

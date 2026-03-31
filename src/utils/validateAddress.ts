@@ -17,7 +17,7 @@ export function validateAddress(dto: CreateAddressDto, quoteType: string): strin
 
     for (const field of requiredFields) {
       if (!dto[field]) {
-        errors.push(`${field} is required when not using addressBook`);
+        errors.push(`${field} in address payload is required when not using addressBook`);
       }
     }
 

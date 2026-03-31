@@ -18,6 +18,7 @@ import { AddressBookModule } from './modules/address-book/address-book.module';
 import { SignatureModule } from './modules/signature/signature.module';
 import { PalletShippingLocationTypeModule } from './modules/pallet-shipping-location-type/pallet-shiping-location-type.module';
 import { QuoteModule } from './modules/quote/quote.module';
+import { LineItemUnitModule } from './modules/line-item-unit/line-item-unit.module';
 
 @Module({
   imports: [
@@ -39,7 +40,8 @@ import { QuoteModule } from './modules/quote/quote.module';
     AddressBookModule,
     SignatureModule,
     PalletShippingLocationTypeModule,
-    QuoteModule
+    QuoteModule,
+    LineItemUnitModule
   ],
   controllers: [AppController],
   providers: [AppService],
