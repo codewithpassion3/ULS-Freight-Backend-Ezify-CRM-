@@ -75,6 +75,9 @@ export class AddressDTO {
 
 // ==================== Unit DTO ====================
 export class UnitDTO {
+  @IsNumber()
+  id!: number;
+
   @IsOptional()
   @IsNumber()
   quantity?: number;

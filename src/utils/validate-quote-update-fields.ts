@@ -8,7 +8,7 @@ import { VALID_STATUS_TRANSITIONS } from "src/common/constants/valid-quote-statu
 import { filterUpdateFields } from "../utils/filter-quote-update-fields";
 import { validateAddress } from "./validateAddress";
 import { validateSpotDetails } from "./validateSpotDetails";
-import { getLineItemFields, getRules, validateUnit } from "./validateQuote";
+import { getLineItemFields, getRules, getUpdateRules, validateUnit } from "./validateQuote";
 import { AddressDto } from "src/modules/address-book/dto/address-book.dto";
 
 export interface UpdateValidationResult {
@@ -176,20 +176,26 @@ export function validateUpdateQuote(
     }
 
     // Get allowed unit fields from rules (getRules returns unit-level rules)
-    const unitRules = getRules(shipmentType);
+    const unitRules = getUpdateRules(shipmentType);
+    console.log("Unit Rules =>", unitRules)
     const allowedUnitFields = unitRules.map(rule => rule.field);
-
+  
     // Validate units - only allow whitelisted fields
     if (filteredDto.lineItem.units && filteredDto.lineItem.units.length > 0) {
       
       filteredDto.lineItem.units.forEach((unit, idx) => {
         const unitPrefix = `Line Item Unit #${idx + 1}: `;
         
+        if (!unit.id) {
+            errors.push(`${unitPrefix}id is required for update`);
+            return; // no point validating further
+        }
+
         // Get fields actually sent in this unit (excluding undefined)
         const sentFields = Object.keys(unit).filter(
           key => unit[key as keyof typeof unit] !== undefined
         );
-        
+        console.log(sentFields)
         // Check for unwanted fields
         for (const field of sentFields) {
           if (!allowedUnitFields.includes(field)) {

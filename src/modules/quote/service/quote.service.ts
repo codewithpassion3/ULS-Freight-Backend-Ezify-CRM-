@@ -1,4 +1,4 @@
-import { EntityManager } from "@mikro-orm/postgresql";
+import { EntityManager, quote } from "@mikro-orm/postgresql";
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { CreateQuoteDTO } from "../dto/create-quote.dto";
 import { Quote } from "src/entities/quote.entity";
@@ -9,7 +9,7 @@ import { LineItem } from "src/entities/line-item.entity";
 import { ShippingAddress } from "src/entities/shipping-address.entity";
 import { SpotDetails } from "src/entities/spot-details.entity";
 import { Signature } from "src/entities/signature.entity";
-import { validateQuote } from "src/utils/validateQuote";
+import { getRules, validateQuote } from "src/utils/validateQuote";
 import { AddressBook } from "src/entities/address-book.entity";
 import { Address } from "src/entities/address.entity";
 import { PalletShippingLocationType } from "src/entities/pallet-shipping-location-type.entity";
@@ -34,7 +34,9 @@ import { validateUpdateQuote } from "src/utils/validate-quote-update-fields";
 import { RefrigeratedType } from "src/common/enum/refrigerated.enum";
 import { AddressType } from "src/common/enum/address-type.enum";
 import { hasValidField } from "src/utils/has-valid-fields";
-
+import { async } from "rxjs";
+import { getAllowedFields } from "src/common/constants/line-item-rules";
+import { patchUnit,resetUnit } from "src/utils/line-item-units-helpers";
 @Injectable()
 export class QuoteService {
     constructor(private readonly em: EntityManager) {}
@@ -304,7 +306,7 @@ export class QuoteService {
         // 1) Fetch quote with relations
         const quote = await em.findOne(
             Quote,
-            { id: quoteId },
+            { id: quoteId , createdBy: this.em.getReference(User, currentUserId)},
             {
             populate: [
                 "createdBy",
@@ -324,7 +326,7 @@ export class QuoteService {
         );
 
         if (!quote) {
-            throw new NotFoundException("Quote not found");
+            throw new NotFoundException("Quote not found or you don't have the required permission");
         }
 
         // 2) Ownership check
@@ -334,6 +336,7 @@ export class QuoteService {
 
         // 3) VALIDATE & FILTER
         const validation = validateUpdateQuote(rawDto, quote);
+        console.log({rawDto: rawDto.lineItem?.units, quote})
         console.log({validation})
         if (!validation.valid) {
             throw new BadRequestException({
@@ -346,7 +349,6 @@ export class QuoteService {
         }
 
         const dto = validation.filteredDto!;
-
         // 4) Update operations
 
         // 4.1 Status & knownShipper
@@ -452,70 +454,89 @@ export class QuoteService {
             }
         }
         // 4.4 Line Item
-        if (dto.lineItem) {
-            if (quote.lineItems) em.remove(quote.lineItems);
+       const LINE_ITEM_SHIPMENT_TYPES = [
+            ShipmentType.COURIER_PAK,
+            ShipmentType.PACKAGE,
+            ShipmentType.PALLET
+        ];
 
-            const lineItem = new LineItem();
-            lineItem.quote = quote;
-            lineItem.type = (dto.lineItem.type || quote.shipmentType) as ShipmentType;
+        if (dto.lineItem && LINE_ITEM_SHIPMENT_TYPES.includes(quote.shipmentType as ShipmentType)) {
+            const lineItem = quote.lineItems as LineItem;
+            
+            if (!lineItem) throw new NotFoundException('Line item not found for this quote');
+            
+            const incomingType = dto.lineItem.type ?? lineItem.type;
+            const isTypeChanged = incomingType !== lineItem.type;
 
-            if ([ShipmentType.COURIER_PAK, ShipmentType.PACKAGE, ShipmentType.PALLET].includes(quote.shipmentType as ShipmentType)) {
-                lineItem.measurementUnit = dto.lineItem.measurementUnit!;
+            // ─── 1. Update LineItem-level fields ──────────────────────────────────
+            lineItem.type = incomingType;
+
+            if (
+                dto.lineItem.measurementUnit !== undefined &&
+                LINE_ITEM_SHIPMENT_TYPES.includes(incomingType)
+            ) {
+                lineItem.measurementUnit = dto.lineItem.measurementUnit;
             }
 
-            if ([ShipmentType.PACKAGE, ShipmentType.PALLET].includes(quote.shipmentType as ShipmentType)) {
-                lineItem.dangerousGoods = dto.lineItem.dangerousGoods ?? null;
+            if (
+                dto.lineItem.dangerousGoods !== undefined &&
+                [ShipmentType.PACKAGE, ShipmentType.PALLET].includes(incomingType)
+            ) {
+                lineItem.dangerousGoods = dto.lineItem.dangerousGoods;
+            } else if (isTypeChanged) {
+                lineItem.dangerousGoods = null;
             }
 
-            if (quote.shipmentType === ShipmentType.PALLET) {
-                lineItem.stackable = dto.lineItem.stackable ?? null;
-                lineItem.quantity = dto.lineItem.quantity ?? null;
+            if (incomingType === ShipmentType.PALLET) {
+                if (dto.lineItem.stackable !== undefined) lineItem.stackable = dto.lineItem.stackable;
+                if (dto.lineItem.quantity  !== undefined) lineItem.quantity  = dto.lineItem.quantity;
+            } else if (isTypeChanged) {
+                lineItem.stackable = null;
+                lineItem.quantity  = null;
+            }
+
+            // ─── 2. Update Units ───────────────────────────────────────────────────
+            const unitDtos = dto.lineItem.units ?? [];
+            const allowedFields = getAllowedFields(incomingType);
+            const existingUnits = lineItem.units.getItems();
+
+            if (isTypeChanged) {
+                for (const unit of existingUnits) {
+                    resetUnit(unit);
+                    unit.type = incomingType;
+                }
+            }
+
+            for (const unitDto of unitDtos) {
+                if (!unitDto.id) throw new Error('Unit id is required for update');
+
+                const unit = existingUnits.find(u => u.id === unitDto.id);
+                if (!unit) throw new NotFoundException(`Unit ${unitDto.id} not found`);
+
+                patchUnit(unit, unitDto, allowedFields, isTypeChanged);
             }
 
             em.persist(lineItem);
-
-            if (dto.lineItem.units && dto.lineItem.units.length > 0) {
-                for (const unitDto of dto.lineItem.units) {
-                    const unit = new LineItemUnit();
-                    unit.lineItem = lineItem;
-                    unit.type = dto.shipmentType as ShipmentType;
-
-                    if ([ShipmentType.PACKAGE, ShipmentType.PALLET].includes(quote.shipmentType as ShipmentType)) {
-                        unit.length = unitDto.length ?? null;
-                        unit.width = unitDto.width ?? null;
-                        unit.height = unitDto.height ?? null;
-                    }
-
-                    if ([ShipmentType.COURIER_PAK, ShipmentType.PACKAGE].includes(quote.shipmentType as ShipmentType)) {
-                        unit.weight = unitDto.weight ?? null;
-                        unit.description = unitDto.description ?? null;
-                    }
-
-                    if (quote.shipmentType === ShipmentType.PACKAGE) {
-                        unit.specialHandlingRequired = unitDto.specialHandlingRequired ?? null;
-                    }
-
-                    if (quote.shipmentType === ShipmentType.PALLET) {
-                        unit.freightClass = unitDto.freightClass ?? null;
-                        unit.nmfc = unitDto.nmfc ?? null;
-                        unit.unitsOnPallet = unitDto.unitsOnPallet ?? null;
-                    }
-
-                    em.persist(unit);
-                }
+            for (const unit of existingUnits) {
+                em.persist(unit);
             }
         }
 
         // 4.5 Insurance
         if (dto.insurance) {
-            if (!quote.insurance) {
-            const insurance = new Insurance();
-            insurance.quote = quote;
-            quote.insurance = insurance;
-                em.persist(insurance);
+            if(quote.insurance){
+                quote.insurance.amount   = dto.insurance.amount   ?? quote.insurance.amount;
+                quote.insurance.currency = dto.insurance.currency ?? quote.insurance.currency;
+            }else{
+                let insurance = new Insurance();
+                if(!dto.insurance.amount || !dto.insurance.currency){
+                    throw new BadRequestException("Insurance.amount , Insurance.currency is required");
+                }
+                insurance.amount = dto.insurance.amount;
+                insurance.currency = dto.insurance.currency;
+                quote.insurance = insurance;
+                em.persist(insurance)
             }
-            quote.insurance.amount = dto.insurance.amount ?? 0;
-            quote.insurance.currency = dto.insurance.currency!;
         }
 
         // 4.6 Spot Details - FIXED: Added proper null checks
@@ -610,6 +631,19 @@ export class QuoteService {
             em.persist(serviceSchema);
             }
         }
+
+        if ([ShipmentType.COURIER_PAK, ShipmentType.PACKAGE].includes(quote.shipmentType) && dto.signature) {
+            const signature = await this.em.findOne(Signature, { id: dto.signature });
+
+            if(!signature){
+                throw new NotFoundException("Signature not found or you don't have the required permissions")
+            }
+
+            quote.signature = signature;
+
+        }
+        
+        em.persist(quote);
 
         // 5) Flush
         await em.flush();
@@ -772,7 +806,7 @@ export class QuoteService {
         
         //3) Throw error for invalid quote
         if(!quote){
-            throw new NotFoundException("Quote not found or you are not allowed to access this resource.");
+            throw new NotFoundException("Quote not found or you don't have the required permissions");
         }
 
         //4) Delete quote

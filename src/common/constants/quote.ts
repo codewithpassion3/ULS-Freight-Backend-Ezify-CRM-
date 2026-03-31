@@ -97,6 +97,7 @@ export const NESTED_UPDATE_WHITELIST: Record<string, string[]> = {
 
   // Unit fields within line items
   "lineItem.units": [
+    "id",
     "quantity", "weight", "description",           // Common
     "length", "width", "height",                   // PACKAGE/PALLET only
     "freightClass", "nmfc", "unitsOnPallet",       // PALLET only

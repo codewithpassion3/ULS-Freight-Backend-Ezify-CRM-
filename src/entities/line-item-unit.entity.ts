@@ -11,6 +11,7 @@ export class LineItemUnit {
   @PrimaryKey()
   id!: number;
 
+  @Property({ nullable: true })
   @Enum(() => ShipmentType)
   type!: ShipmentType;
 

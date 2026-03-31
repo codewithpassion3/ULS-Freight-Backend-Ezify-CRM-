@@ -112,6 +112,13 @@ export function getRules(shipmentType: ShipmentType) {
       return [];
   }
 }
+// validateQuote.ts
+export function getUpdateRules(shipmentType: ShipmentType): FieldRule[] {
+  return [
+    ...getRules(shipmentType),          // spread existing creation rules
+    { field: 'id', required: true }  // always required for update
+  ];
+}
 
 /* -------------------- MAIN VALIDATOR -------------------- */
 
