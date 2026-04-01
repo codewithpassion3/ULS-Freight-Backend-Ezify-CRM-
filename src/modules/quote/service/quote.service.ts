@@ -668,7 +668,7 @@ export class QuoteService {
             id: quoteId,
             createdBy: this.em.getReference(User, currentUserId)
         },{
-            populate: ["addresses", "addresses.addressBookEntry", "addresses.address","lineItems", "lineItems.units",
+            populate: ["addresses", "addresses.addressBookEntry", "addresses.addressBookEntry.address", "addresses.address","lineItems", "lineItems.units",
                         "palletServices", "spotFtlServices", "spotLtlServices", "standardFTLService", 
                         "signature", "insurance","spotDetails", "spotDetails.spotContact", "spotDetails.spotEquipment"]
         });
