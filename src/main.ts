@@ -17,6 +17,7 @@ import { validateEnv } from './utils/validateEnv';
 import { runSeeders } from './seeders/main.seeder';
 import * as fs from 'fs';
 import path from 'path'
+import { EXPIRY_IN_MILISECONDS } from './common/constants/cookie';
 
 async function bootstrap() {
     //1) Validate env keys
@@ -86,7 +87,7 @@ async function bootstrap() {
         sameSite: 'none',
         secure: true,
         httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000
+        maxAge: EXPIRY_IN_MILISECONDS
       }
     }))
     

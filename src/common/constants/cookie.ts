@@ -1,0 +1,2 @@
+export const EXPIRY_IN_MILISECONDS = 24 * 60 * 60 * 1000;
+export const REMEMBER_ME_COOKIE_30DAY_EXPIRY = 30 * 24 * 60 * 60 * 1000;
