@@ -24,6 +24,23 @@ export class QuoteController{
         return this.quoteService.getAllAgainstCurrentUser(currentUserId, params);
     }
 
+     @Get('/favorites')
+    async getAllFavoritesAgainstCurrentUser(
+        @CurrentUser() currentUserId: number,
+        @Query() params: PaginationParams
+    ) {
+        return this.quoteService.getAllFavoritesAgainstCurrentUser(currentUserId, params);
+    }
+
+    @UseGuards(SessionAuthGuard, PermissionsGuard)
+    @Get('/favorites/:id')
+    async GetFavoriteQuoteByIdAgainstCurrentUser(
+        @CurrentUser() currentUserId: number,
+        @Param('id') id: number,
+    ) {
+        return this.quoteService.getFavoriteQuoteByIdAgainstCurrentUser(currentUserId, id);
+    }
+
     @UseGuards(SessionAuthGuard, PermissionsGuard)
     @Patch("/:id")
     async Update(@Param("id") quoteId: number, @Body() dto: UpdateQuoteDTO, @CurrentUser() currentUerId: number){
@@ -54,6 +71,7 @@ export class QuoteController{
         return this.quoteService.unmarkQuoteFavoriteAgainstCurrentUser(quoteId, currentUserId);
     }
 
+   
     @UseGuards(SessionAuthGuard, PermissionsGuard)
     @Patch(':id/status')
     async UpdateStatus(

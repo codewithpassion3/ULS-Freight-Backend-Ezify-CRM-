@@ -336,8 +336,6 @@ export class QuoteService {
 
         // 3) VALIDATE & FILTER
         const validation = validateUpdateQuote(rawDto, quote);
-        console.log({rawDto: rawDto.lineItem?.units, quote})
-        console.log({validation})
         if (!validation.valid) {
             throw new BadRequestException({
                 message: validation.errors,
@@ -931,6 +929,104 @@ export class QuoteService {
         //8) Rturn success response
         return {
             message: "Quote status updated successfully"
+        };
+    }
+
+    async getAllFavoritesAgainstCurrentUser(
+        currentUser: number,
+        params: PaginationParams
+        ) {
+        // 1) Allowed fields for sorting/search
+        const allowedFields = {
+            createdAt: "createdAt",
+            updatedAt: "updatedAt",
+        };
+
+        // 2) Build query params
+        const { search, page, limit, orderBy } = buildQuery(params, allowedFields);
+
+        // 3) Base filter (user-scoped)
+        const filter: any = {
+            user: this.em.getReference(User, currentUser),
+        };
+
+        // 4) Optional date filters
+        if (params.dateFrom || params.dateTo) {
+            filter.createdAt = {};
+            if (params.dateFrom) filter.createdAt.$gte = new Date(params.dateFrom);
+            if (params.dateTo) filter.createdAt.$lte = new Date(params.dateTo);
+        }
+
+        // 5) Optional search (if you want to search inside related Quote fields)
+        if (search) {
+            filter.quote = {
+            quoteId: { $ilike: `${search}%` },
+            };
+        }
+
+        // 6) Count total
+        const total = await this.em.count(QuoteFavorite, filter);
+        const totalPages = Math.ceil(total / limit) || 1;
+
+        // 7) Clamp pagination
+        const clampedPage = Math.min(page, totalPages);
+        const offset = (clampedPage - 1) * limit;
+
+        // 8) Fetch data
+        const favorites = await this.em.find(
+            QuoteFavorite,
+            filter,
+            {
+            limit,
+            offset,
+            orderBy: Object.entries(orderBy).map(([field, direction]) => ({
+                [field]: direction,
+            })),
+            populate: [
+                "quote",
+                "user"
+            ],
+            }
+        );
+
+        // 9) Response
+        return {
+            message: "Favorite quotes retrieved successfully",
+            data: favorites,
+            meta: {
+            total,
+            page: clampedPage,
+            limit,
+            totalPages,
+            hasNextPage: clampedPage < totalPages,
+            hasPrevPage: clampedPage > 1,
+            sort: orderBy,
+            },
+        };
+    }
+
+    async getFavoriteQuoteByIdAgainstCurrentUser(currentUserId: number, favoriteId: number) {
+        //1) Find quote against current user and favoriteId
+        const favorite = await this.em.findOne(
+            QuoteFavorite,
+            {
+                id: favoriteId,
+                user: currentUserId,
+            },
+            {
+                populate: ['quote', 'user'],
+            }
+        );
+
+        //2) Throw error for invalid favoriteId
+        if (!favorite) {
+            throw new NotFoundException("Favorite quote not found or you don't have the required permissions");
+        }
+
+        //3) Return success response
+        return {
+            message: 'Favorite quote retrieved successfully',
+            favoriteQuote: favorite,
         };
     }
 }
