@@ -16,6 +16,7 @@ import { MeasurementUnits } from "src/common/enum/measurement-units.enum";
 import { Currency } from "src/common/enum/currency.enum";
 import { SpotType } from "src/common/enum/spot-type.enum";
 import { QuoteStatus } from "src/common/enum/quote-status";
+import { LineItemUnitType } from "src/common/enum/line-item-unit-type";
 
 // ==================== Address DTO ====================
 export class AddressDTO {
@@ -75,8 +76,9 @@ export class AddressDTO {
 
 // ==================== Unit DTO ====================
 export class UnitDTO {
+  @IsOptional()
   @IsNumber()
-  id!: number;
+  id?: number;
 
   @IsOptional()
   @IsNumber()
@@ -121,6 +123,10 @@ export class UnitDTO {
   @IsOptional()
   @IsBoolean()
   specialHandlingRequired?: boolean;
+
+  @IsEnum(LineItemUnitType)
+  @IsOptional()
+  palletUnitType?: LineItemUnitType
 }
 
 // ==================== Line Item DTO ====================

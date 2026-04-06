@@ -100,7 +100,7 @@ export const NESTED_UPDATE_WHITELIST: Record<string, string[]> = {
     "id",
     "quantity", "weight", "description",           // Common
     "length", "width", "height",                   // PACKAGE/PALLET only
-    "freightClass", "nmfc", "unitsOnPallet",       // PALLET only
+    "freightClass", "nmfc", "unitsOnPallet" ,"palletUnitType",       // PALLET only
     "stackable", "specialHandlingRequired"         // PACKAGE/PALLET
   ],
 

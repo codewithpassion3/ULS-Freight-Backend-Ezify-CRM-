@@ -185,11 +185,6 @@ export function validateUpdateQuote(
       
       filteredDto.lineItem.units.forEach((unit, idx) => {
         const unitPrefix = `Line Item Unit #${idx + 1}: `;
-        
-        if (!unit.id) {
-            errors.push(`${unitPrefix}id is required for update`);
-            return; // no point validating further
-        }
 
         // Get fields actually sent in this unit (excluding undefined)
         const sentFields = Object.keys(unit).filter(

@@ -1,3 +1,4 @@
+import { BadRequestException } from "@nestjs/common";
 import { UnitField, ALL_UNIT_FIELDS } from "src/common/constants/line-item-rules";
 import { LineItemUnit } from "src/entities/line-item-unit.entity";
 
@@ -10,15 +11,34 @@ export function patchUnit(
   unit: LineItemUnit,
   unitDto: Partial<LineItemUnit>,
   allowedFields: Set<UnitField>,
-  resetUnallowed: boolean
+  options: {
+    resetUnallowed?: boolean;
+    isCreate?: boolean;
+    context?: {
+      index?: number;
+      id?: number;
+    };
+  } = {}
 ): void {
+  const {
+    resetUnallowed = false,
+    isCreate = false,
+    context,
+  } = options;
+
+  const unitLabel = context?.id
+    ? `Unit ID ${context.id}`
+    : `Unit #${(context?.index ?? 0) + 1}`;
+
   for (const field of ALL_UNIT_FIELDS) {
     if (allowedFields.has(field)) {
-      // Only overwrite if the DTO actually provided a value
       if (unitDto[field] !== undefined) {
         (unit as any)[field] = unitDto[field];
+      } else if (isCreate) {
+        throw new BadRequestException(
+          `${unitLabel}: Missing required field '${field}'`
+        );
       }
-      // else: keep existing value (partial update)
     } else if (resetUnallowed) {
       (unit as any)[field] = null;
     }

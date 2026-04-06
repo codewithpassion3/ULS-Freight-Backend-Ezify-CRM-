@@ -1,4 +1,4 @@
-import { EntityManager, quote } from "@mikro-orm/postgresql";
+import { EntityManager } from "@mikro-orm/postgresql";
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { CreateQuoteDTO } from "../dto/create-quote.dto";
 import { Quote } from "src/entities/quote.entity";
@@ -9,14 +9,13 @@ import { LineItem } from "src/entities/line-item.entity";
 import { ShippingAddress } from "src/entities/shipping-address.entity";
 import { SpotDetails } from "src/entities/spot-details.entity";
 import { Signature } from "src/entities/signature.entity";
-import { getRules, validateQuote } from "src/utils/validateQuote";
+import { validateQuote } from "src/utils/validateQuote";
 import { AddressBook } from "src/entities/address-book.entity";
 import { Address } from "src/entities/address.entity";
 import { PalletShippingLocationType } from "src/entities/pallet-shipping-location-type.entity";
 import { ShippingAddressMeta } from "src/entities/shipping-address-meta.entity";
 import { SpotEquipment } from "src/entities/spot-equipment.entity";
 import { SpotContact } from "src/entities/spot-contact.entity";
-import { EquipmentType } from "src/common/enum/equipment-type.enum";
 import { User } from "src/entities/user.entity";
 import { PaginationParams } from "src/types/pagination";
 import { buildQuery } from "src/utils/api-query";
@@ -32,14 +31,22 @@ import { UpdateQuoteStatusDTO } from "../dto/update-quote-status.dto";
 import { QuoteStatus } from "src/common/enum/quote-status";
 import { validateUpdateQuote } from "src/utils/validate-quote-update-fields";
 import { RefrigeratedType } from "src/common/enum/refrigerated.enum";
-import { AddressType } from "src/common/enum/address-type.enum";
 import { hasValidField } from "src/utils/has-valid-fields";
-import { async } from "rxjs";
 import { getAllowedFields } from "src/common/constants/line-item-rules";
-import { patchUnit,resetUnit } from "src/utils/line-item-units-helpers";
+import { patchUnit, resetUnit } from "src/utils/line-item-units-helpers";
 @Injectable()
 export class QuoteService {
     constructor(private readonly em: EntityManager) {}
+    // Helper method
+    private getExistingService(quote: Quote, shipmentType: ShipmentType): any {
+        switch (shipmentType) {
+            case ShipmentType.PALLET: return quote.palletServices;
+            case ShipmentType.SPOT_FTL: return quote.spotFtlServices;
+            case ShipmentType.SPOT_LTL: return quote.spotLtlServices;
+            case ShipmentType.STANDARD_FTL: return quote.standardFTLService;
+            default: return null;
+        }
+    }
 
     async create(dto: CreateQuoteDTO, currentUserId: number) {
         //1) Validate payload
@@ -303,7 +310,7 @@ export class QuoteService {
         
         const em = this.em.fork();
 
-        // 1) Fetch quote with relations
+        //1) Fetch quote with relations
         const quote = await em.findOne(
             Quote,
             { id: quoteId , createdBy: this.em.getReference(User, currentUserId)},
@@ -329,12 +336,12 @@ export class QuoteService {
             throw new NotFoundException("Quote not found or you don't have the required permission");
         }
 
-        // 2) Ownership check
+        //2) Ownership check
         if (quote.createdBy.id !== currentUserId) {
             throw new ForbiddenException("You are not allowed to update this quote");
         }
 
-        // 3) VALIDATE & FILTER
+        //3) VALIDATE & FILTER
         const validation = validateUpdateQuote(rawDto, quote);
         if (!validation.valid) {
             throw new BadRequestException({
@@ -347,9 +354,9 @@ export class QuoteService {
         }
 
         const dto = validation.filteredDto!;
-        // 4) Update operations
+        //4) Update operations
 
-        // 4.1 Status & knownShipper
+        //5) Status & knownShipper
         if (dto.status) quote.status = dto.status as QuoteStatus;
 
         if (dto.knownShipper !== undefined) {
@@ -358,7 +365,7 @@ export class QuoteService {
             }
         }
 
-        // 4.2 Signature
+        //6) Signature
         if (dto.signature !== undefined) {
             if ([ShipmentType.COURIER_PAK, ShipmentType.PACKAGE].includes(quote.shipmentType as ShipmentType)) {
                 const signature = await em.findOne(Signature, { id: dto.signature });
@@ -367,7 +374,7 @@ export class QuoteService {
             }
         }
 
-        // 4.3 Addresses
+        //7) Addresses
         if (dto.addresses && dto.addresses.length > 0) {
             for (const addrDto of dto.addresses) {
                 const addressType = addrDto.type!;
@@ -451,7 +458,7 @@ export class QuoteService {
                 }
             }
         }
-        // 4.4 Line Item
+        //8) Line Item
        const LINE_ITEM_SHIPMENT_TYPES = [
             ShipmentType.COURIER_PAK,
             ShipmentType.PACKAGE,
@@ -466,7 +473,6 @@ export class QuoteService {
             const incomingType = dto.lineItem.type ?? lineItem.type;
             const isTypeChanged = incomingType !== lineItem.type;
 
-            // ─── 1. Update LineItem-level fields ──────────────────────────────────
             lineItem.type = incomingType;
 
             if (
@@ -493,34 +499,68 @@ export class QuoteService {
                 lineItem.quantity  = null;
             }
 
-            // ─── 2. Update Units ───────────────────────────────────────────────────
             const unitDtos = dto.lineItem.units ?? [];
             const allowedFields = getAllowedFields(incomingType);
             const existingUnits = lineItem.units.getItems();
-
             if (isTypeChanged) {
                 for (const unit of existingUnits) {
                     resetUnit(unit);
                     unit.type = incomingType;
                 }
             }
+            
+            //9) Line Item Unit
+            for (const [index, unitDto] of unitDtos.entries()) {
+                const isCreate = !unitDto.id;
 
-            for (const unitDto of unitDtos) {
-                if (!unitDto.id) throw new Error('Unit id is required for update');
+               //10) Update existing
+                if (!isCreate) {
+                    const unit = existingUnits.find(u => u.id === unitDto.id);
 
-                const unit = existingUnits.find(u => u.id === unitDto.id);
-                if (!unit) throw new NotFoundException(`Unit ${unitDto.id} not found`);
+                    if (!unit) {
+                        throw new NotFoundException(`Unit ${unitDto.id} not found`);
+                    }
 
-                patchUnit(unit, unitDto, allowedFields, isTypeChanged);
+                    patchUnit(unit, unitDto, allowedFields, {
+                        resetUnallowed: isTypeChanged,
+                        isCreate: false,
+                        context: {
+                            index,
+                            id: unitDto.id,
+                        },
+                    });
+
+                    em.persist(unit);
+                    continue;
+                }
+
+                //11) Create new line item unit
+                const newUnit = em.create(LineItemUnit, {
+                    type: incomingType,
+                    lineItem: lineItem,
+                    createdBy: this.em.getReference(User, currentUserId),
+                });
+
+                patchUnit(newUnit, unitDto, allowedFields, {
+                    resetUnallowed: true,
+                    isCreate: true,
+                    context: {
+                        index,
+                    },
+                });
+
+                //12) Attach to parent
+                lineItem.units.add(newUnit);
+
+                //13) Persist
+                em.persist(newUnit);
             }
 
+            //14) Persist line item changes
             em.persist(lineItem);
-            for (const unit of existingUnits) {
-                em.persist(unit);
-            }
         }
 
-        // 4.5 Insurance
+        //15) Insurance
         if (dto.insurance) {
             if(quote.insurance){
                 quote.insurance.amount   = dto.insurance.amount   ?? quote.insurance.amount;
@@ -537,7 +577,7 @@ export class QuoteService {
             }
         }
 
-        // 4.6 Spot Details - FIXED: Added proper null checks
+        //16) Spot Details - FIXED: Added proper null checks
         if (quote.quoteType === QuoteType.SPOT && dto.spotDetails) {
             let spotDetail = quote.spotDetails;
 
@@ -593,7 +633,7 @@ export class QuoteService {
             em.persist(spotDetail);
         }
 
-        // 4.7 Services
+        //17) Services
         if (dto.services) {
             const mapping: Record<string, any> = {
             [ShipmentType.PALLET]: PalletServices,
@@ -643,24 +683,12 @@ export class QuoteService {
         
         em.persist(quote);
 
-        // 5) Flush
+        //18) Flush
         await em.flush();
 
+        //19) Return back success response
         return { message: "Quote updated successfully" };
     }
-
-    // Helper method
-    private getExistingService(quote: Quote, shipmentType: ShipmentType): any {
-        switch (shipmentType) {
-            case ShipmentType.PALLET: return quote.palletServices;
-            case ShipmentType.SPOT_FTL: return quote.spotFtlServices;
-            case ShipmentType.SPOT_LTL: return quote.spotLtlServices;
-            case ShipmentType.STANDARD_FTL: return quote.standardFTLService;
-            default: return null;
-        }
-    }
-
-
 
     async getSingleAgainstCurrentUser(quoteId: number, currentUserId: number){
         //1) Get the quote against current user
