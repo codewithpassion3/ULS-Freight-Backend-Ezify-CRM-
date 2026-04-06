@@ -1,5 +1,6 @@
-import { Entity, PrimaryKey, OneToOne, Property } from "@mikro-orm/core";
+import { Entity, PrimaryKey, OneToOne, Property, Enum, Cascade } from "@mikro-orm/core";
 import { Quote } from "./quote.entity";
+import { Currency } from "src/common/enum/currency.enum";
 
 @Entity()
 export class Insurance {
@@ -7,9 +8,12 @@ export class Insurance {
   @PrimaryKey()
   id!: number;
 
-  @OneToOne(() => Quote)
+  @OneToOne(() => Quote, { cascade: [Cascade.REMOVE]})
   quote!: Quote;
 
-  @Property()
+  @Property({ type: 'int'})
   amount!: number;
+
+  @Enum(() => Currency)
+  currency!: Currency; 
 }

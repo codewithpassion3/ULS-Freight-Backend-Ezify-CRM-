@@ -6,7 +6,7 @@ import {
   HttpStatus,
 } from "@nestjs/common";
 
-import { UniqueConstraintViolationException } from "@mikro-orm/core";
+import { UniqueConstraintViolationException, ValidationError } from "@mikro-orm/core";
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -33,12 +33,28 @@ export class GlobalExceptionFilter implements ExceptionFilter {
           : (exceptionResponse as any).message;
     }
 
+    else if (exception instanceof ValidationError) {
+      // extract raw message
+      const rawMessage = exception.message;
+
+      // Get the field name through regex
+      const match = rawMessage.match(/Value for (\w+\.\w+) is required, 'undefined' found/);
+      const field = match?.[1];
+
+      // Construct error message
+      const cleanMessage = field ? `${field} is required or undefined` : rawMessage;
+      
+      // Set error message status and message
+      status = HttpStatus.BAD_REQUEST;
+      message = cleanMessage
+    }
+
     //2) MikroORM unique constraint
     else if (exception instanceof UniqueConstraintViolationException) {
       status = HttpStatus.CONFLICT;
 
       const constraint = (exception as any).constraint;
-
+      console.log({status, constraint})
       if (constraint === "user_email_unique") {
         message = "Email already exists";
       } else if (constraint === "user_phone_number_unique") {

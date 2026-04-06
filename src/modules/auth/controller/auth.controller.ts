@@ -6,6 +6,7 @@ import { SigninDTO } from "../dto/signin.dto";
 import { SessionAuthGuard } from "src/guards/sessionAuth.guard";
 import { ForgotPasswordDTO } from "../dto/forgot-password.dto";
 import { ResetPasswordDTO } from "../dto/reset-password.dto";
+import { REMEMBER_ME_COOKIE_30DAY_EXPIRY } from "src/common/constants/cookie";
 
 @Controller('auth')
 export class AuthController {
@@ -18,7 +19,6 @@ export class AuthController {
       req.session.userId = user.id;
       req.session.role = user.role.name;
       req.session.companyId = user.company.id;
-      req.session.permissions = user.permissions.getItems().map(p => p.name);
 
       return {
          message: "Signup successfull",
@@ -29,10 +29,13 @@ export class AuthController {
    @Post('/signin')
    async Signin(@Body() dto: SigninDTO, @Req() req: Request){
       const user = await this.AuthService.signin(dto);
+
       req.session.userId = user.id;
       req.session.role = user.role.name;
       req.session.companyId = user.company.id;
-      req.session.permissions = user.permissions.getItems().map(p => p.name);
+      req.session.permissions = (user as any).routePermissions;
+
+      if(dto.rememberMe) req.session.cookie.maxAge = REMEMBER_ME_COOKIE_30DAY_EXPIRY;
 
       return {
          message: "Signin successfull",

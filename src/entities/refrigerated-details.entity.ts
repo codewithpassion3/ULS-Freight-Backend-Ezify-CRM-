@@ -14,6 +14,6 @@ export class RefrigeratedDetails {
   @Enum(() => TemperatureType)
   temperatureType!: TemperatureType;
 
-  @Property({ nullable: true })
+  @Property({ type: 'boolean',nullable: true })
   protectFromFreeze?: boolean;
 }

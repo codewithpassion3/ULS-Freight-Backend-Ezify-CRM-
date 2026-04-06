@@ -28,6 +28,18 @@ export class AddressBookController {
     }
 
     @UseGuards(SessionAuthGuard)
+    @Post("/:id/recent")
+    async MarkAsRecentAgainstCurrentUser(@CurrentUser() currentUserId: number, @Param("id") addressBookContactId: number){
+        return this.addressBookService.markAsRecentAgainstCurrentUser(currentUserId, addressBookContactId);
+    }
+
+    @UseGuards(SessionAuthGuard)
+    @Get("/recent")
+    async GetAllRecentAgainstCurrentUser(@CurrentUser() currentUserId: number, @Query() queryParams: Record<keyof Partial<GetAllAgainstCurrentUserQueryParams>, any>){
+        return this.addressBookService.getAllrecentAgainstCurrentUser(currentUserId, queryParams);
+    }
+
+    @UseGuards(SessionAuthGuard)
     @Get("/:id")
     async GetSingleAgainstCurrentUser(@CurrentUser() currentUserId: number, @Param("id") addressBookContactId: number){
         return this.addressBookService.getSingleAgainstCurrentUser(currentUserId, addressBookContactId);
@@ -45,16 +57,5 @@ export class AddressBookController {
         return this.addressBookService.deleteSingleAgainstCurrentUser(currentUserId, addressBookContactId);
     }
 
-    @UseGuards(SessionAuthGuard)
-    @Post("/:id/recent")
-    async MarkAsRecentAgainstCurrentUser(@CurrentUser() currentUserId: number, @Param("id") addressBookContactId: number){
-        return this.addressBookService.markAsRecentAgainstCurrentUser(currentUserId, addressBookContactId);
-    }
-
-    @UseGuards(SessionAuthGuard)
-    @Get("/recent")
-    async GetAllRecentAgainstCurrentUser(@CurrentUser() currentUserId: number, @Query() queryParams: Record<keyof Partial<GetAllAgainstCurrentUserQueryParams>, any>){
-        return this.addressBookService.getAllrecentAgainstCurrentUser(currentUserId, queryParams);
-    }
 
 }
