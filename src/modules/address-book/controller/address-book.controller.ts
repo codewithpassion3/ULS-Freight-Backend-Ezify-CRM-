@@ -4,6 +4,7 @@ import { SessionAuthGuard } from "src/guards/sessionAuth.guard";
 import { CreateAddressBookDTO } from "../dto/create-address-book.dto";
 import { CurrentUser } from "src/decorators/currentUser.decorator";
 import { UpdateAddressBook } from "../dto/update-address-book.dto";
+import type { SessionData } from "express-session";
 
 export interface GetAllAgainstCurrentUserQueryParams {
     page?: number;
@@ -23,8 +24,8 @@ export class AddressBookController {
 
     @UseGuards(SessionAuthGuard)
     @Get("/")
-    async GetAllAgainstCurrentUser(@CurrentUser() currentUserId: number, @Query() queryParams: Record<keyof GetAllAgainstCurrentUserQueryParams, any>){
-        return this.addressBookService.getAllAgainstCurrentUser(currentUserId, queryParams);
+    async GetAllAgainstCurrentUserCompany(@Session() session: SessionData, @Query() queryParams: Record<keyof GetAllAgainstCurrentUserQueryParams, any>){
+        return this.addressBookService.getAllAgainstCurrentUserCompany(session, queryParams);
     }
 
     @UseGuards(SessionAuthGuard)
