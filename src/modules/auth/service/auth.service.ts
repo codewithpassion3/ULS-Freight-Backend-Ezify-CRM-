@@ -124,7 +124,7 @@ export class AuthService{
         const user = await this.em.findOne(User, { email }, { populate: ["role", "permissions"] });
         
         if(!user){
-            throw new UnauthorizedException("Invalid credentials")
+            throw new UnauthorizedException("Invalid credentials or user not found");
         }
 
         //4) Compare password and throw error for invalid credentials
