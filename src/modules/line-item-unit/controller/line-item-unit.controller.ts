@@ -26,7 +26,7 @@ export class LineItemUnitController {
 
   @UseGuards(SessionAuthGuard)
   @Get("/")
-  async GetAllAgainstCurrentUser(@Query('lineItemId') queryParams: Record<keyof GetAllAgainstCurrentUserQueryParams, any>, @CurrentUser() currentUserId: number) {
+  async GetAllAgainstCurrentUser(@Query() queryParams: Record<keyof GetAllAgainstCurrentUserQueryParams, any>, @CurrentUser() currentUserId: number) {
     return this.service.getAllAgainstCurrentUser(queryParams, currentUserId);
   }
 

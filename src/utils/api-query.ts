@@ -12,17 +12,17 @@ export function buildQuery(
   defaultSort: string = "createdAt:desc"
 ): PaginatedResult {
     //1) Eliminate extra space from side in seracy
-    const search = params.search?.trim() || "";
+    const search = params?.search?.trim() || "";
 
     //2) Make sure we have valid page and limit values handle fallbacks
-    const pageNum = Number(params.page);
-    const limitNum = Number(params.limit);
+    const pageNum = Number(params?.page);
+    const limitNum = Number(params?.limit);
 
     const page = Number.isFinite(pageNum) && pageNum > 0 ? pageNum : 1;
     const limit = Number.isFinite(limitNum) && limitNum > 0 ? Math.min(limitNum, 50) : 10;
 
     //3) Handle multi column sort mapping
-    const sortParam = params.sort || defaultSort;
+    const sortParam = params?.sort || defaultSort;
     const orderBy: Record<string, "ASC" | "DESC"> = {};
 
     const sortParts = sortParam.split(",");
