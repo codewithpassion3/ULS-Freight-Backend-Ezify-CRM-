@@ -18,8 +18,8 @@ export class AddressBookController {
 
     @UseGuards(SessionAuthGuard)
     @Post("/")
-    async Create(@Body() dto: CreateAddressBookDTO, @CurrentUser() currentUserId: number){
-        return this.addressBookService.create(dto, currentUserId);
+    async Create(@Body() dto: CreateAddressBookDTO, @Session() session: SessionData){
+        return this.addressBookService.create(dto, session);
     }
 
     @UseGuards(SessionAuthGuard)
@@ -30,32 +30,32 @@ export class AddressBookController {
 
     @UseGuards(SessionAuthGuard)
     @Post("/:id/recent")
-    async MarkAsRecentAgainstCurrentUser(@CurrentUser() currentUserId: number, @Param("id") addressBookContactId: number){
-        return this.addressBookService.markAsRecentAgainstCurrentUser(currentUserId, addressBookContactId);
+    async MarkAsRecentAgainstCurrentUser(@Session() session: SessionData, @Param("id") addressBookContactId: number){
+        return this.addressBookService.markAsRecentAgainstCurrentUserCompany(session, addressBookContactId);
     }
 
     @UseGuards(SessionAuthGuard)
     @Get("/recent")
-    async GetAllRecentAgainstCurrentUser(@CurrentUser() currentUserId: number, @Query() queryParams: Record<keyof Partial<GetAllAgainstCurrentUserQueryParams>, any>){
-        return this.addressBookService.getAllrecentAgainstCurrentUser(currentUserId, queryParams);
+    async GetAllRecentAgainstCurrentUser(@Session() session: SessionData, @Query() queryParams: Record<keyof Partial<GetAllAgainstCurrentUserQueryParams>, any>){
+        return this.addressBookService.getAllrecentAgainstCurrentUserCompany(session, queryParams);
     }
 
     @UseGuards(SessionAuthGuard)
     @Get("/:id")
-    async GetSingleAgainstCurrentUser(@CurrentUser() currentUserId: number, @Param("id") addressBookContactId: number){
-        return this.addressBookService.getSingleAgainstCurrentUser(currentUserId, addressBookContactId);
+    async GetSingleAgainstCurrentUserCompany(@Session() session: SessionData, @Param("id") addressBookContactId: number){
+        return this.addressBookService.getSingleAgainstCurrentUserCompany(session, addressBookContactId);
     }
 
     @UseGuards(SessionAuthGuard)
     @Patch("/:id")
-    async UpdateSingleAgainstCurrentUser(@CurrentUser() currentUserId: number, @Param("id") addressBookContactId: number, @Body() dto: UpdateAddressBook){
-        return this.addressBookService.updateSingleAgainstCurrentUser(currentUserId, addressBookContactId, dto);
+    async UpdateSingleAgainstCurrentUser(@Session() session: SessionData, @Param("id") addressBookContactId: number, @Body() dto: UpdateAddressBook){
+        return this.addressBookService.updateSingleAgainstCurrentUserCompany(session, addressBookContactId, dto);
     }
 
     @UseGuards(SessionAuthGuard)
     @Delete("/:id")
-    async DeleteSingleAgainstCurrentUser(@CurrentUser() currentUserId: number, @Param("id") addressBookContactId: number) {
-        return this.addressBookService.deleteSingleAgainstCurrentUser(currentUserId, addressBookContactId);
+    async DeleteSingleAgainstCurrentUserCompany(@Session() session: SessionData, @Param("id") addressBookContactId: number) {
+        return this.addressBookService.deleteSingleAgainstCurrentUserCompany(session, addressBookContactId);
     }
 
 

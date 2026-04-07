@@ -12,61 +12,49 @@ import { UpdateAddressBook } from "../dto/update-address-book.dto";
 import { plainToInstance } from "class-transformer";
 import { AddressBookResponseDto } from "../dto/address-book.dto";
 import { buildQuery } from "src/utils/api-query";
-import { Company } from "src/entities/company.entity";
 import { SessionData } from "express-session";
+import { RequestContextService } from "src/utils/request-context-service";
 
 @Injectable()
 export class AddressBookService {
-    constructor(private readonly em: EntityManager) {}
+    constructor(private readonly em: EntityManager, private readonly requestContextService: RequestContextService) {}
 
-   async create(dto: CreateAddressBookDTO, currentUserId: number) {
+   async create(dto: CreateAddressBookDTO, session: SessionData) {
         return this.em.transactional(async (em) => {
             //1) Extract fields
             const { signatureId, locationTypeId, address, ...restDTO } = dto;
 
-            //2) Validate user
-            const currentUser = em.getReference(User, currentUserId);
-            
-            const user = await em.findOne(User, { id: currentUserId }, { populate: ["company"], fields: ["id", "company.id"]});
-            
-            //3) Throw error for invalid user
-            if (!user) throw new BadRequestException("Invalid user id");
+            //2) Validate session details
+            const ctx = await this.requestContextService.resolve({ session, em })
 
-            //4) Validate company against current user
-            const currentUserCompany = em.getReference(Company, user.company.id);
-
-            const companyCount = await em.count(Company, { id: user.company.id });
-
-            //5) Throw error for invalid company id
-            if (!companyCount) throw new BadRequestException("Invalid user company id");
-
-            //4) Validate location type
+            //3) Validate location type
             const locationType = await em.findOne(
                 PalletShippingLocationType, 
                 { id: locationTypeId }, 
                 { fields: ["id"] }
             );
 
-            //5) Throw error for invalid location type
+            //4) Throw error for invalid location type
             if (!locationType) throw new BadRequestException("Invalid location type id");
 
-            //6) Validate signature
+            //5) Validate signature
             const signature = await em.findOne(
                 Signature, 
                 { id: signatureId }, 
                 { fields: ["id"] }
             );
 
-            //7) Throw error for invalid signature
+            //6) Throw error for invalid signature
             if (!signature) throw new BadRequestException("Invalid signature id");
 
 
-            //8) Create address
+            //7) Create address
             const addressEntity = new Address();
             
-            //9) Update address book entity and persist address
+            //8) Update address book entity and persist address
             wrap(addressEntity).assign(address, { ignoreUndefined: true });
-        
+            
+            //9) Persist changes
             em.persist(addressEntity);
 
             //10) Create address book entry
@@ -78,8 +66,8 @@ export class AddressBookService {
                 address: addressEntity,
                 locationType,
                 signature,
-                createdBy: currentUser,
-                company: currentUserCompany
+                createdBy: ctx.user,
+                company: ctx.company
             }, { ignoreUndefined: true });
 
             em.persist(addressBook);
@@ -96,27 +84,10 @@ export class AddressBookService {
         session: SessionData,
         params: Record<string, any>
     ) { 
-        //1) Extact user and company id from session
-        const userId = session.userId as number;
-        const companyId = session.companyId as number;
-
-        //2) Validate user
-        const currentUser = this.em.getReference(User, userId);
+        //1) Validate session details
+        const ctx = await this.requestContextService.resolve({ session, em: this.em})
         
-        const user = await this.em.findOne(User, { id: userId}, { populate: ["company"], fields: ["id", "company.id"]});
-        
-        //3) Throw error for invalid user
-        if (!user) throw new BadRequestException("Invalid user id");
-
-        //4) Validate company against current user
-        const currentUserCompany = this.em.getReference(Company, companyId);
-
-        const companyCount = await this.em.count(Company, { id: companyId });
-
-        //5) Throw error for invalid company id
-        if (!companyCount) throw new BadRequestException("Invalid user company id");
-    
-        //6) Specify fields allowed for search and filters
+        //2) Specify fields allowed for search and filters
         const allowedFields: Record<string, string> = {
             phoneNumber: "phoneNumber",
             companyName: "companyName",
@@ -124,27 +95,27 @@ export class AddressBookService {
             // address: "address.city" // works if MikroORM can resolve it
         };
 
-        //7) Pass query params and allowed field to build query pagination params
+        //3) Pass query params and allowed field to build query pagination params
         const { search, page, limit, orderBy } = buildQuery(params, allowedFields);
 
-        //8) Build filter query
-        const filter: any = { createdBy: currentUser, company: currentUserCompany };
+        //4) Build filter query
+        const filter: any = { createdBy: ctx.user, company: ctx.company };
 
-        //9) Handle search filter
+        //5) Handle search filter
         if (search) {
             filter.companyName = { $ilike: `${search}%` };
             console.log("search", search, filter)
         }
 
-        //10) Count total address books and pages
+        //6) Count total address books and pages
         const total = await this.em.count(AddressBook, filter);
         const totalPages = Math.ceil(total / limit) || 1;
 
-        //11) Clamp page based on default limit and total address book pages\
+        //7) Clamp page based on default limit and total address book pages\
         const clampedPage = Math.min(page, totalPages);
         const offset = (clampedPage - 1) * limit;
 
-        //12) Fetch data
+        //8) Fetch data
         let addressBook = await this.em.find(
             AddressBook,
             filter,
@@ -175,11 +146,13 @@ export class AddressBookService {
             }
         );
 
+        //9) Transform response fields according to DTO
         const result = addressBook.map(item => plainToInstance(AddressBookResponseDto, item, {
                             excludeExtraneousValues: true,
                         })
                     );
-        //13) Return success response
+
+        //10) Return success response
         return {
             message: "Address book contacts retrieved successfully",
             data: result,
@@ -195,11 +168,12 @@ export class AddressBookService {
         };
     }
 
-    async getSingleAgainstCurrentUser(currentUserId: number, addressBookContactId: number){
-        //1) Fetch contact from address book against current user
-        const userEntity = this.em.getReference(User, currentUserId)
-
-        const addressBookContent = await this.em.findOne(AddressBook, { id: addressBookContactId, createdBy: userEntity }, {
+    async getSingleAgainstCurrentUserCompany(session: SessionData, addressBookContactId: number){
+        //1) Validate session details
+        const ctx = await this.requestContextService.resolve({session, em: this.em})
+     
+        //2) Get address book against session details
+        const addressBookContent = await this.em.findOne(AddressBook, { id: addressBookContactId, createdBy: ctx.user, company: ctx.company }, {
             populate: ["address"],
             fields: [
                 "companyName",
@@ -223,28 +197,31 @@ export class AddressBookService {
             ],
         });
 
-        //2) Throw error for invalid address book contact
+        //3) Throw error for invalid address book contact
         if (!addressBookContent) {
             throw new NotFoundException(
                 "Address book contact not found or you are not allowed to access this resource."
             );
         }
 
-        //3) Return back success response 
+        //4) Return back success response 
          return {
             message: "Contact successfully retrieved from address book",
             addressBookContact: plainToInstance(AddressBookResponseDto, addressBookContent, {
                 excludeExtraneousValues: true,
             }),
-            };
+        };
     }
 
-    async updateSingleAgainstCurrentUser(
-        currentUserId: number,
+    async updateSingleAgainstCurrentUserCompany(
+        session: SessionData,
         addressBookContactId: number,
         dto: UpdateAddressBook
     ) {
-        //1) Validate payload
+        //1) Validate session data
+        const ctx = await this.requestContextService.resolve({ session, em: this.em });
+
+        //2) Validate payload
         const hasValidField = Object.values(dto).some(
             (value) => value !== undefined && value !== null && value !== ""
         );
@@ -253,13 +230,13 @@ export class AddressBookService {
             throw new BadRequestException("Provide at least one valid field to update");
         }
 
-        //2) Extract nested / relation fields
+        //3) Extract nested / relation fields
         const { signatureId, locationTypeId, address, ...restDTO } = dto;
 
         let signatureRef: any = null;
         let locationTypeRef: any = null;
 
-        //3) Validate Signature
+        //4) Validate Signature
         if (signatureId !== undefined) {
             const signature = await this.em.findOne(Signature, { id: signatureId });
 
@@ -270,7 +247,7 @@ export class AddressBookService {
             signatureRef = this.em.getReference(Signature, signatureId);
         }
 
-        //4) Validate Location Type
+        //5) Validate Location Type
         if (locationTypeId !== undefined) {
             const locationType = await this.em.findOne(PalletShippingLocationType, {
                 id: locationTypeId,
@@ -286,15 +263,14 @@ export class AddressBookService {
             );
         }
 
-        //5) Get user reference
-        const userRef = this.em.getReference(User, currentUserId);
 
         //6) Fetch AddressBook with address populated
         const addressBookContent = await this.em.findOne(
             AddressBook,
             {
                 id: addressBookContactId,
-                createdBy: userRef,
+                createdBy: ctx.user,
+                company: ctx.company
             },
             {
                 populate: ["address"],
@@ -303,14 +279,14 @@ export class AddressBookService {
 
         if (!addressBookContent) {
             throw new NotFoundException(
-                "Address book contact not found or access denied."
+                "Address book contact not found or you don't have the required permissions"
             );
         }
 
         //7) Build update payload (ONLY entity-safe fields)
         const updatePayload: Partial<AddressBook> = {
             ...restDTO,
-            updatedBy: userRef,
+            updatedBy: ctx.user,
         };
 
         if (signatureRef) {
@@ -342,18 +318,19 @@ export class AddressBookService {
         };
     }
 
-    async deleteSingleAgainstCurrentUser(
-        currentUserId: number,
+    async deleteSingleAgainstCurrentUserCompany(
+        session: SessionData,
         addressBookContactId: number
     ) {
         return this.em.transactional(async (em) => {
-            //1) Get user reference
-            const user = em.getReference(User, currentUserId);
+            //1) Validate session details
+            const ctx = await this.requestContextService.resolve({ session, em: em })
 
             //2) Validate address book exists
             const addressBook = await em.findOne(AddressBook, {
                 id: addressBookContactId,
-                createdBy: user
+                createdBy: ctx.user,
+                company: ctx.company
             }, { populate: ['userUsages'] });
 
             //3) Throw if not found or unauthorized
@@ -373,14 +350,14 @@ export class AddressBookService {
         });
     }
 
-    async markAsRecentAgainstCurrentUser(
-        currentUserId: number,
+    async markAsRecentAgainstCurrentUserCompany(
+        session: SessionData,
         addressBookContactId: number
     ) {
-        //1) Get contact from address book 
-        const currentUser = this.em.getReference(User, currentUserId);
+       //1) Validate session details
+        const ctx = await this.requestContextService.resolve({ session, em: this.em })
 
-        const addressBookContent = await this.em.findOne(AddressBook, { id: addressBookContactId, createdBy: currentUser });
+        const addressBookContent = await this.em.findOne(AddressBook, { id: addressBookContactId, createdBy: ctx.user, company: ctx.company });
 
         //2) Throw error for invalid address book id
         if (!addressBookContent) {
@@ -391,7 +368,7 @@ export class AddressBookService {
 
         //3) Check if address is already being used before
         const existing = await this.em.findOne(UserAddressBookUsage, {
-            user: currentUserId,
+            user: ctx.user,
             addressBook: addressBookContactId
         });
 
@@ -404,7 +381,7 @@ export class AddressBookService {
 
         //5) Create new entry in user address book usage
         const addressBookUsage = this.em.create(UserAddressBookUsage, {
-            user: currentUser,
+            user: ctx.user,
             addressBook: addressBookContent
         });
 
@@ -417,13 +394,13 @@ export class AddressBookService {
         };
     }
 
-    async getAllrecentAgainstCurrentUser(
-        currentUserId: number,
+    async getAllrecentAgainstCurrentUserCompany(
+        session: SessionData,
         queryParams: Record<keyof Partial<GetAllAgainstCurrentUserQueryParams>, any>
     ) {
-        //1) Get user reference
-        const currentUser = this.em.getReference(User, currentUserId);
-
+        //1) Validate session details
+        const ctx = await this.requestContextService.resolve({ session, em: this.em })
+       
         //2) Use buildQuery for pagination (no allowedFields needed)
         const { page, limit } = buildQuery(queryParams, {});
         const offset = (page - 1) * limit;
@@ -431,7 +408,12 @@ export class AddressBookService {
         //3) Fetch paginated data
         const [recentContacts, total] = await this.em.findAndCount(
             UserAddressBookUsage,
-            { user: currentUser },
+            { user: ctx.user,
+              addressBook: {
+                    company: ctx.company
+                }
+            },
+            
             {
                 populate: ["addressBook","addressBook.address"],
                 fields: [
