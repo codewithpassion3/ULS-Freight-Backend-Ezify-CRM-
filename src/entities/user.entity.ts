@@ -33,7 +33,7 @@ export class User{
     signupCode?: string;
 
     @Property({ nullable: true })
-    profilePic: string | null;
+    profilePic?: string | null;
 
     @Property()
     freightBroker!: boolean;
@@ -64,6 +64,9 @@ export class User{
 
     @Property({ type: "json", nullable: true })
     settings?: Record<string, any>;
+
+    @Property({ nullable: false, default: false })
+    isMasterAccount?: Boolean;
 
     @ManyToOne(() => Company)
     company!: Company;

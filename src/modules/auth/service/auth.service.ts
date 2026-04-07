@@ -80,6 +80,7 @@ export class AuthService{
             password: hashedPassword,
             company: companyEntity,
             emailIsVerified: false,
+            isMasterAccount: true,
             settings: {
                 "default_landing_page": "dashboard", 
                 "home_quick_button": "create_order", 
