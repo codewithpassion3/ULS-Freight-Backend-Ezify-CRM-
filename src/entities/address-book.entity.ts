@@ -4,6 +4,7 @@ import { User } from "./user.entity";
 import { Signature } from "./signature.entity";
 import { PalletShippingLocationType } from "./pallet-shipping-location-type.entity";
 import { UserAddressBookUsage } from "./user-address-book-usage.entity";
+import { Company } from "./company.entity";
 
 @Entity()
 export class AddressBook {
@@ -60,4 +61,7 @@ export class AddressBook {
 
     @OneToOne(() => Address, { nullable: false, owner: true, cascade: [Cascade.ALL] })
     address!: Address;
+
+    @ManyToOne(() => Company, { nullable: false })
+    company!: Company;
 }

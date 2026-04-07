@@ -55,7 +55,7 @@ export class UserController {
     @Role([ROLES.ADMIN])
     @Delete("/:id")
     async DeleteProfile(@Session() session: SessionData, @Param("id") userId: number){
-        const companyId = session.companyId;
+        const companyId = session.companyId as number;
         return this.userService.deleteProfile(companyId, userId);
     }
 

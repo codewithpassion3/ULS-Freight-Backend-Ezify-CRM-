@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, ManyToOne, Property, DateTimeType, Unique } from "@mikro-orm/core";
+import { Entity, PrimaryKey, ManyToOne, Property, DateTimeType, Unique, Index } from "@mikro-orm/core";
 import { User } from "./user.entity";
 import { AddressBook } from "./address-book.entity";
 
