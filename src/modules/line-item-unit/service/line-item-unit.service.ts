@@ -110,7 +110,7 @@ export class LineItemUnitService {
 
             //6) Handle search (same pattern as reference)
             if (search) {
-                filter.measurementUnit = { $ilike: `${search}%` };
+                filter.name = { $ilike: `${search}%` };
             }
 
             //7) Count total
