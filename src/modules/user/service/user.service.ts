@@ -130,7 +130,7 @@ export class UserService {
                 email: userData.email,
                 password: dummyPassword,
                 companyName: company.name,
-                loginUrl: `${process.env.NG_ROK_ORIGIN_FRONTEND}/login`
+                loginUrl: `${process.env.FRONTEND_ORIGIN}/login`
             }
             });
 

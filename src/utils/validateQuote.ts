@@ -40,7 +40,7 @@ const packageRules: FieldRule[] = [
   { field: 'width', required: true },
   { field: 'height', required: true },
   { field: 'weight', required: true },
-  { field: 'description', required: true },
+  { field: 'description', required: false },
   { field: 'specialHandlingRequired', required: true }
 ];
 
@@ -50,17 +50,17 @@ const palletRules: FieldRule[] = [
   { field: 'height', required: true },
   { field: 'weight', required: true },
   { field: 'freightClass', required: true },
-  { field: 'nmfc', required: true },
+  { field: 'nmfc', required: false },
   { field: 'stackable', required: false },
   { field: 'unitsOnPallet', required: true },
   { field: 'palletUnitType', required: true },
-  { field: 'description', required: true },
+  { field: 'description', required: false },
 
 ];
 
 const courierRules: FieldRule[] = [
   { field: 'weight', required: true },
-  { field: 'description', required: true },
+  { field: 'description', required: false },
 ];
 
 /* -------------------- UNIT VALIDATION -------------------- */
