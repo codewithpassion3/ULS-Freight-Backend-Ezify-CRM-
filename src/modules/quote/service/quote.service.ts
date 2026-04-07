@@ -539,6 +539,7 @@ export class QuoteService {
                     type: incomingType,
                     lineItem: lineItem,
                     createdBy: this.em.getReference(User, currentUserId),
+                    company: 3
                 });
 
                 patchUnit(newUnit, unitDto, allowedFields, {

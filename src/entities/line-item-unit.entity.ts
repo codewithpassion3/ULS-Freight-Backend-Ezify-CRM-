@@ -4,6 +4,7 @@ import { User } from "./user.entity";
 import { LineItemUnitType } from "src/common/enum/line-item-unit-type";
 import { ShipmentType } from "src/common/enum/shipment-type.enum";
 import { MeasurementUnits } from "src/common/enum/measurement-units.enum";
+import { Company } from "./company.entity";
 
 @Entity()
 export class LineItemUnit {
@@ -58,4 +59,7 @@ export class LineItemUnit {
 
   @ManyToOne(() => User, { nullable: false })
   createdBy!: User;
+
+  @ManyToOne(() => Company, { nullable: false })
+  company!: Company;
 }
