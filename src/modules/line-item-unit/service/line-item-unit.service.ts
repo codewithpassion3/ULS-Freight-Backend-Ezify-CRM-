@@ -10,10 +10,12 @@ import { User } from 'src/entities/user.entity';
 import { buildQuery } from 'src/utils/api-query';
 import { GetAllAgainstCurrentUserQueryParams } from '../controller/line-item-unit.controller';
 import { hasValidField } from 'src/utils/has-valid-fields';
+import { SessionData } from 'express-session';
+import { RequestContextService } from 'src/utils/request-context-service';
 
 @Injectable()
 export class LineItemUnitService {
-  constructor(private readonly em: EntityManager) {}
+  constructor(private readonly em: EntityManager, private readonly requestContextService: RequestContextService) {}
 
     private mapDtoToEntity(unit: LineItemUnit, dto: Partial<CreateLineItemUnitDTO>): void {
         if (dto.weight !== undefined) unit.weight = dto.weight;
@@ -31,63 +33,70 @@ export class LineItemUnitService {
         if (dto.measurementUnit !== undefined) unit.measurementUnit = dto.measurementUnit;
     }
 
-    async create(dto: CreateLineItemUnitDTO, currentUserId: number) {
-        //1) Throw error for missing fields
+    async create(dto: CreateLineItemUnitDTO, session: SessionData) {
+        //1) Validate session details
+        const  ctx = await this.requestContextService.resolve({ session, em: this.em });
+
+        //2) Throw error for missing fields
         if (!dto.name || !dto.measurementUnit) {
             throw new ForbiddenException("name and measurementUnit are required")
         }
 
-        //2) Validate remaining fields , get fields to validate against shipment type
+        //3) Validate remaining fields , get fields to validate against shipment type
         const rules = getRules(dto.shipmentType as ShipmentType);
         
-        //3) Validate fields
+        //4) Validate fields
         const validation = validateUnit(dto, rules);
         
-        //4) Throw error for invalid payload
+        //5) Throw error for invalid payload
         if (!validation.valid) {
         throw new BadRequestException(validation.errors);
         }
 
-        //5) Create new line item unit entity
+        //6) Create new line item unit entity
         const unit = new LineItemUnit();
 
-        //6) Map fields to entity
+        //7) Map fields to entity
         this.mapDtoToEntity(unit, dto);
 
-        //7) Set line item null
+        //8) Set line item null
         unit.lineItem = undefined; // Explicitly standalone
-        unit.createdBy = this.em.getReference(User, currentUserId);
+        unit.createdBy = ctx.user;
+        unit.company = ctx.company;
 
-        //8) Persist changes
+        //9) Persist changes
         await this.em.persist(unit).flush();
         
-        //9) Return back success response
+        //10) Return back success response
         return {
             message: "Line item created successfully"
         };
     }
 
-    async getAllAgainstCurrentUser(
+    async getAllAgainstCurrentUserCompany(
         queryParams: Record<keyof GetAllAgainstCurrentUserQueryParams, any>,
-        currentUserId: number
+        session: SessionData
         ) {
+            //1) Validate session details
+            const ctx = await this.requestContextService.resolve({ session, em: this.em })
 
-            // 1) Specify fields allowed for search and filters
+            //2) Specify fields allowed for search and filters
             const allowedFields: Record<string, string> = {
                 type: "type",
                 measurementUnit: "measurementUnit",
                 id: "id",
             };
 
-            // 2) Build query params
+            //3) Build query params
             const { search, page, limit, orderBy } = buildQuery(queryParams, allowedFields);
 
-            // 3) Base filter
+            //4) Base filter
             const filter: any = {
-                createdBy: this.em.getReference(User, currentUserId),
+                createdBy: ctx.user,
+                company: ctx.company
             };
 
-            // 4) Handle lineItem filter (FIXED)
+            //5) Handle lineItem filter (FIXED)
             if (queryParams.lineItemId !== undefined) {
                 filter.lineItem = queryParams.lineItemId;
             } else {
@@ -95,20 +104,24 @@ export class LineItemUnitService {
                 filter.lineItem = null;
             }
 
-            // 5) Handle search (same pattern as reference)
+            if (queryParams.type) {
+                filter.type = queryParams.type;
+            }
+
+            //6) Handle search (same pattern as reference)
             if (search) {
                 filter.measurementUnit = { $ilike: `${search}%` };
             }
 
-            // 6) Count total
+            //7) Count total
             const total = await this.em.count(LineItemUnit, filter);
             const totalPages = Math.ceil(total / limit) || 1;
 
-            // 7) Clamp page
+            //8) Clamp page
             const clampedPage = Math.min(page, totalPages);
             const offset = (clampedPage - 1) * limit;
 
-            // 8) Fetch data
+            //9) Fetch data
             const units = await this.em.find(
                 LineItemUnit,
                 filter,
@@ -121,7 +134,7 @@ export class LineItemUnitService {
                 }
             );
 
-            // 10) Response
+            //10) Response
             return {
                 message: "Line item units retrieved successfully",
                 data: units,
@@ -135,68 +148,75 @@ export class LineItemUnitService {
                 sort: orderBy,
                 },
             };
-        }
+    }
 
-    async getOneAgainstCurrentUser(lineItemUnitId: number, currentUserId: number) {
-        //1) Get line item unit against current user
-        const lineItemUnit = await this.em.findOne(LineItemUnit, {id: lineItemUnitId, createdBy: this.em.getReference(User, currentUserId)});
+    async getOneAgainstCurrentUserCompany(lineItemUnitId: number, session: SessionData) {
+        //1) Validate session details
+        const ctx = await this.requestContextService.resolve({ session, em: this.em });
+
+        //2) Get line item unit against current user
+        const lineItemUnit = await this.em.findOne(LineItemUnit, {id: lineItemUnitId, createdBy: ctx.user, company: ctx.company});
         
-        //2) Throw error for invalid line item unit
+        //3) Throw error for invalid line item unit
         if(!lineItemUnit) {
             throw new NotFoundException("Line item unit not found or you don't have the required permissions")
         }
 
-        //3) Return back line item
+        //4) Return back line item
         return {
             message: "Line item unit retrieved successfully",
             lineItemUnit
         };
     }
 
-    async updateOneAgainstCurrentUser(lineItemUnitId: number, dto: UpdateLineItemUnitDTO, currentUserId: number) {
-        //1) Validate payload has at least one meaningful field
+    async updateOneAgainstCurrentUserCompany(lineItemUnitId: number, dto: UpdateLineItemUnitDTO, session: SessionData) {
+        //1) Validate session details
+        const ctx = await this.requestContextService.resolve({ session, em: this.em })
+
+        //2) Validate payload has at least one meaningful field
         const isValidPayload = hasValidField(dto);
 
-        //2) Throw exception for invalid payload
+        //3) Throw exception for invalid payload
         if (!isValidPayload) {
             throw new BadRequestException("Provide at least one valid field to update");
         }
 
-        //3) Fetch line item unit entity
+        //4) Fetch line item unit entity
         const lineItemUnit = await this.em.findOne(LineItemUnit, {
             id: lineItemUnitId,
-            createdBy: this.em.getReference(User, currentUserId)
+            createdBy: ctx.user,
+            company: ctx.company
         });
 
-        //4) Throw exception for invalid line item 
+        //5) Throw exception for invalid line item 
         if (!lineItemUnit) {
             throw new NotFoundException(
             "Line item unit not found or you don't have the required permissions"
             );
         }
 
-        //5) Determine changing shipment type
+        //6) Determine changing shipment type
         const previousShipmentType = lineItemUnit.type;
         
         const newShipmentType = dto.shipmentType ?? previousShipmentType;
 
         const isShipmentTypeChanging = dto.shipmentType && dto.shipmentType !== previousShipmentType;
 
-        //6) Get rules for new shipment type
+        //7) Get rules for new shipment type
         const rules = getRules(newShipmentType);
         
-        //7) Map allowed fields set from rules
+        //8) Map allowed fields set from rules
         const allowedFields = new Set(rules.map(r => r.field));
 
-        //8) Handle shipment type transition
+        //9) Handle shipment type transition
         if (isShipmentTypeChanging) {
                 const newRuleFields = new Set(rules.map(r => r.field));
 
-                //9) Get ALL rule fields from OLD type
+                //10) Get ALL rule fields from OLD type
                 const oldRules = getRules(previousShipmentType);
                 const oldRuleFields = new Set(oldRules.map(r => r.field));
 
-                //10) Reset only fields that:
+                //11) Reset only fields that:
                 // - existed in old type
                 // - are NOT part of new type
                 for (const field of oldRuleFields) {
@@ -206,51 +226,54 @@ export class LineItemUnitService {
                 }
             }
 
-            //11) Apply DTO fields (only allowed ones)
+            //12) Apply DTO fields (only allowed ones)
             for (const key of Object.keys(dto)) {
                 if (allowedFields.has(key)) {
                     (lineItemUnit as any)[key] = dto[key];
                 }
             }
 
-            //12) Update shipment type last
+            //13) Update shipment type last
             if (dto.shipmentType) {
                 lineItemUnit.type = dto.shipmentType;
             }
 
-            //13) Merge final state
+            //14) Merge final state
             const finalState = { ...lineItemUnit };
 
-            //14) Validate final merged state against current rules
+            //15) Validate final merged state against current rules
             const validation = validateUnit(finalState, rules);
 
-            //15) Throw exception for invalid payload
+            //16) Throw exception for invalid payload
             if (!validation.valid) {
             throw new BadRequestException(validation.errors);
             }
 
-            //16) Persist changes
+            //17) Persist changes
             await this.em.flush();
 
-            //17) Response
+            //18) Response
             return {
                 message: "Line item unit updated successfully"
             };
     }
 
-    async deleteOneAgainstCurrentUser(lineItemUnitId: number, currentUserId: number) {
-        //1) Get the line item unit against current user
-        const lineItemUnit = await this.em.findOne(LineItemUnit, {id: lineItemUnitId, createdBy: this.em.getReference(User, currentUserId)});
+    async deleteOneAgainstCurrentUserCompany(lineItemUnitId: number, session: SessionData) {
+        //1) Validate sessin details
+        const ctx = await this.requestContextService.resolve({ session, em: this.em })
+
+        //2) Get the line item unit against current user
+        const lineItemUnit = await this.em.findOne(LineItemUnit, {id: lineItemUnitId, createdBy: ctx.user, company: ctx.company });
         
-        //2) Throw error for invalid line item unit
+        //3) Throw error for invalid line item unit
         if(!lineItemUnit) {
             throw new NotFoundException("Line item unit not found or you don't have the required permissions")
         }
 
-        //3) Delete line item unit
+        //4) Delete line item unit
         await this.em.remove(lineItemUnit).flush();
 
-        //4) Return back success response
+        //5) Return back success response
         return {
             message: "Line item unit deleted successfully"
         }
