@@ -7,6 +7,7 @@ import { CreateQuoteDTO } from "../dto/create-quote.dto";
 import type { PaginationParams } from "src/types/pagination";
 import { UpdateQuoteDTO } from "../dto/update-quote.dto";
 import { UpdateQuoteStatusDTO } from "../dto/update-quote-status.dto";
+import type { SessionData } from "express-session";
 
 @Controller("quotes")
 export class QuoteController{
@@ -14,8 +15,8 @@ export class QuoteController{
 
     @UseGuards(SessionAuthGuard, PermissionsGuard)
     @Post("/")
-    async Create(@Body() dto: CreateQuoteDTO, @CurrentUser() currentUserId: number){
-        return this.quoteService.create(dto, currentUserId);
+    async Create(@Body() dto: CreateQuoteDTO, @Session() session: SessionData){
+        return this.quoteService.create(dto, session);
     }
 
     @UseGuards(SessionAuthGuard, PermissionsGuard)
