@@ -7,7 +7,7 @@ export class Role {
     id!: number;
 
     @Property({ unique: true})
-    name: string;
+    name!: string;
 
     @ManyToMany(() => Permission, permission => permission.roles, { owner: true})
     permissions = new Collection<Permission>(this);

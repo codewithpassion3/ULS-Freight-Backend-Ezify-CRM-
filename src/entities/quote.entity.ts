@@ -16,6 +16,7 @@ import { QuoteUserMeta } from "./quote-user-meta.entity";
 import { randomBytes } from "crypto";
 import { QuoteStatus } from "src/common/enum/quote-status";
 import { QuoteFavorite } from "./quote-favorite.entity";
+import { Company } from "./company.entity";
 
 @Entity()
 export class Quote {
@@ -96,4 +97,7 @@ export class Quote {
     mappedBy: 'quote',
   })
   spotLtlServices?: SpotLtlServices;
+
+  @ManyToOne(() => Company)
+  company!: Company;
 }

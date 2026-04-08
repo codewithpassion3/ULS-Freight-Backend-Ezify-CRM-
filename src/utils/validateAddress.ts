@@ -28,10 +28,10 @@ export function validateAddress(dto: CreateAddressDto, quoteType: string): strin
         errors.push(`${spotField} is required for SPOT quotes`);
       }
     }
+  }
 
-    if (dto.addressBookId && isManual) {
-      errors.push(`Cannot mix addressBookId with manual address fields`);
-    }
+  if (dto.addressBookId && (dto.address1 || dto.city || dto.state)) {
+    errors.push('Cannot mix addressBookId with manual address fields');
   }
   return errors;
 }

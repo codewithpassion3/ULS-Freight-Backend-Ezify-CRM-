@@ -254,7 +254,7 @@ export class CreateSpotEquipmentDto {
 export class CreateSpotDetailsDto {
   @IsNotEmpty()
   @IsEnum(SpotType)
-  spotType: SpotType;
+  spotType!: SpotType;
 
   @ValidateNested()
   @Type(() => CreateSpotContactDto)

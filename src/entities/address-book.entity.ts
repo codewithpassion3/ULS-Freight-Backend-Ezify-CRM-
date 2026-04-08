@@ -44,6 +44,9 @@ export class AddressBook {
     @Property({ onCreate: () => new Date(), onUpdate: () => new Date()})
     updatedAt?: Date;
 
+    @Property({ nullable: false, default: false })
+    isTemporary?: boolean;
+    
     @ManyToOne(() => User, { nullable: false })
     createdBy!: User;
 
