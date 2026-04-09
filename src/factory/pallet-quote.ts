@@ -41,6 +41,30 @@ export class PalletQuote extends StandardQuote {
         this.validatedData = this.data.quote;
     }
 
+    async build(): Promise<Quote> {
+        if (!this.validatedData) {
+            this.errors.push('Must call validate() before build()');
+        }
+
+        const quote = new Quote();
+        
+        quote.quoteType = this.validatedData.quoteType;
+        quote.shipmentType = this.validatedData.shipmentType;
+        quote.status = this.validatedData.status;
+
+        // Build relationships
+        const addresses = await this.buildAddresses();
+        addresses.forEach(addr => addr.quote = quote);
+        quote.addresses.set(addresses);
+
+        quote.lineItems = this.buildLineItem() as any;
+        quote.insurance = this.buildInsurance();
+        quote.company = this.em.getReference(Company, this.session.companyId as number);
+        quote.createdBy = this.em.getReference(User, this.session.userId as number);
+
+        return quote;
+    }
+
     protected async validateAddressDetails(addresses: AddressData[]): Promise<void> {
         if (this.data.mode === Mode.SHIPMENT) {
             await this.validateShipmentAddresses(addresses);
@@ -108,30 +132,6 @@ export class PalletQuote extends StandardQuote {
         
     }
 
-    async build(): Promise<Quote> {
-        if (!this.validatedData) {
-            this.errors.push('Must call validate() before build()');
-        }
-
-        const quote = new Quote();
-        
-        quote.quoteType = this.validatedData.quoteType;
-        quote.shipmentType = this.validatedData.shipmentType;
-        quote.status = this.validatedData.status;
-
-        // Build relationships
-        const addresses = await this.buildAddresses();
-        addresses.forEach(addr => addr.quote = quote);
-        quote.addresses.set(addresses);
-
-        quote.lineItems = this.buildLineItem() as any;
-        quote.insurance = this.buildInsurance();
-        quote.company = this.em.getReference(Company, this.session.companyId as number);
-        quote.createdBy = this.em.getReference(User, this.session.userId as number);
-
-        return quote;
-    }
-
     protected assignLineItemFields(lineItem: LineItem): void {
         lineItem.type = this.validatedData.lineItem.type;
         lineItem.dangerousGoods = this.validatedData.lineItem.dangerousGoods;
@@ -152,7 +152,7 @@ export class PalletQuote extends StandardQuote {
     }
 
     protected attachServiceToQuote(serviceEntity: PalletServices): void {
-        this.data.quote.palletServices = serviceEntity;
+        this.validatedData.quote.palletServices = serviceEntity;
     }
 }
 

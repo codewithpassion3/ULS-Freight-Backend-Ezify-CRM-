@@ -66,10 +66,8 @@ export abstract class BaseQuote {
     
     // Template method with common logic
     protected async validateAddresses(): Promise<void> {
-        console.log({data: this.data.quote.addresses, length: this.data.quote.addresses.length})
         const addresses = this.data.quote.addresses;
         if (!addresses || addresses.length === 0) {
-            console.log("Throwing error")
             this.errors.push("Addresses (TO & FROM) are required");
             return;
         }
@@ -128,16 +126,16 @@ export abstract class BaseQuote {
     
     protected validateInsurance(): void {
         if (!this.data.quote.insurance) {
-            this.errors.push("Insurance is required");
+            this.errors.push("insurance is required");
             return;
         }
 
         if (this.data.quote.insurance.amount <= 0) {
-            this.errors.push("Insurance value must be greater than 0");
+            this.errors.push("insurance value must be greater than 0");
         }
 
         if (!this.data.quote.insurance.currency) {
-            this.errors.push("Insurance currency is required");
+            this.errors.push("insurance currency is required");
         }
     }
 
@@ -172,7 +170,7 @@ export abstract class BaseQuote {
             shippingAddress.locationType = addrData.locationType as any;
 
             await this.buildAddressDetails(addrData, shippingAddress, bookMap);
-            
+            this.em.persist(shippingAddress)
             return shippingAddress;
         }));
     }
@@ -188,7 +186,7 @@ export abstract class BaseQuote {
             
             // Dynamic fields - delegate to child
             this.buildUnitFields(unit, unitData, idx);
-            
+            this.em.persist(unit)
             return unit;
         });
     }
@@ -203,7 +201,7 @@ export abstract class BaseQuote {
         const units = this.buildUnits();
         lineItem.units = units as any;
         lineItem.quantity = units.length;
-        
+        this.em.persist(lineItem)
         return lineItem;
     }
 
@@ -226,12 +224,17 @@ export abstract class BaseQuote {
         serviceEntity.quote = this.data.quote;
         
         this.attachServiceToQuote(serviceEntity, shipmentType);
+
+        this.em.persist(serviceEntity);
     }
 
     protected buildInsurance(): Insurance {
         const insurance = new Insurance();
         insurance.amount = this.validatedData.insurance.amount;
         insurance.currency = this.validatedData.insurance.currency;
+
+        this.em.persist(insurance)
+
         return insurance;
     }
 
@@ -241,7 +244,7 @@ export abstract class BaseQuote {
         if (!signature) {
             throw new BadRequestException(`Invalid signature id: ${this.validatedData.signature}`);
         }
-       
+        
         return signature as Signature;
     }
 
@@ -270,10 +273,10 @@ export abstract class BaseQuote {
         wrap(book).assign({
             companyName: data.companyName!,
             contactName: data.contactName!,
-            contactId: data.contactId,
+            contactId: data.contactId ?? "",
             phoneNumber: data.phoneNumber!,
-            email: data.email,
-            defaultInstructions: data.defaultInstructions,
+            email: data.email ?? "",
+            defaultInstructions: data.defaultInstructions ?? "",
             palletShippingReadyTime: data.palletShippingReadyTime!,
             palletShippingCloseTime: data.palletShippingCloseTime!,
             isResidential: data.isResidential ?? false,

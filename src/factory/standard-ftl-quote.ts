@@ -11,12 +11,9 @@ import { LineItem } from "src/entities/line-item.entity";
 import { ShippingAddress } from "src/entities/shipping-address.entity";
 import { User } from "src/entities/user.entity";
 import { QuoteConstructorParams, AddressData } from "./base-quote";
-import { PalletServices } from "src/entities/pallet-services.entity";
-import { courierPakRules } from "src/common/constants/quote";
-import { validateUnit } from "src/utils/validateQuote";
-import { Signature } from "src/entities/signature.entity";
+import { StandardFtlServices } from "src/entities/standard-ftl-services.entity";
 
-export class CourierPakQuote extends StandardQuote {
+export class StandardFTLQuote extends StandardQuote {
     constructor(params: QuoteConstructorParams) {
         super();
         this.data = params.data;
@@ -27,9 +24,8 @@ export class CourierPakQuote extends StandardQuote {
     async validate(): Promise<void> {
         this.errors = [];
         await this.validateAddresses();
-        this.validateLineItem();
-        this.validateLineItemUnits();
-        this.validateSignature();
+        this.validateServices();
+        this.validateInsurance();
         
         if (this.errors.length > 0) {
             throw new BadRequestException({
@@ -41,7 +37,7 @@ export class CourierPakQuote extends StandardQuote {
         this.validatedData = this.data.quote;
     }
 
-     async build(): Promise<Quote> {
+    async build(): Promise<Quote> {
         if (!this.validatedData) {
             this.errors.push('Must call validate() before build()');
         }
@@ -57,8 +53,7 @@ export class CourierPakQuote extends StandardQuote {
         addresses.forEach(addr => addr.quote = quote);
         quote.addresses.set(addresses);
 
-        quote.lineItems = this.buildLineItem() as LineItem;
-        quote.signature = await this.buildSignature() as Signature;
+        quote.insurance = this.buildInsurance();
         quote.company = this.em.getReference(Company, this.session.companyId as number);
         quote.createdBy = this.em.getReference(User, this.session.userId as number);
 
@@ -71,21 +66,6 @@ export class CourierPakQuote extends StandardQuote {
         } else {
             this.validateQuoteAddresses(addresses);
         }
-    }
-
-    protected validateLineItemSpecific(): void {
-        if (this.data.quote.lineItem.units && this.data.quote.lineItem.units.length > 1) {
-            this.errors.push(`Only one line item unit is required for ${this.data.quote.shipmentType}`);
-        }
-    }
-
-    protected processLineItemUnit(units: any): void {
-        units.forEach((unit: any, idx: number) => {
-            const result = validateUnit(unit, courierPakRules, { unitIndex: idx });
-            if (result.errors) {
-                this.errors.push(...result.errors);
-            }
-        });
     }
 
     protected async buildAddressDetails(
@@ -127,15 +107,14 @@ export class CourierPakQuote extends StandardQuote {
         
     }
 
-    protected buildUnitFields(unit: LineItemUnit, unitData: any, idx: number): void {
-        unit.width = unitData.width;
-        unit.description = unitData.description ?? ""
+    protected attachServiceToQuote(serviceEntity: StandardFtlServices): void {
+        this.validatedData.quote.standardFTLService = serviceEntity;
     }
-    
-    protected assignLineItemFields(lineItem: LineItem): void {
-        lineItem.type = this.validatedData.lineItem.type;
-        lineItem.measurementUnit = this.validatedData.lineItem.measurementUnit;
-    }
-    protected attachServiceToQuote(serviceEntity: any): void {}
+
+
+    protected validateLineItemSpecific(): void {}
+    protected processLineItemUnit(units: any): void {}
+    protected buildUnitFields(unit: LineItemUnit, unitData: any, idx: number): void {}
+    protected assignLineItemFields(lineItem: LineItem): void {}
 }
 

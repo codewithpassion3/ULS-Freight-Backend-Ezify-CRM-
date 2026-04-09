@@ -17,6 +17,7 @@ import { randomBytes } from "crypto";
 import { QuoteStatus } from "src/common/enum/quote-status";
 import { QuoteFavorite } from "./quote-favorite.entity";
 import { Company } from "./company.entity";
+import { Shipment } from "./shipment.entity";
 
 @Entity()
 export class Quote {
@@ -100,4 +101,7 @@ export class Quote {
 
   @ManyToOne(() => Company)
   company!: Company;
+  
+  @OneToOne(() => Shipment, shipment => shipment.quote)
+  shipment?: Shipment;
 }

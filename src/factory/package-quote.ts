@@ -42,6 +42,31 @@ export class PackageQuote extends StandardQuote {
         this.validatedData = this.data.quote;
     }
 
+    async build(): Promise<Quote> {
+        if (!this.validatedData) {
+            this.errors.push('Must call validate() before build()');
+        }
+
+        const quote = new Quote();
+        
+        quote.quoteType = this.validatedData.quoteType;
+        quote.shipmentType = this.validatedData.shipmentType;
+        quote.status = this.validatedData.status;
+
+        // Build relationships
+        const addresses = await this.buildAddresses();
+        addresses.forEach(addr => addr.quote = quote);
+        quote.addresses.set(addresses);
+
+        quote.lineItems = this.buildLineItem() as LineItem;
+        quote.insurance = this.buildInsurance() as Insurance;
+        quote.signature = await this.buildSignature() as Signature;
+        quote.company = this.em.getReference(Company, this.session.companyId as number);
+        quote.createdBy = this.em.getReference(User, this.session.userId as number);
+
+        return quote;
+    }
+
     protected async validateAddressDetails(addresses: AddressData[]): Promise<void> {
         if (this.data.mode === Mode.SHIPMENT) {
             await this.validateShipmentAddresses(addresses);
@@ -96,31 +121,6 @@ export class PackageQuote extends StandardQuote {
         
     }
 
-    async build(): Promise<Quote> {
-        if (!this.validatedData) {
-            this.errors.push('Must call validate() before build()');
-        }
-
-        const quote = new Quote();
-        
-        quote.quoteType = this.validatedData.quoteType;
-        quote.shipmentType = this.validatedData.shipmentType;
-        quote.status = this.validatedData.status;
-
-        // Build relationships
-        const addresses = await this.buildAddresses();
-        addresses.forEach(addr => addr.quote = quote);
-        quote.addresses.set(addresses);
-
-        quote.lineItems = this.buildLineItem() as LineItem;
-        quote.insurance = this.buildInsurance() as Insurance;
-        quote.signature = await this.buildSignature() as Signature;
-        quote.company = this.em.getReference(Company, this.session.companyId as number);
-        quote.createdBy = this.em.getReference(User, this.session.userId as number);
-
-        return quote;
-    }
-
     protected assignLineItemFields(lineItem: LineItem): void {
         lineItem.type = this.validatedData.lineItem.type;
         lineItem.dangerousGoods = this.validatedData.lineItem.dangerousGoods;
@@ -143,7 +143,7 @@ export class PackageQuote extends StandardQuote {
         });
     }
 
-    protected attachServiceToQuote(serviceEntity: any, shipmentType: string): void {
+    protected attachServiceToQuote(serviceEntity: any): void {
         //empty
     }
 }

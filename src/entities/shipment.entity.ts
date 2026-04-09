@@ -22,7 +22,7 @@ export class Shipment {
     @Property({ nullable: true })
     tailgateRequiredInFromAddress?: Boolean
     
-    @OneToOne(() => Quote, { nullable: false, owner: true })
+    @OneToOne(() => Quote, { nullable: false, owner: true, hidden: true })
     quote!: Quote;
 
     @OneToMany(() => BillingReference, billingReference => billingReference.shipment, { cascade: [Cascade.PERSIST, Cascade.REMOVE]})

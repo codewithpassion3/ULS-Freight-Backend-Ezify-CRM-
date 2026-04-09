@@ -46,8 +46,7 @@ export class ShipmentService {
 
         // Step 5: Return populated response
         return {
-          message: "Shipment created successfully",
-          shipment
+          message: "Shipment created successfully"
         }
     }
 
