@@ -163,6 +163,11 @@ export const palletRules: FieldRule[] = [
 
 ];
 
+export const courierPakRules: FieldRule[] = [
+  { field: 'weight', required: true },
+  { field: 'description', required: false },
+];
+
 export const requiredServiceFields: Record<ShipmentType, string[]> = {
     [ShipmentType.PALLET]: [
       'limitedAccess',

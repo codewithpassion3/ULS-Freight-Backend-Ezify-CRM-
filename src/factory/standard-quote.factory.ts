@@ -4,14 +4,17 @@ import { NotFoundException } from "@nestjs/common";
 import { QuoteConstructorParams } from "src/types/quote";
 import { PackageQuote } from "./package-quote";
 import { PalletQuote } from "./pallet-quote";
+import { CourierPakQuote } from "./courier-pak";
 
 export class StandardQuoteFactory implements IQuoteFactory {
     create(params: QuoteConstructorParams) {
         switch(params.shipmentType){
             case ShipmentType.PACKAGE:
                 return new PackageQuote({data: params.data, em: params.em, session: params.session});
-             case ShipmentType.PALLET:
+            case ShipmentType.PALLET:
                 return new PalletQuote({data: params.data, em: params.em, session: params.session});
+            case ShipmentType.COURIER_PAK:
+                return new CourierPakQuote({data: params.data, em: params.em, session: params.session});
             default:
                 throw new NotFoundException(`Standard quote factory doesn't support ${params.shipmentType}`)
         }

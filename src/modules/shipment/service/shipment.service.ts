@@ -1,5 +1,5 @@
 import { EntityManager } from "@mikro-orm/postgresql";
-import { Injectable  } from "@nestjs/common";
+import { BadRequestException, Injectable  } from "@nestjs/common";
 import { SessionData } from "express-session";
 import { CreateShipmentDTO } from "../dto/create-shipment.dto";
 import { Shipment } from "src/entities/shipment.entity";
@@ -52,10 +52,14 @@ export class ShipmentService {
     }
 
     private async buildQuote(dto: CreateShipmentDTO, session: SessionData) {
-      const quoteFactory = dto.quote.quoteType === QuoteType.STANDARD ? new StandardQuoteFactory() : new SpotQuoteFactory();
-      console.log({quoteFactory})
+      if(dto.quote.quoteType !== QuoteType.STANDARD){
+        throw new BadRequestException("Shipment supports only standard quote shipment types");
+      }
+
+      const quoteFactory = new StandardQuoteFactory();
+    
       const quote = quoteFactory.create({ shipmentType: dto.shipmentType, data: dto, em: this.em, session });
-      console.log({quote})
+      
       // Sync validation - throws BadRequestException if invalid
       await quote.validate();
       

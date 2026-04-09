@@ -207,7 +207,7 @@ export abstract class BaseQuote {
         return lineItem;
     }
 
-   protected buildServices(): void {
+    protected buildServices(): void {
         const serviceFactoryMap = {
             STANDARD_FTL: () => new StandardFtlServices(),
             PALLET: () => new PalletServices(),
