@@ -1,9 +1,6 @@
 import { EntityManager } from "@mikro-orm/postgresql";
 import { Injectable  } from "@nestjs/common";
 import { SessionData } from "express-session";
-import { RequestContextService } from "src/utils/request-context-service";
-import { ShipmentType } from "src/common/enum/shipment-type.enum";
-import { Quote } from "src/entities/quote.entity";
 import { CreateShipmentDTO } from "../dto/create-shipment.dto";
 import { Shipment } from "src/entities/shipment.entity";
 import { BillingReference } from "src/entities/BillingReference.entity";
@@ -11,19 +8,17 @@ import { QuoteType } from "src/common/enum/quote-type.enum";
 import { StandardQuoteFactory } from "src/factory/standard-quote.factory";
 import { SpotQuoteFactory } from "src/factory/spot-quote.factory";
 
-
 @Injectable()
 export class ShipmentService {
   constructor(
     private readonly em: EntityManager, 
-    private readonly requestContextService: RequestContextService
   ) {}
 
 
   async create(createShipmentDto: CreateShipmentDTO, session: SessionData) {
         // Step 1: Validate and build the quote based on shipment type
         const quote = await this.buildQuote(createShipmentDto, session);
-        console.log({quote})
+        
         // Step 2: Create shipment with the built quote
         const shipment = new Shipment();
         shipment.shipDate = new Date(createShipmentDto.shipDate);
@@ -58,16 +53,11 @@ export class ShipmentService {
 
     private async buildQuote(dto: CreateShipmentDTO, session: SessionData) {
       const quoteFactory = dto.quote.quoteType === QuoteType.STANDARD ? new StandardQuoteFactory() : new SpotQuoteFactory();
-      console.log("quote factory", quoteFactory)
-      const quote = quoteFactory.create({ 
-        shipmentType: dto.shipmentType, 
-        data: dto, 
-        em: this.em, 
-        session 
-      });
+      
+      const quote = quoteFactory.create({ shipmentType: dto.shipmentType, data: dto, em: this.em, session });
     
       // Sync validation - throws BadRequestException if invalid
-      quote.validate();
+      await quote.validate();
       
       // Async build - returns populated Quote entity
       return await quote.build();

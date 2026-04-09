@@ -1,7 +1,7 @@
-import { QuoteConstructorParams } from "src/types/quote"
+import { AddressData, QuoteConstructorParams } from "src/types/quote"
 
 export interface IQuote {
-  validateAndReturn(): void
+  validateAddressDetails(addresses: AddressData[]): void
 }
 
 export interface IQuoteFactory {
