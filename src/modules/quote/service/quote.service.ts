@@ -34,6 +34,9 @@ import { RefrigeratedType } from "src/common/enum/refrigerated.enum";
 import { hasValidField } from "src/utils/has-valid-fields";
 import { getAllowedFields } from "src/common/constants/line-item-rules";
 import { patchUnit, resetUnit } from "src/utils/line-item-units-helpers";
+import { SessionData } from "express-session";
+import { Company } from "src/entities/company.entity";
+
 @Injectable()
 export class QuoteService {
     constructor(private readonly em: EntityManager) {}
@@ -48,7 +51,7 @@ export class QuoteService {
         }
     }
 
-    async create(dto: CreateQuoteDTO, currentUserId: number) {
+    async create(dto: CreateQuoteDTO, session: SessionData) {
         //1) Validate payload
         const { valid, errors } = validateQuote(dto, "create");
         
@@ -74,7 +77,8 @@ export class QuoteService {
         quote.quoteType = dto.quoteType;
         quote.status = dto.status;
         quote.shipmentType = dto.shipmentType;
-        quote.createdBy = em.getReference(User, currentUserId);
+        quote.createdBy = em.getReference(User, session.userId as number);
+        quote.company = em.getReference(Company, session.companyId as number);
 
         em.persist(quote);
 
@@ -176,7 +180,7 @@ export class QuoteService {
                 const unit = new LineItemUnit();
 
                 unit.lineItem = lineItem;
-                unit.createdBy = this.em.getReference(User, currentUserId)
+                unit.createdBy = this.em.getReference(User, session.userId as number)
                 unit.type = dto.shipmentType as ShipmentType;
                 
                 if([ShipmentType.PACKAGE, ShipmentType.PALLET].includes(dto.shipmentType)){
