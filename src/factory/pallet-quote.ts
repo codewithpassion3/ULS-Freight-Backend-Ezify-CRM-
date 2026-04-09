@@ -47,6 +47,8 @@ export class PalletQuote extends StandardQuote {
         }
 
         const quote = new Quote();
+        this.validatedData.quote = quote;
+        this.data.quote = quote;
         
         quote.quoteType = this.validatedData.quoteType;
         quote.shipmentType = this.validatedData.shipmentType;
@@ -58,9 +60,11 @@ export class PalletQuote extends StandardQuote {
         quote.addresses.set(addresses);
 
         quote.lineItems = this.buildLineItem() as any;
-        quote.insurance = this.buildInsurance();
+        quote.insurance = this.buildInsurance();    
         quote.company = this.em.getReference(Company, this.session.companyId as number);
         quote.createdBy = this.em.getReference(User, this.session.userId as number);
+
+        await this.buildServices();
 
         return quote;
     }

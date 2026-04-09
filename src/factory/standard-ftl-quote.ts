@@ -43,6 +43,8 @@ export class StandardFTLQuote extends StandardQuote {
         }
 
         const quote = new Quote();
+        this.validatedData.quote = quote;
+        this.data.quote = quote; // whichever you use internally
         
         quote.quoteType = this.validatedData.quoteType;
         quote.shipmentType = this.validatedData.shipmentType;
@@ -56,6 +58,8 @@ export class StandardFTLQuote extends StandardQuote {
         quote.insurance = this.buildInsurance();
         quote.company = this.em.getReference(Company, this.session.companyId as number);
         quote.createdBy = this.em.getReference(User, this.session.userId as number);
+        
+        await this.buildServices();
 
         return quote;
     }

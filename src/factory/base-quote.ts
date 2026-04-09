@@ -1,7 +1,7 @@
 import { EntityManager, wrap } from '@mikro-orm/core';
 import { BadRequestException } from '@nestjs/common';
 import { SessionData } from 'express-session';
-import { packageRules, palletRules } from 'src/common/constants/quote';
+import { packageRules, palletRules, requiredServiceFields } from 'src/common/constants/quote';
 import { Mode } from 'src/common/enum/mode.enum';
 import { AddressBook } from 'src/entities/address-book.entity';
 import { Address } from 'src/entities/address.entity';
@@ -205,27 +205,39 @@ export abstract class BaseQuote {
         return lineItem;
     }
 
-    protected buildServices(): void {
+    protected async buildServices(): Promise<void> {
         const serviceFactoryMap = {
             STANDARD_FTL: () => new StandardFtlServices(),
             PALLET: () => new PalletServices(),
             SPOT_FTL: () => new SpotFtlServices(),
             SPOT_LTL: () => new SpotLtlServices(),
         };
-        
+
         const shipmentType = this.data.quote.shipmentType;
-        
+
         const factory = serviceFactoryMap[shipmentType];
-        
+
         if (!factory) throw new Error('Unsupported type');
 
         const serviceEntity = factory();
-        
+
         serviceEntity.quote = this.data.quote;
+
+        const source = this.validatedData.services ?? {};
         
+        const allowedFields = requiredServiceFields[shipmentType];
+        
+        for (const field of allowedFields) {
+            if (source[field] !== undefined) {
+                (serviceEntity as any)[field] = source[field];
+            }
+        }
+
         this.attachServiceToQuote(serviceEntity, shipmentType);
 
         this.em.persist(serviceEntity);
+        
+        await this.em.flush();
     }
 
     protected buildInsurance(): Insurance {
