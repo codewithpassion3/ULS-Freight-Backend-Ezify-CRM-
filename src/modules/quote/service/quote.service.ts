@@ -181,8 +181,9 @@ export class QuoteService {
 
                 unit.lineItem = lineItem;
                 unit.createdBy = this.em.getReference(User, session.userId as number)
+                unit.company = em.getReference(Company, session.companyId as number);
                 unit.type = dto.shipmentType as ShipmentType;
-                
+               
                 if([ShipmentType.PACKAGE, ShipmentType.PALLET].includes(dto.shipmentType)){
                     unit.length = unitDto.length ?? null;
                     unit.width = unitDto.width ?? null;

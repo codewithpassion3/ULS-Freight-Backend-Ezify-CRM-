@@ -67,7 +67,7 @@ export class Quote {
   @OneToOne(() => Insurance, ins => ins.quote, { nullable: true })
   insurance?: Insurance;
 
-  @OneToOne(() => Signature, { nullable: true })
+  @ManyToOne(() => Signature, { nullable: true })
   signature?: Signature | null;
 
   @OneToMany(() => QuoteFavorite, fav => fav.quote, { cascade: [Cascade.REMOVE] })
