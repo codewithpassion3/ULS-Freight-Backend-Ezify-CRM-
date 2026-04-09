@@ -169,6 +169,11 @@ export const requiredServiceFields: Record<ShipmentType, string[]> = {
       'appointmentDelivery',
       'thresholdDelivery',
       'thresholdPickup',
+      'inbound', 
+      'protectFromFreeze',
+      'tradeShowDelivery',
+      'amazonOrFBADelivery',
+      'refrigeratedServices'
     ],
     [ShipmentType.STANDARD_FTL]: ['looseFreight', 'pallets'],
     [ShipmentType.SPOT_LTL]: ['inbound', 'protectFromFreeze', 'limitedAccess'],

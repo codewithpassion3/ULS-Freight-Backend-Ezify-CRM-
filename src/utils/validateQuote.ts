@@ -327,8 +327,18 @@ for (const address of normalizedAddresses) {
 }
 
   export const validateServicesAgainstQuote = (dtoServices: Record<string, any>, shipmentType: ShipmentType) => {
+   
     const requiredFields = requiredServiceFields[shipmentType];
     let localErrors = [] as string[];
+
+    if(!dtoServices){
+        localErrors.push(`services are required for ${shipmentType}`)
+        return localErrors;
+    }
+
+    if(typeof dtoServices !== "object"){
+      localErrors.push("services must be an object")
+    }
 
     if(requiredFields.length > 0){
         requiredFields.forEach(field => {

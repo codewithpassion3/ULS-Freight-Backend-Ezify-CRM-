@@ -1,7 +1,7 @@
 import { EntityManager, wrap } from '@mikro-orm/core';
 import { BadRequestException } from '@nestjs/common';
 import { SessionData } from 'express-session';
-import { packageRules } from 'src/common/constants/quote';
+import { packageRules, palletRules } from 'src/common/constants/quote';
 import { Mode } from 'src/common/enum/mode.enum';
 import { AddressBook } from 'src/entities/address-book.entity';
 import { Address } from 'src/entities/address.entity';
@@ -9,11 +9,16 @@ import { Company } from 'src/entities/company.entity';
 import { Insurance } from 'src/entities/insurance.entity';
 import { LineItemUnit } from 'src/entities/line-item-unit.entity';
 import { LineItem } from 'src/entities/line-item.entity';
+import { PalletServices } from 'src/entities/pallet-services.entity';
 import { PalletShippingLocationType } from 'src/entities/pallet-shipping-location-type.entity';
 import { ShippingAddress } from 'src/entities/shipping-address.entity';
 import { Signature } from 'src/entities/signature.entity';
+import { SpotFtlServices } from 'src/entities/spot-ftl-services.entity';
+import { SpotLtlServices } from 'src/entities/spot-ltl-services.entity';
+import { StandardFtlServices } from 'src/entities/standard-ftl-services.entity';
 import { User } from 'src/entities/user.entity';
-import { validateUnit } from 'src/utils/validateQuote';
+import { validateAddress } from 'src/utils/validateAddress';
+import { validateServicesAgainstQuote, validateUnit } from 'src/utils/validateQuote';
 
 export interface QuoteConstructorParams {
     data: any;
@@ -61,8 +66,10 @@ export abstract class BaseQuote {
     
     // Template method with common logic
     protected async validateAddresses(): Promise<void> {
+        console.log({data: this.data.quote.addresses, length: this.data.quote.addresses.length})
         const addresses = this.data.quote.addresses;
         if (!addresses || addresses.length === 0) {
+            console.log("Throwing error")
             this.errors.push("Addresses (TO & FROM) are required");
             return;
         }
@@ -111,15 +118,14 @@ export abstract class BaseQuote {
 
         const units = this.data.quote.lineItem.units;
 
-        units.forEach((unit: any, idx: number) => {
-            const result = validateUnit(unit, packageRules, { unitIndex: idx });
-            if (result.errors) {
-                this.errors.push(...result.errors);
-            }
-        });
+       this.processLineItemUnit(units)
     }
 
-
+    protected validateServices(): void {
+        const errors = validateServicesAgainstQuote(this.data.quote.services, this.data.quote.shipmentType)
+        this.errors.push(...errors);
+    }
+    
     protected validateInsurance(): void {
         if (!this.data.quote.insurance) {
             this.errors.push("Insurance is required");
@@ -194,9 +200,32 @@ export abstract class BaseQuote {
         this.assignLineItemFields(lineItem);
         
         // Common: units assignment (always happens)
-        lineItem.units = this.buildUnits() as any;
+        const units = this.buildUnits();
+        lineItem.units = units as any;
+        lineItem.quantity = units.length;
         
         return lineItem;
+    }
+
+   protected buildServices(): void {
+        const serviceFactoryMap = {
+            STANDARD_FTL: () => new StandardFtlServices(),
+            PALLET: () => new PalletServices(),
+            SPOT_FTL: () => new SpotFtlServices(),
+            SPOT_LTL: () => new SpotLtlServices(),
+        };
+        
+        const shipmentType = this.data.quote.shipmentType;
+        
+        const factory = serviceFactoryMap[shipmentType];
+        
+        if (!factory) throw new Error('Unsupported type');
+
+        const serviceEntity = factory();
+        
+        serviceEntity.quote = this.data.quote;
+        
+        this.attachServiceToQuote(serviceEntity, shipmentType);
     }
 
     protected buildInsurance(): Insurance {
@@ -216,7 +245,9 @@ export abstract class BaseQuote {
         return signature as Signature;
     }
 
-    // Abstract methods for derived classes
+   
+    protected abstract processLineItemUnit(units: any): void;
+    protected abstract attachServiceToQuote(serviceEntity: any, shipmentType: string): void;
     protected abstract assignLineItemFields(lineItem: LineItem): void;
     protected abstract buildUnitFields(unit: LineItemUnit, unitData: any, idx: number): void;
     protected abstract validateAddressDetails(addresses: AddressData[]): Promise<void>;
@@ -265,5 +296,51 @@ export abstract class BaseQuote {
         
         book.address = addr;
         return book;
+    }
+
+    protected resetServiceRelations(): void {
+    this.data.quote.standardFTLService = null;
+    this.data.quote.palletServices = null;
+    this.data.quote.spotFtlServices = null;
+    this.data.quote.spotLtlServices = null;
+}
+    protected async validateShipmentAddresses(addresses: AddressData[]): Promise<void> {
+        for (const address of addresses) {
+            if (address.addressBookId) {
+                // Case 1: Existing ID - no extra fields allowed
+                const hasExtra = this.hasAddressBookFields(address) || 
+                            !!(address.address1 || address.city || address.state || address.postalCode || address.country);
+                if (hasExtra) {
+                    this.errors.push(`Address '${address.type}': addressBookId cannot be mixed with other fields`);
+                }
+
+                // ADD: Check if AddressBook actually exists
+                const bookExists = await this.em.count(AddressBook, { id: address.addressBookId });
+                if (bookExists === 0) {
+                    this.errors.push(`Address '${address.type}': AddressBook ${address.addressBookId} not found`);
+                }
+            } else {
+                // Case 2: New AddressBook - check all required
+                const required = [
+                    'companyName', 'contactName', 'phoneNumber', 
+                    'palletShippingReadyTime', 'palletShippingCloseTime',
+                    'signatureId', 'locationType', 'address1', 'city', 'state', 'postalCode', 'country'
+                ];
+
+                const missing = required.filter(field => !(address as any)[field]);
+                if (missing.length > 0) {
+                    missing.forEach(field => {
+                        this.errors.push(`Address '${address.type}': Missing required field '${field}'`);
+                    });
+                }
+            }
+        }
+    }
+
+    protected validateQuoteAddresses(addresses: AddressData[]): void {
+        for (const address of addresses) {
+            const addressErrors = validateAddress(address as any, this.data.quote.quoteType);
+            this.errors.push(...addressErrors);
+        }
     }
 }

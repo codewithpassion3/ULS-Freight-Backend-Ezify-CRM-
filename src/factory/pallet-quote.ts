@@ -1,115 +1,158 @@
-// import { Quote } from "src/entities/quote.entity";
-// import { StandardQuote } from "./standard-quote";
-// import { validateAddress } from "src/utils/validateAddress";
-// import { BadRequestException } from "@nestjs/common";
-// import { validateServicesAgainstQuote, validateUnit } from "src/utils/validateQuote";
-// import { packageRules, palletRules } from "src/common/constants/quote";
+import { Quote } from "src/entities/quote.entity";
+import { StandardQuote } from "./standard-quote";
+import { BadRequestException } from "@nestjs/common";
+import { wrap } from "@mikro-orm/core";
+import { Mode } from "src/common/enum/mode.enum";
+import { AddressBook } from "src/entities/address-book.entity";
+import { Address } from "src/entities/address.entity";
+import { Company } from "src/entities/company.entity";
+import { LineItemUnit } from "src/entities/line-item-unit.entity";
+import { LineItem } from "src/entities/line-item.entity";
+import { ShippingAddress } from "src/entities/shipping-address.entity";
+import { User } from "src/entities/user.entity";
+import { QuoteConstructorParams, AddressData } from "./base-quote";
+import { PalletServices } from "src/entities/pallet-services.entity";
+import { palletRules } from "src/common/constants/quote";
+import { validateUnit } from "src/utils/validateQuote";
 
-// // export class PalletQuote extends StandardQuote {
-// //     private readonly quote: Quote;
-// //     private readonly errors: string[];
+export class PalletQuote extends StandardQuote {
+    constructor(params: QuoteConstructorParams) {
+        super();
+        this.data = params.data;
+        this.em = params.em;
+        this.session = params.session;
+    }
 
-// //     constructor(private readonly data: any){
-// //         super();
-// //         this.quote = new Quote();
-// //         this.errors = [];
-// //     }
-
-// //     validateAndReturn(): Quote {
-// //         this.validateAddress();
-// //         this.validateLineItem();
-// //         this.validateLineItemUnit();
-// //         this.validateServices();
-// //         this.validateInsurance();
-// //         this.validateSignature();
-
-// //         return this.quote;
-// //     }
-
-// //     private validateAddress(){
-// //         if (this.data.addresses.length === 0) {
-// //             throw new BadRequestException("Addresses (TO & FROM) are required for pallet quote");
-// //         }
+    async validate(): Promise<void> {
+        this.errors = [];
+        await this.validateAddresses();
+        this.validateLineItem();
+        this.validateLineItemUnits();
+        this.validateServices();
+        this.validateInsurance();
         
-// //         const addresses = this.data.addresses;
-// //         const quoteType = this.data.quoteType;
+        if (this.errors.length > 0) {
+            throw new BadRequestException({
+                message: this.errors
+            });
+        }
 
-// //         const normalizedAddresses = addresses.map((addr: any) => ({
-// //           ...addr,
-// //           locationType: addr.locationType ?? undefined,
-// //         }));
+        // Store validated data for build phase
+        this.validatedData = this.data.quote;
+    }
+
+    protected async validateAddressDetails(addresses: AddressData[]): Promise<void> {
+        if (this.data.mode === Mode.SHIPMENT) {
+            await this.validateShipmentAddresses(addresses);
+        } else {
+            this.validateQuoteAddresses(addresses);
+        }
+    }
+
+    protected validateLineItemSpecific(): void {
+        // Check: dangerousGoods required for pallet
+        if (this.data.quote.lineItem.dangerousGoods === undefined) {
+            this.errors.push("dangerousGoods is required in pallet quote");
+        }
+
+        if (this.data.quote.lineItem.stackable === undefined) {
+            this.errors.push("stackable is required in pallet quote")
+        }
+    }
+
+    protected processLineItemUnit(units: any): void {
+        units.forEach((unit: any, idx: number) => {
+            const result = validateUnit(unit, palletRules, { unitIndex: idx });
+            if (result.errors) {
+                this.errors.push(...result.errors);
+            }
+        });
+    }
+
+    protected async buildAddressDetails(
+        addrData: AddressData, 
+        shippingAddress: ShippingAddress, 
+        bookMap: Map<number, AddressBook>
+    ): Promise<void> {
         
-// //        for (const address of normalizedAddresses) {
-// //             this.errors.push(...validateAddress(address, quoteType));
-// //         }
-       
-// //         if (this.errors.length > 0) {
-// //             throw new BadRequestException({
-// //                 message: this.errors,
-// //             });
-// //         }
-// //     }
-
-// //     private validateLineItem(){
-// //         if(!this.data.lineItem){
-// //             throw new BadRequestException("Line item is required for pallet quote");
-// //         }
-
-// //         if(this.data.lineItem?.units.length === 0){
-// //             throw new BadRequestException("At least one unit is required for pallet quote")
-// //         }
-
-// //         if(this.data.lineItem?.type !== this.data.shipmentType) {
-// //             throw new BadRequestException("Line item type must match shipment type")
-// //         }
+        if (addrData.addressBookId) {
+            // CASE 1: Existing AddressBook
+            const book = bookMap.get(addrData.addressBookId);
+            
+            if (!book) {
+                this.errors.push(`AddressBook ${addrData.addressBookId} not found`);
+                return; // STOP here, don't continue with invalid reference
+            }
+            
+            shippingAddress.addressBookEntry = this.em.getReference(AddressBook, addrData.addressBookId);
+        } 
+        else if (this.data.mode === Mode.SHIPMENT) {
+            // CASE 2: Create temporary AddressBook
+            const addressBook = this.createAddressBook({...addrData, companyId: this.session.companyId, userId: this.session.userId });
+            this.em.persist(addressBook);
+            shippingAddress.addressBookEntry = addressBook;
+        }
+        else {
+            // CASE 3: Quote mode - Pure manual address
+            const addr = new Address();
+            wrap(addr).assign({
+                address1: addrData.address1!,
+                address2: addrData.address2,
+                city: addrData.city!,
+                state: addrData.state!,
+                postalCode: addrData.postalCode!,
+                country: addrData.country!
+            });
+            shippingAddress.address = addr;
+        }
         
-// //         if(this.data.lineItem.stackable === undefined){
-// //             throw new BadRequestException("stackable is required in pallet quote")
-// //         }
+    }
 
-// //         if(this.data.lineItem.dangerousGoods === undefined){
-// //             throw new BadRequestException("dangerousGoods is required in pallet quote")
-// //         }
-// //     }
+    async build(): Promise<Quote> {
+        if (!this.validatedData) {
+            this.errors.push('Must call validate() before build()');
+        }
 
-// //     private validateLineItemUnit(){
-// //         if (this.data.lineItem?.units?.length) {
-// //             this.data.lineItem.units.forEach((unit: any, idx: number) => {
-// //               const result = validateUnit(unit, palletRules, { unitIndex: idx });
-// //               this.errors.push(...result.errors);
-// //             });
-// //         }
+        const quote = new Quote();
+        
+        quote.quoteType = this.validatedData.quoteType;
+        quote.shipmentType = this.validatedData.shipmentType;
+        quote.status = this.validatedData.status;
 
-// //         if (this.errors.length > 0) {
-// //             throw new BadRequestException({
-// //                 message: this.errors,
-// //             });
-// //         }
-// //     }
+        // Build relationships
+        const addresses = await this.buildAddresses();
+        addresses.forEach(addr => addr.quote = quote);
+        quote.addresses.set(addresses);
 
-// //     private validateServices(){
-// //       if(!this.data.services){
-// //         throw new BadRequestException("Services are required in pallet quote")
-// //       }
-      
-// //       const errors = validateServicesAgainstQuote(this.data.services, this.data.shipmentType);
+        quote.lineItems = this.buildLineItem() as any;
+        quote.insurance = this.buildInsurance();
+        quote.company = this.em.getReference(Company, this.session.companyId as number);
+        quote.createdBy = this.em.getReference(User, this.session.userId as number);
 
-// //       if (errors.length > 0) {
-// //             throw new BadRequestException({
-// //                 message: errors,
-// //             });
-// //        }
-// //     }
+        return quote;
+    }
 
-// //     private validateInsurance(){
-// //         if(!this.data.insurance){
-// //             throw new BadRequestException( "Insurance is required in pallet quote")
-// //         }
-// //     }
+    protected assignLineItemFields(lineItem: LineItem): void {
+        lineItem.type = this.validatedData.lineItem.type;
+        lineItem.dangerousGoods = this.validatedData.lineItem.dangerousGoods;
+        lineItem.measurementUnit = this.validatedData.lineItem.measurementUnit;
+        lineItem.stackable = this.validatedData.lineItem.stackable;
+    }
 
-// //     private validateSignature(){
-// //         if(this.data.signature){
-// //             throw new BadRequestException("Signature is is not supported in pallet quote")
-// //         }
-// //     }
-// // }
+    protected buildUnitFields(unit: LineItemUnit, unitData: any, idx: number): void {
+        unit.length = unitData.length;
+        unit.width = unitData.width;
+        unit.height = unitData.height;
+        unit.weight = unitData.weight;
+        unit.freightClass = unitData.freightClass;
+        unit.nmfc = unitData.nmfc;
+        unit.unitsOnPallet = unitData.unitsOnPallet;
+        unit.palletUnitType = unitData.palletUnitType;
+        unit.description = unitData.description ?? ""
+    }
+
+    protected attachServiceToQuote(serviceEntity: PalletServices): void {
+        this.data.quote.palletServices = serviceEntity;
+    }
+}
+

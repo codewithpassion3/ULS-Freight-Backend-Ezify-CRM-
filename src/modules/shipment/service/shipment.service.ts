@@ -53,9 +53,9 @@ export class ShipmentService {
 
     private async buildQuote(dto: CreateShipmentDTO, session: SessionData) {
       const quoteFactory = dto.quote.quoteType === QuoteType.STANDARD ? new StandardQuoteFactory() : new SpotQuoteFactory();
-      
+      console.log({quoteFactory})
       const quote = quoteFactory.create({ shipmentType: dto.shipmentType, data: dto, em: this.em, session });
-    
+      console.log({quote})
       // Sync validation - throws BadRequestException if invalid
       await quote.validate();
       

@@ -12,6 +12,8 @@ import { validateAddress } from 'src/utils/validateAddress';
 import { StandardQuote } from './standard-quote';
 import { QuoteConstructorParams, AddressData } from './base-quote';
 import { Mode } from 'src/common/enum/mode.enum';
+import { packageRules } from 'src/common/constants/quote';
+import { validateUnit } from 'src/utils/validateQuote';
 
 export class PackageQuote extends StandardQuote {
     constructor(params: QuoteConstructorParams) {
@@ -44,48 +46,6 @@ export class PackageQuote extends StandardQuote {
             await this.validateShipmentAddresses(addresses);
         } else {
             this.validateQuoteAddresses(addresses);
-        }
-    }
-
-    private async validateShipmentAddresses(addresses: AddressData[]): Promise<void> {
-        for (const address of addresses) {
-            if (address.addressBookId) {
-                // Case 1: Existing ID - no extra fields allowed
-                const hasExtra = this.hasAddressBookFields(address) || 
-                            !!(address.address1 || address.city || address.state || address.postalCode || address.country);
-                if (hasExtra) {
-                    this.errors.push(`Address '${address.type}': addressBookId cannot be mixed with other fields`);
-                }
-
-                // ADD: Check if AddressBook actually exists
-                const bookExists = await this.em.count(AddressBook, { id: address.addressBookId });
-                if (bookExists === 0) {
-                    this.errors.push(`Address '${address.type}': AddressBook ${address.addressBookId} not found`);
-                }
-            } else {
-                // Case 2: New AddressBook - check all required
-                const required = [
-                    'companyName', 'contactName', 'phoneNumber', 
-                    'palletShippingReadyTime', 'palletShippingCloseTime',
-                    'signatureId', 'locationType', 'address1', 'city', 'state', 'postalCode', 'country'
-                ];
-                const missing = required.filter(field => {
-                    !(address as any)[field]
-                }
-            );
-                if (missing.length > 0) {
-                    this.errors.push(
-                        `Address '${address.type}': Missing required fields: ${missing.join(', ')}`
-                    );
-                }
-            }
-        }
-    }
-
-    protected validateQuoteAddresses(addresses: AddressData[]): void {
-        for (const address of addresses) {
-            const addressErrors = validateAddress(address as any, this.data.quote.quoteType);
-            this.errors.push(...addressErrors);
         }
     }
 
@@ -171,5 +131,18 @@ export class PackageQuote extends StandardQuote {
         unit.width = unitData.width;
         unit.height = unitData.height;
         unit.weight = unitData.weight;
+    }
+
+    protected processLineItemUnit(units: any): void {
+        units.forEach((unit: any, idx: number) => {
+                const result = validateUnit(unit, packageRules, { unitIndex: idx });
+                if (result.errors) {
+                    this.errors.push(...result.errors);
+                }
+        });
+    }
+
+    protected attachServiceToQuote(serviceEntity: any, shipmentType: string): void {
+        //empty
     }
 }

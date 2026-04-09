@@ -1,5 +1,5 @@
 // dto/create-shipment.dto.ts
-import { IsDateString, IsBoolean, IsEnum, IsArray, ValidateNested, IsString, IsOptional } from 'class-validator';
+import { IsDateString, IsBoolean, IsEnum, IsArray, ValidateNested, IsString, IsOptional, IsNotEmptyObject } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ShipmentType } from 'src/common/enum/shipment-type.enum';
 import { CreateQuoteDTO } from 'src/modules/quote/dto/create-quote.dto';
@@ -15,6 +15,7 @@ export class CreateShipmentDTO {
     @IsEnum(ShipmentType)
     shipmentType!: ShipmentType;
 
+    @IsNotEmptyObject()
     @ValidateNested()
     @Type(() => CreateQuoteDTO)
     quote!: CreateQuoteDTO;
