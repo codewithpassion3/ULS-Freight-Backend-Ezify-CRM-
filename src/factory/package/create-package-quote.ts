@@ -8,15 +8,15 @@ import { LineItem } from 'src/entities/line-item.entity';
 import { Quote } from 'src/entities/quote.entity';
 import { ShippingAddress } from 'src/entities/shipping-address.entity';
 import { User } from 'src/entities/user.entity';
-import { StandardQuote } from './standard-quote';
-import { QuoteConstructorParams, AddressData } from './base-quote';
+import { StandardQuote } from '../standard-quote';
+import { QuoteConstructorParams, AddressData } from '../base-quote';
 import { Mode } from 'src/common/enum/mode.enum';
 import { packageRules } from 'src/common/constants/quote';
 import { validateUnit } from 'src/utils/validateQuote';
 import { Signature } from 'src/entities/signature.entity';
 import { Insurance } from 'src/entities/insurance.entity';
 
-export class PackageQuote extends StandardQuote {
+export class CreatePackageQuote extends StandardQuote {
     constructor(params: QuoteConstructorParams) {
         super();
         this.data = params.data;

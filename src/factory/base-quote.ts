@@ -67,10 +67,22 @@ export abstract class BaseQuote {
     // Template method with common logic
     protected async validateAddresses(): Promise<void> {
         const addresses = this.data.quote.addresses;
+
+        if(!this.hasValidAddressPayload(addresses)) return;
+
+        await this.validateAddressRule(addresses);
+    }
+
+    protected hasValidAddressPayload(addresses: AddressData[]): boolean {
         if (!addresses || addresses.length === 0) {
             this.errors.push("Addresses (TO & FROM) are required");
-            return;
+            return false;
         }
+
+        return true;
+    }
+
+    protected async validateAddressRule(addresses: AddressData[]): Promise<void> {
 
         const fromAddress = addresses.find((a: AddressData) => a.type === AddressType.FROM);
         const toAddress = addresses.find((a: AddressData) => a.type === AddressType.TO);
