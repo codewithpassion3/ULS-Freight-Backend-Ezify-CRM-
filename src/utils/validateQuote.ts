@@ -6,6 +6,7 @@ import { validateSpotDetails } from "./validateSpotDetails";
 import { CreateQuoteDTO } from "src/modules/quote/dto/create-quote.dto";
 import { UpdateQuoteDTO } from "src/modules/quote/dto/update-quote.dto";
 import { Quote } from "src/entities/quote.entity";
+import { requiredServiceFields } from "src/common/constants/quote";
 
 interface ValidationResult {
   valid: boolean;
@@ -74,7 +75,6 @@ export function validateUnit(
 
   for (const rule of rules) {
     const value = data[rule.field];
-
     if (rule.required && (value === undefined || value === null || value === '')) {
       const prefix =
         context?.unitIndex !== undefined
@@ -325,3 +325,34 @@ for (const address of normalizedAddresses) {
     errors,
   };
 }
+
+  export const validateServicesAgainstQuote = (dtoServices: Record<string, any>, shipmentType: ShipmentType) => {
+   
+    const requiredFields = requiredServiceFields[shipmentType];
+    let localErrors = [] as string[];
+
+    if(!dtoServices){
+        localErrors.push(`services are required for ${shipmentType}`)
+        return localErrors;
+    }
+
+    if(typeof dtoServices !== "object"){
+      localErrors.push("services must be an object")
+    }
+
+    if(requiredFields.length > 0){
+        requiredFields.forEach(field => {
+        if (dtoServices[field] === undefined) {
+          localErrors.push(`${field} is required for ${shipmentType}`);
+        }
+      });
+
+      Object.entries(dtoServices).forEach(([field, value]) => {
+        if (typeof value !== 'boolean') {
+          localErrors.push(`services.${field} must be boolean`);
+        }
+      });
+    }
+
+    return localErrors;
+  }

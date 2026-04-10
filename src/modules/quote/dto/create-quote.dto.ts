@@ -78,6 +78,30 @@ export class CreateAddressDto {
   @IsOptional()
   @IsString()
   additionalNotes?: string;
+
+  @IsOptional()
+  @IsString()
+  companyName?: string;
+
+  @IsOptional()
+  @IsString()
+  contactName?: string;
+
+  @IsOptional()
+  @IsString()
+  phoneNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  palletShippingReadyTime?: string;
+
+  @IsOptional()
+  @IsString()
+  palletShippingCloseTime?: string;
+
+  @IsOptional()
+  @IsNumber()
+  signatureId?: number;
 }
 
 /* ---------------- LINE ITEM UNIT ---------------- */
@@ -254,7 +278,7 @@ export class CreateSpotEquipmentDto {
 export class CreateSpotDetailsDto {
   @IsNotEmpty()
   @IsEnum(SpotType)
-  spotType: SpotType;
+  spotType!: SpotType;
 
   @ValidateNested()
   @Type(() => CreateSpotContactDto)

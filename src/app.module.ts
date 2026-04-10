@@ -19,6 +19,7 @@ import { SignatureModule } from './modules/signature/signature.module';
 import { PalletShippingLocationTypeModule } from './modules/pallet-shipping-location-type/pallet-shiping-location-type.module';
 import { QuoteModule } from './modules/quote/quote.module';
 import { LineItemUnitModule } from './modules/line-item-unit/line-item-unit.module';
+import { ShipmentModule } from './modules/shipment/shipment.module';
 
 @Module({
   imports: [
@@ -41,7 +42,8 @@ import { LineItemUnitModule } from './modules/line-item-unit/line-item-unit.modu
     SignatureModule,
     PalletShippingLocationTypeModule,
     QuoteModule,
-    LineItemUnitModule
+    LineItemUnitModule,
+    ShipmentModule
   ],
   controllers: [AppController],
   providers: [AppService],

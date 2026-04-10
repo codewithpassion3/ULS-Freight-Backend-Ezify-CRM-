@@ -16,6 +16,8 @@ import { QuoteUserMeta } from "./quote-user-meta.entity";
 import { randomBytes } from "crypto";
 import { QuoteStatus } from "src/common/enum/quote-status";
 import { QuoteFavorite } from "./quote-favorite.entity";
+import { Company } from "./company.entity";
+import { Shipment } from "./shipment.entity";
 
 @Entity()
 export class Quote {
@@ -66,7 +68,7 @@ export class Quote {
   @OneToOne(() => Insurance, ins => ins.quote, { nullable: true })
   insurance?: Insurance;
 
-  @OneToOne(() => Signature, { nullable: true })
+  @ManyToOne(() => Signature, { nullable: true })
   signature?: Signature | null;
 
   @OneToMany(() => QuoteFavorite, fav => fav.quote, { cascade: [Cascade.REMOVE] })
@@ -96,4 +98,10 @@ export class Quote {
     mappedBy: 'quote',
   })
   spotLtlServices?: SpotLtlServices;
+
+  @ManyToOne(() => Company)
+  company!: Company;
+  
+  @OneToOne(() => Shipment, shipment => shipment.quote)
+  shipment?: Shipment;
 }

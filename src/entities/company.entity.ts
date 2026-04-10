@@ -3,6 +3,7 @@ import { Address } from './address.entity';
 import { CompanyShippingPreference } from './company-shipping-preference.entity';
 import { AddressBook } from './address-book.entity';
 import { LineItemUnit } from './line-item-unit.entity';
+import { Quote } from './quote.entity';
 
 @Entity()
 export class Company{
@@ -26,4 +27,7 @@ export class Company{
 
     @OneToMany(() => LineItemUnit, lineItemUnit => lineItemUnit.company)
     lineItemUnit = new Collection<LineItemUnit>(this);
+
+    @OneToMany(() => Quote, quote => quote.company)
+    quote = new Collection<Quote>(this);
 }

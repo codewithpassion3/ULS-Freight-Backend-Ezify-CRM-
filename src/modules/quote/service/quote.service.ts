@@ -181,8 +181,9 @@ export class QuoteService {
 
                 unit.lineItem = lineItem;
                 unit.createdBy = this.em.getReference(User, session.userId as number)
+                unit.company = em.getReference(Company, session.companyId as number);
                 unit.type = dto.shipmentType as ShipmentType;
-                
+               
                 if([ShipmentType.PACKAGE, ShipmentType.PALLET].includes(dto.shipmentType)){
                     unit.length = unitDto.length ?? null;
                     unit.width = unitDto.width ?? null;
@@ -703,7 +704,7 @@ export class QuoteService {
         },{
             populate: ["addresses", "addresses.addressBookEntry", "addresses.addressBookEntry.address", "addresses.address","lineItems", "lineItems.units",
                         "palletServices", "spotFtlServices", "spotLtlServices", "standardFTLService", 
-                        "signature", "insurance","spotDetails", "spotDetails.spotContact", "spotDetails.spotEquipment"]
+                        "signature", "insurance","spotDetails", "spotDetails.spotContact", "spotDetails.spotEquipment","shipment"]
         });
 
         //2) Throw error for invalid quote

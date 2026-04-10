@@ -133,3 +133,57 @@ export const NESTED_UPDATE_WHITELIST: Record<string, string[]> = {
     "ventilated", "refrigerated", "nextFlightOut"
   ],
 };
+
+interface FieldRule {
+  field: string;
+  required: boolean;
+  condition?: (data: any) => boolean;
+}
+
+export const packageRules: FieldRule[] = [
+  { field: 'length', required: true },
+  { field: 'width', required: true },
+  { field: 'height', required: true },
+  { field: 'weight', required: true },
+  { field: 'description', required: false },
+  { field: 'specialHandlingRequired', required: true }
+];
+
+export const palletRules: FieldRule[] = [
+  { field: 'length', required: true },
+  { field: 'width', required: true },
+  { field: 'height', required: true },
+  { field: 'weight', required: true },
+  { field: 'freightClass', required: true },
+  { field: 'nmfc', required: true },
+  { field: 'stackable', required: false },
+  { field: 'unitsOnPallet', required: true },
+  { field: 'palletUnitType', required: true },
+  { field: 'description', required: false },
+
+];
+
+export const courierPakRules: FieldRule[] = [
+  { field: 'weight', required: true },
+  { field: 'description', required: false },
+];
+
+export const requiredServiceFields: Record<ShipmentType, string[]> = {
+    [ShipmentType.PALLET]: [
+      'limitedAccess',
+      'appointmentDelivery',
+      'thresholdDelivery',
+      'thresholdPickup',
+      'inbound', 
+      'protectFromFreeze',
+      'tradeShowDelivery',
+      'amazonOrFBADelivery',
+      'refrigeratedServices'
+    ],
+    [ShipmentType.STANDARD_FTL]: ['looseFreight', 'pallets'],
+    [ShipmentType.SPOT_LTL]: ['inbound', 'protectFromFreeze', 'limitedAccess'],
+    [ShipmentType.PACKAGE]: [],
+    [ShipmentType.COURIER_PAK]: [],
+    [ShipmentType.TIME_CRITICAL]: [],
+    [ShipmentType.SPOT_FTL]: [],
+  };
