@@ -38,7 +38,6 @@ export class UpdateCourierPakQuote extends StandardQuote {
         if(!quote) return;
 
         this.existingQuote = quote;
-        console.log({existingQuote: this.existingQuote})
     }
 
     async validate(): Promise<void> {
@@ -82,7 +81,6 @@ export class UpdateCourierPakQuote extends StandardQuote {
 
     protected async validateAddresses(): Promise<void> {
         const addresses = this.data.quote.addresses;
-        console.log("Validate addresses", addresses)
         
         if(!this.hasValidAddressPayload(addresses)) return;
 
@@ -90,8 +88,6 @@ export class UpdateCourierPakQuote extends StandardQuote {
     }
 
     protected hasValidAddressPayload(addresses: AddressData[]): boolean {
-        console.log("Has valid address payload", addresses, addresses.length);
-
         if(!addresses || addresses.length === 0) return false;
 
         if(addresses.length > 2 ){
@@ -148,9 +144,7 @@ export class UpdateCourierPakQuote extends StandardQuote {
     }
 
     protected async updateAddresses(): Promise<void> {
-        console.log("Inside update addresses")
         for (const address of this.validatedData.addresses) {
-            console.log("Address", address)
             const shippingAddress = this.existingQuote.addresses
                 .getItems()
                 .find(a => a.type === address.type);
@@ -208,7 +202,6 @@ export class UpdateCourierPakQuote extends StandardQuote {
     }
 
     protected async updateLineItem(): Promise<void> {
-        console.log({data: this.validatedData, existingQuote: this.existingQuote})
         const lineItemData = this.validatedData.lineItems as any;
         
         // Get existing line item (assuming one per quote for now)

@@ -128,7 +128,7 @@ export class CourierPakQuote extends StandardQuote {
     }
 
     protected buildUnitFields(unit: LineItemUnit, unitData: any, idx: number): void {
-        unit.width = unitData.width;
+        unit.weight = unitData.weight;
         unit.description = unitData.description ?? ""
     }
     
