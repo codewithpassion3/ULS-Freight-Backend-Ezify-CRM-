@@ -77,9 +77,11 @@ export class UpdatePackageQuote extends StandardQuote {
 
         await this.em.refresh(this.existingQuote, {
             populate: [
-                'addresses',
-                'addresses.addressBookEntry',
-                'addresses.addressBookEntry.address',
+                "addresses",
+                "addresses.addressBookEntry",
+                "addresses.addressBookEntry.address",
+                "lineItems",
+                "lineItems.units",
                 "insurance"
             ]
         });

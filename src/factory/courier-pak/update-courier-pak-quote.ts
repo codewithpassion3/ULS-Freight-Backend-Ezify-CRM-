@@ -9,11 +9,8 @@ import { ShippingAddress } from 'src/entities/shipping-address.entity';
 import { User } from 'src/entities/user.entity';
 import { StandardQuote } from '../standard-quote';
 import { QuoteConstructorParams, AddressData, AddressType } from '../base-quote';
-import { palletRules } from 'src/common/constants/quote';
-import { validateAndFilterServicesForUpdate, validateUnit } from 'src/utils/validateQuote';
-import { Insurance } from 'src/entities/insurance.entity';
-import { Currency } from 'src/common/enum/currency.enum';
-import { PalletServices } from 'src/entities/pallet-services.entity';
+import { courierPakRules } from 'src/common/constants/quote';
+import { validateUnit } from 'src/utils/validateQuote';
 
 export interface UpdateAddressData extends ShippingAddress {
     addressBook?: {
@@ -22,9 +19,8 @@ export interface UpdateAddressData extends ShippingAddress {
     }
 }
 
-export class UpdatePalletQuote extends StandardQuote {
+export class UpdateCourierPakQuote extends StandardQuote {
     protected existingQuote!: Quote;
-    protected validServices?: Record<string, any>;
 
     constructor(params: QuoteConstructorParams) {
         super();
@@ -36,7 +32,7 @@ export class UpdatePalletQuote extends StandardQuote {
     async init(): Promise<void> {
         const quote = await this.em.findOne(Quote, 
             { id: this.data?.quote?.id},
-            { populate: ["addresses","addresses.addressBookEntry","addresses.addressBookEntry.address", "lineItems", "lineItems.units", "insurance", "palletServices"] }
+            { populate: ['addresses','addresses.addressBookEntry','addresses.addressBookEntry.address', 'lineItems', 'lineItems.units'] }
         )
 
         if(!quote) return;
@@ -46,44 +42,30 @@ export class UpdatePalletQuote extends StandardQuote {
     }
 
     async validate(): Promise<void> {
-        if (!this.existingQuote) return;
+        if(!this.existingQuote) return;
 
         this.errors = [];
-
         await this.validateAddresses();
         this.validateLineItem();
         this.validateLineItemUnits();
-        this.validateInsurance();
-        this.validateServices();
-
+        
         if (this.errors.length > 0) {
             throw new BadRequestException({
                 message: this.errors
             });
         }
 
-        console.log({data: this.data.quote})
-        this.validatedData = {
-            addresses: this.data.quote.addresses,
-            lineItems: this.data.quote.lineItems,
-            insurance: this.data.quote.insurance,
-            services: this.validServices,
-        };
+        // Store validated data for build phase
+        this.validatedData = this.data.quote;
     }
 
     async update(): Promise<Quote | void> {
-        console.log("Validated Data =>", this.validatedData.services)
         if (!this.existingQuote) return;
 
-        if (this.validatedData.addresses !== undefined) await this.updateAddresses();
-
-        if (this.validatedData.lineItems !== undefined) await this.updateLineItem();
-
-        if (this.validatedData.insurance !== undefined) this.updateInsurance();
-
-        if (this.validatedData.services !== undefined) this.updateServices();
-
-        await this.em.flush();
+        if (this.validatedData.addresses) await this.updateAddresses(); 
+        if (this.validatedData.lineItems) await this.updateLineItem();
+        
+        await this.em.flush(); 
 
         await this.em.refresh(this.existingQuote, {
             populate: [
@@ -91,9 +73,7 @@ export class UpdatePalletQuote extends StandardQuote {
                 "addresses.addressBookEntry",
                 "addresses.addressBookEntry.address",
                 "lineItems",
-                "lineItems.units",
-                "insurance",
-                "palletServices"
+                "lineItems.units"
             ]
         });
 
@@ -110,10 +90,10 @@ export class UpdatePalletQuote extends StandardQuote {
     }
 
     protected hasValidAddressPayload(addresses: AddressData[]): boolean {
-        
-        if(!addresses || addresses.length === 0) return false;
-        
         console.log("Has valid address payload", addresses, addresses.length);
+
+        if(!addresses || addresses.length === 0) return false;
+
         if(addresses.length > 2 ){
             this.errors.push("Can not send more than 2 addresses");
             return false;
@@ -164,51 +144,6 @@ export class UpdatePalletQuote extends StandardQuote {
         // Type must match shipment type (critical check even for updates)
         if (lineItem?.type && lineItem?.type !== this.data.quote.shipmentType) {
             this.errors.push("Line item type must match shipment type");
-        }
-    }
-
-    protected validateInsurance(): void {
-        const insurance = this.data.quote.insurance;
-        
-        // Skip if not provided (partial update)
-        if (!insurance) return;
-        
-        // Validate amount if present
-        if (insurance.amount !== undefined) {
-            if (typeof insurance.amount !== 'number' || insurance.amount < 0) {
-                this.errors.push("Insurance amount must be a non-negative number");
-            }
-        }
-        
-        // Validate currency if present
-        if (insurance.currency !== undefined) {
-            if (!Object.values(Currency).includes(insurance.currency)) {
-                this.errors.push(
-                    `Invalid currency '${insurance.currency}'. Allowed values: ${Object.values(Currency).join(", ")}`
-                );
-            }
-        }
-    }
-
-    protected validateServices(): void {
-        const { errors, validServices } =
-            validateAndFilterServicesForUpdate(
-                this.data.quote.services,
-                this.data.shipmentType
-            );
-            console.log({errors})
-        if (errors.length) {
-            this.errors.push(...errors);
-        }
-
-        this.validServices = validServices;
-    }
-
-    protected updateServices(): void {
-        const validServices = this.validatedData.services;
-
-        for (const [key, value] of Object.entries(validServices)) {
-            (this.existingQuote.palletServices as PalletServices)[key] = value;
         }
     }
 
@@ -343,8 +278,8 @@ export class UpdatePalletQuote extends StandardQuote {
                 }
                 
                 const updates: Partial<LineItemUnit> = {};
-                // FIX: Iterate palletRules as array to get field names
-                for (const rule of palletRules) {
+                // FIX: Iterate courierPakRules as array to get field names
+                for (const rule of courierPakRules) {
                     const field = rule.field;
                     if (unitData[field] !== undefined) {
                         updates[field] = unitData[field];
@@ -356,8 +291,8 @@ export class UpdatePalletQuote extends StandardQuote {
                 }
             } else {
                 const updates: Partial<LineItemUnit> = {};
-                // FIX: Iterate palletRules as array here too
-                for (const rule of palletRules) {
+                // FIX: Iterate courierPakRules as array here too
+                for (const rule of courierPakRules) {
                     const field = rule.field;
                     if (unitData[field] !== undefined) {
                         updates[field] = unitData[field];
@@ -378,33 +313,11 @@ export class UpdatePalletQuote extends StandardQuote {
 
     protected processLineItemUnit(units: any): void {
         units.forEach((unit: any, idx: number) => {
-            const result = validateUnit(unit, palletRules, { unitIndex: idx });
-            if (result.errors) {
-                this.errors.push(...result.errors);
-            }
+                const result = validateUnit(unit, courierPakRules, { unitIndex: idx });
+                if (result.errors) {
+                    this.errors.push(...result.errors);
+                }
         });
-    }
-    
-    protected updateInsurance(): void {
-        const insuranceData = this.validatedData.insurance;
-        
-        // Skip if not provided
-        if (!insuranceData) return;
-        
-        const insurance = this.existingQuote.insurance as Insurance;
-        
-        const updates: Partial<Insurance> = {};
-    
-        if (insuranceData.amount !== undefined) {
-            updates.amount = insuranceData.amount;
-        }
-        
-        if (insuranceData.currency !== undefined) {
-            updates.currency = insuranceData.currency;
-        }
-        
-        // Use wrap to ensure MikroORM tracks the change
-        wrap(insurance).assign(updates);
     }
 
     protected async buildAddressDetails(

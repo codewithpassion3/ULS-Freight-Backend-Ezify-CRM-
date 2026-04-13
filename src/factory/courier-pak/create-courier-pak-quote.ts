@@ -1,5 +1,5 @@
 import { Quote } from "src/entities/quote.entity";
-import { StandardQuote } from "./standard-quote";
+import { StandardQuote } from "../standard-quote";
 import { BadRequestException } from "@nestjs/common";
 import { wrap } from "@mikro-orm/core";
 import { Mode } from "src/common/enum/mode.enum";
@@ -10,7 +10,7 @@ import { LineItemUnit } from "src/entities/line-item-unit.entity";
 import { LineItem } from "src/entities/line-item.entity";
 import { ShippingAddress } from "src/entities/shipping-address.entity";
 import { User } from "src/entities/user.entity";
-import { QuoteConstructorParams, AddressData } from "./base-quote";
+import { QuoteConstructorParams, AddressData } from "../base-quote";
 import { PalletServices } from "src/entities/pallet-services.entity";
 import { courierPakRules } from "src/common/constants/quote";
 import { validateUnit } from "src/utils/validateQuote";
