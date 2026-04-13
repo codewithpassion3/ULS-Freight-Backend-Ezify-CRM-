@@ -356,3 +356,41 @@ for (const address of normalizedAddresses) {
 
     return localErrors;
   }
+
+
+  export const validateAndFilterServicesForUpdate = (
+  dtoServices: Record<string, any> | undefined,
+  shipmentType: ShipmentType
+): { errors: string[]; validServices: Record<string, boolean> } => {
+    const errors: string[] = [];
+
+    const requiredFields = requiredServiceFields[shipmentType] || [];
+    if (dtoServices === undefined || dtoServices === null) {
+      return { errors, validServices: {} };
+    }
+
+    if (typeof dtoServices !== "object" || Array.isArray(dtoServices)) {
+      return {
+        errors: ["services must be an object"],
+        validServices: {},
+      };
+    }
+
+    const validServices: Record<string, boolean> = {};
+
+    for (const [field, value] of Object.entries(dtoServices)) {
+      if (!requiredFields.includes(field)) { continue; }
+
+      if (typeof value !== "boolean") {
+        errors.push(`services.${field} must be boolean`);
+        continue;
+      }
+
+      validServices[field] = value;
+    }
+
+    return {
+      errors,
+      validServices,
+    };
+};
