@@ -168,6 +168,11 @@ export const courierPakRules: FieldRule[] = [
   { field: 'description', required: false },
 ];
 
+export const standardFTLRule: FieldRule[] = [
+  { field: 'looseFreight', required: true },
+  { field: 'pallets', required: true }
+]
+
 export const requiredServiceFields: Record<ShipmentType, string[]> = {
     [ShipmentType.PALLET]: [
       'limitedAccess',
