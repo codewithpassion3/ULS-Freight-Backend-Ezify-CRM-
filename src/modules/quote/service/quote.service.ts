@@ -36,10 +36,16 @@ import { getAllowedFields } from "src/common/constants/line-item-rules";
 import { patchUnit, resetUnit } from "src/utils/line-item-units-helpers";
 import { SessionData } from "express-session";
 import { Company } from "src/entities/company.entity";
+import { NotificationService } from "src/modules/notification/service/notification.service";
+import { QuoteNotificationFactory } from "src/factory/notification/quote.factory";
 
 @Injectable()
 export class QuoteService {
-    constructor(private readonly em: EntityManager) {}
+    constructor(
+        private readonly em: EntityManager,
+        private readonly notificationService: NotificationService,
+        private readonly quoteNotificationFactory: QuoteNotificationFactory
+    ) {}
     // Helper method
     private getExistingService(quote: Quote, shipmentType: ShipmentType): any {
         switch (shipmentType) {
@@ -300,6 +306,12 @@ export class QuoteService {
 
         //14) Persist (save) all entities
         await em.flush();
+        
+        const notificationData = this.quoteNotificationFactory.create(quote, 'created', session.userId as number);
+    
+        const recipients = await this.quoteNotificationFactory.getRecipients(quote, session.userId as number);
+    
+        await this.notificationService.broadcast(notificationData, recipients);
 
         //15) Return back success response
         return { message: "Quote created successfully" }
@@ -691,6 +703,12 @@ export class QuoteService {
 
         //18) Flush
         await em.flush();
+
+         const notificationData = this.quoteNotificationFactory.create(quote, 'updated', currentUserId as number);
+    
+        const recipients = await this.quoteNotificationFactory.getRecipients(quote, currentUserId as number);
+    
+        await this.notificationService.broadcast(notificationData, recipients);
 
         //19) Return back success response
         return { message: "Quote updated successfully" };

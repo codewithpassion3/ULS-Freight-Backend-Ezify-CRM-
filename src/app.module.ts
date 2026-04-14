@@ -20,6 +20,8 @@ import { PalletShippingLocationTypeModule } from './modules/pallet-shipping-loca
 import { QuoteModule } from './modules/quote/quote.module';
 import { LineItemUnitModule } from './modules/line-item-unit/line-item-unit.module';
 import { ShipmentModule } from './modules/shipment/shipment.module';
+import { SSEModule } from './modules/sse/sse.module';
+import { NotificationsModule } from './modules/notification/notification.module';
 
 @Module({
   imports: [
@@ -43,7 +45,9 @@ import { ShipmentModule } from './modules/shipment/shipment.module';
     PalletShippingLocationTypeModule,
     QuoteModule,
     LineItemUnitModule,
-    ShipmentModule
+    ShipmentModule,
+    SSEModule,
+    NotificationsModule
   ],
   controllers: [AppController],
   providers: [AppService],
