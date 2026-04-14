@@ -792,7 +792,8 @@ export class QuoteService {
                     "spotLtlServices",
                     "standardFTLService",
                     "signature",
-                    "spotDetails"
+                    "spotDetails",
+                    "shipment"
                 ]
             }
         );

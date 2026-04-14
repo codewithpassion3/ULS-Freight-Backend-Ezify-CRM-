@@ -1,22 +1,22 @@
-import { Quote } from "src/entities/quote.entity";
-import { StandardQuote } from "./standard-quote";
-import { BadRequestException } from "@nestjs/common";
-import { wrap } from "@mikro-orm/core";
-import { Mode } from "src/common/enum/mode.enum";
-import { AddressBook } from "src/entities/address-book.entity";
-import { Address } from "src/entities/address.entity";
-import { Company } from "src/entities/company.entity";
-import { LineItemUnit } from "src/entities/line-item-unit.entity";
-import { LineItem } from "src/entities/line-item.entity";
-import { ShippingAddress } from "src/entities/shipping-address.entity";
-import { User } from "src/entities/user.entity";
-import { QuoteConstructorParams, AddressData } from "./base-quote";
-import { PalletServices } from "src/entities/pallet-services.entity";
-import { courierPakRules } from "src/common/constants/quote";
-import { validateUnit } from "src/utils/validateQuote";
-import { Signature } from "src/entities/signature.entity";
+import { wrap } from '@mikro-orm/core';
+import { BadRequestException } from '@nestjs/common';
+import { AddressBook } from 'src/entities/address-book.entity';
+import { Address } from 'src/entities/address.entity';
+import { Company } from 'src/entities/company.entity';
+import { LineItemUnit } from 'src/entities/line-item-unit.entity';
+import { LineItem } from 'src/entities/line-item.entity';
+import { Quote } from 'src/entities/quote.entity';
+import { ShippingAddress } from 'src/entities/shipping-address.entity';
+import { User } from 'src/entities/user.entity';
+import { StandardQuote } from '../standard-quote';
+import { QuoteConstructorParams, AddressData } from '../base-quote';
+import { Mode } from 'src/common/enum/mode.enum';
+import { packageRules } from 'src/common/constants/quote';
+import { validateUnit } from 'src/utils/validateQuote';
+import { Signature } from 'src/entities/signature.entity';
+import { Insurance } from 'src/entities/insurance.entity';
 
-export class CourierPakQuote extends StandardQuote {
+export class CreatePackageQuote extends StandardQuote {
     constructor(params: QuoteConstructorParams) {
         super();
         this.data = params.data;
@@ -29,6 +29,7 @@ export class CourierPakQuote extends StandardQuote {
         await this.validateAddresses();
         this.validateLineItem();
         this.validateLineItemUnits();
+        this.validateInsurance();
         this.validateSignature();
         
         if (this.errors.length > 0) {
@@ -41,7 +42,7 @@ export class CourierPakQuote extends StandardQuote {
         this.validatedData = this.data.quote;
     }
 
-     async build(): Promise<Quote> {
+    async build(): Promise<Quote> {
         if (!this.validatedData) {
             this.errors.push('Must call validate() before build()');
         }
@@ -58,6 +59,7 @@ export class CourierPakQuote extends StandardQuote {
         quote.addresses.set(addresses);
 
         quote.lineItems = this.buildLineItem() as LineItem;
+        quote.insurance = this.buildInsurance() as Insurance;
         quote.signature = await this.buildSignature() as Signature;
         quote.company = this.em.getReference(Company, this.session.companyId as number);
         quote.createdBy = this.em.getReference(User, this.session.userId as number);
@@ -74,18 +76,10 @@ export class CourierPakQuote extends StandardQuote {
     }
 
     protected validateLineItemSpecific(): void {
-        if (this.data.quote.lineItem.units && this.data.quote.lineItem.units.length > 1) {
-            this.errors.push(`Only one line item unit is required for ${this.data.quote.shipmentType}`);
+        // Check: dangerousGoods required for packages
+        if (this.data.quote.lineItem.dangerousGoods === undefined) {
+            this.errors.push("dangerousGoods is required in package quote");
         }
-    }
-
-    protected processLineItemUnit(units: any): void {
-        units.forEach((unit: any, idx: number) => {
-            const result = validateUnit(unit, courierPakRules, { unitIndex: idx });
-            if (result.errors) {
-                this.errors.push(...result.errors);
-            }
-        });
     }
 
     protected async buildAddressDetails(
@@ -127,15 +121,29 @@ export class CourierPakQuote extends StandardQuote {
         
     }
 
-    protected buildUnitFields(unit: LineItemUnit, unitData: any, idx: number): void {
-        unit.width = unitData.width;
-        unit.description = unitData.description ?? ""
-    }
-    
     protected assignLineItemFields(lineItem: LineItem): void {
         lineItem.type = this.validatedData.lineItem.type;
+        lineItem.dangerousGoods = this.validatedData.lineItem.dangerousGoods;
         lineItem.measurementUnit = this.validatedData.lineItem.measurementUnit;
     }
-    protected attachServiceToQuote(serviceEntity: any): void {}
-}
 
+    protected buildUnitFields(unit: LineItemUnit, unitData: any, idx: number): void {
+        unit.length = unitData.length;
+        unit.width = unitData.width;
+        unit.height = unitData.height;
+        unit.weight = unitData.weight;
+    }
+
+    protected processLineItemUnit(units: any): void {
+        units.forEach((unit: any, idx: number) => {
+                const result = validateUnit(unit, packageRules, { unitIndex: idx });
+                if (result.errors) {
+                    this.errors.push(...result.errors);
+                }
+        });
+    }
+
+    protected attachServiceToQuote(serviceEntity: any): void {
+        //empty
+    }
+}

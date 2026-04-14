@@ -1,11 +1,9 @@
-import { EntityManager } from "@mikro-orm/postgresql";
-import { Body, Controller, Post, Session, UseGuards } from "@nestjs/common";
+import { Body, Controller, Param, Patch, Post, Session, UseGuards } from "@nestjs/common";
 import type { SessionData } from "express-session";
-import { PermissionsGuard } from "src/guards/permissions.guard";
 import { SessionAuthGuard } from "src/guards/sessionAuth.guard";
 import { ShipmentService } from "../service/shipment.service";
 import { CreateShipmentDTO } from "../dto/create-shipment.dto";
-
+import { UpdateShipmentDTO } from "../dto/update-shipment.dto";
 @Controller("shipments")
 export class ShipmentController {
     constructor(private readonly shipmentService: ShipmentService) {}
@@ -17,6 +15,16 @@ export class ShipmentController {
       @Session() session: SessionData
     ) {
       return this.shipmentService.create(dto, session);
+    }
+
+    @UseGuards(SessionAuthGuard)
+    @Patch("/:id")
+    async updateShipment(
+      @Body() dto: UpdateShipmentDTO,
+      @Param("id") shipmentId: number,
+      @Session() session: SessionData
+    ) {
+      return this.shipmentService.update(dto, shipmentId, session);
     }
 }
 

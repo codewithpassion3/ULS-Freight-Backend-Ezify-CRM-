@@ -2,7 +2,7 @@ import { Entity, PrimaryKey, OneToOne, Property } from "@mikro-orm/core";
 import { Quote } from "./quote.entity";
 
 @Entity()
-export class CourierPack {
+export class CourierPak {
 
   @PrimaryKey()
   id!: number;

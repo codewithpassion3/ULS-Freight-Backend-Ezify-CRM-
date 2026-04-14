@@ -24,6 +24,15 @@ export class PalletServices {
   @Property({ default: false })
   thresholdPickup!: boolean;
 
+  @Property({ default: false })
+  amazonOrFbaDelivery!: boolean;
+
+  @Property({ default: false })
+  tradeShowDelivery!: boolean;
+
+  @Property({ default: false })
+  protectFromFreeze!: boolean;
+
   @OneToOne(() => Quote, {
     owner: true,
     cascade: [Cascade.REMOVE],
