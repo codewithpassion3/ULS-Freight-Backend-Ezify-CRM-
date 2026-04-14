@@ -62,7 +62,7 @@ export class UpdateCourierPakQuote extends StandardQuote {
         if (!this.existingQuote) return;
 
         if (this.validatedData.addresses) await this.updateAddresses(); 
-        if (this.validatedData.lineItems) await this.updateLineItem();
+        if (this.validatedData.lineItem) await this.updateLineItem();
         
         await this.em.flush(); 
 
@@ -202,7 +202,7 @@ export class UpdateCourierPakQuote extends StandardQuote {
     }
 
     protected async updateLineItem(): Promise<void> {
-        const lineItemData = this.validatedData.lineItems as any;
+        const lineItemData = this.validatedData.lineItem as any;
         
         // Get existing line item (assuming one per quote for now)
         const existingLineItem = this.existingQuote.lineItems as any;
@@ -243,10 +243,8 @@ export class UpdateCourierPakQuote extends StandardQuote {
 
         const existingUnits = lineItem.units.getItems();
         const existingUnitsMap = new Map(existingUnits.map(u => [u.id, u]));
-        
         for (let i = 0; i < unitsData.length; i++) {
             const unitData = unitsData[i];
-            
             if (unitData.action === "DELETED") {
                 if (!unitData.id) {
                     this.errors.push(`Unit ${i + 1}: ID is required for deletion`);
@@ -278,7 +276,6 @@ export class UpdateCourierPakQuote extends StandardQuote {
                         updates[field] = unitData[field];
                     }
                 }
-                
                 if (Object.keys(updates).length > 0) {
                     wrap(targetUnit).assign(updates);
                 }
