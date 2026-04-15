@@ -68,7 +68,7 @@ export class QuoteNotificationFactory {
     // Get company members who should receive quote notifications
     const members = await this.em.find('User', {
       company: quote.company.id,
-      id: excludeUserId ? { $ne: excludeUserId } : undefined
+      // id: excludeUserId ? { $ne: excludeUserId } : undefined
     }, { fields: ['id'] });
     console.log({members})
     return members.map(m => m.id);

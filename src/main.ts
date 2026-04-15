@@ -56,18 +56,29 @@ async function bootstrap() {
     
     //5) Enable cors
     app.enableCors({
-      origin:  [
-        getEnv(ENV.NG_ROK_ORIGIN_FRONTEND),
-        getEnv(ENV.LOCALHOST_ORIGIN),
-        getEnv(ENV.LIVE_ORIGIN_FRONTEND)     
-      ],
+       origin: (origin, callback) => {
+        const allowedOrigins = [
+          getEnv(ENV.NG_ROK_ORIGIN_FRONTEND),
+          getEnv(ENV.LOCALHOST_ORIGIN),
+          getEnv(ENV.LIVE_ORIGIN_FRONTEND),
+        ].filter(Boolean); // remove undefined 🚀
+
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          console.error('Blocked by CORS:', origin);
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
       credentials: true,
       methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
       allowedHeaders: [
         "Content-Type",
         "Authorization",
-        "ngrok-skip-browser-warning"
-      ]
+        "ngrok-skip-browser-warning",
+        "Last-Event-ID"
+      ],
+      exposedHeaders: ["Content-Type"],
     });
     
     //6) Get redis store for sessions

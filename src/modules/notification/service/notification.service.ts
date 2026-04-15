@@ -207,7 +207,8 @@ export class NotificationService {
       await Promise.all(
         batch.map(async (notification) => {
           try {
-            const delivered = await this.sseService.sendToUser(notification.user?.id, {
+            const userId = String(notification.user?.id);
+            const delivered = await this.sseService.sendToUser(userId, {
               id: notification.id.toString(), // SSE spec requires string IDs
               event: 'notification.new',
               data: {
@@ -221,7 +222,6 @@ export class NotificationService {
               }
             });
 
-            if (delivered) {
               if (delivered) {
                 notification.deliveryStatus = {
                   sse: {
@@ -230,7 +230,6 @@ export class NotificationService {
                   }
                 };
               }
-            }
           } catch (error) {
             this.logger.error(`Delivery failed for UN ${notification.id}:`, error);
           }

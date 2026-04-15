@@ -66,62 +66,99 @@ export class SSEService {
   async handleConnection(
     res: Response, 
     userId: string, 
-    companyId?: string,
+    companyId?: string, 
     lastEventId?: string
   ): Promise<void> {
-    // Setup SSE headers
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no', // Disable nginx buffering
-      'Access-Control-Allow-Origin': '*'
-    });
+    // In handleConnection
+    const clientId = randomUUID();
 
-    const client: any = {
-      id: randomUUID(),
+    // 1. SETUP HEADERS FIRST - before any write()
+    res.status(200);
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+    
+    // Optional: CORS headers if needed
+    // res.setHeader('Access-Control-Allow-Origin', '*');
+    
+    res.flushHeaders();
+
+    // 2. Define client with proper typing (avoid 'as any')
+    interface SSEClient {
+      id: string;
+      userId: string;
+      companyId?: string;
+      lastEventId?: string;
+      write: (data: string) => boolean;
+      close: () => void;
+    }
+
+    const client: SSEClient = {
+      id: clientId,
       userId,
       companyId,
       lastEventId,
-      write: (data) => res.write(data),
-      close: () => res.end()
+      write: (data: string) => res.write(data),
+      close: () => {
+        if (!res.writableEnded) res.end();
+      },
     };
 
-    // 1. Register connection
+    // 3. Add to repo after client is fully formed
     this.connectionRepo.add(client);
-    this.logger.log(`Client connected: ${client.id} (User: ${userId})`);
 
-    // 2. Send missed notifications if reconnecting (Last-Event-ID)
-    if (lastEventId) {
-      await this.sendMissedNotifications(client, lastEventId);
+    // 4. Send initial connection event
+    try {
+      this.sendToClient(client as any, {
+        id: Date.now().toString(),
+        event: 'connected',
+        data: { clientId },
+      });
+    } catch (error) {
+      this.logger.error(`Failed to send initial SSE event to ${clientId}`, error);
+      this.connectionRepo.remove(client as any);
+      res.end();
+      return;
     }
 
-    // 3. Send connection established event
-    this.sendToClient(client, {
-      id: Date.now().toString(),
-      event: 'connected',
-      data: { clientId: client.id, timestamp: new Date() }
-    });
-
-    // 4. Setup heartbeat to detect zombies
+    // 5. Heartbeat with proper cleanup detection
     const heartbeat = setInterval(() => {
-      const success = res.write(':heartbeat\n\n'); // Comment line = heartbeat
-      if (!success) {
-        this.logger.warn(`Backpressure detected for client ${client.id}`);
+      if (res.writableEnded || res.destroyed) {
+        clearInterval(heartbeat);
+        this.connectionRepo.remove(client as any);
+        return;
       }
-    }, this.heartbeatInterval);
 
-    // 5. Cleanup on disconnect
-    res.on('close', () => {
+      // SSE comment format for heartbeat (ignored by EventSource)
+      const ok = res.write(':heartbeat\n\n');
+      
+      if (!ok) {
+        // Backpressure - client not consuming fast enough
+        clearInterval(heartbeat);
+        this.connectionRepo.remove(client as any);
+        res.end();
+      }
+    }, 25000);
+
+    // 6. Cleanup handlers
+    const cleanup = () => {
       clearInterval(heartbeat);
-      this.connectionRepo.remove(client);
-      this.logger.log(`Client disconnected: ${client.id}`);
-    });
+      this.connectionRepo.remove(client as any);
+      if (!res.writableEnded) res.end();
+    };
 
+    res.on('close', cleanup);
     res.on('error', (err) => {
-      this.logger.error(`SSE error for ${client.id}:`, err);
-      clearInterval(heartbeat);
-      this.connectionRepo.remove(client);
+      this.logger.error(`SSE connection error for client ${clientId}`, err);
+      cleanup();
+    });
+    res.on('timeout', cleanup);
+
+    // 7. Keep alive without infinite Promise (better for stack traces)
+    await new Promise<void>((resolve) => {
+      res.on('close', resolve);
+      res.on('error', resolve);
     });
   }
 
