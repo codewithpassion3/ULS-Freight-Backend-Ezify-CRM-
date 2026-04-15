@@ -8,11 +8,14 @@ import { QuoteType } from "src/common/enum/quote-type.enum";
 import { StandardQuoteFactory } from "src/factory/standard-quote.factory";
 import { UpdateShipmentDTO } from "../dto/update-shipment.dto";
 import { Quote } from "src/entities/quote.entity";
+import { EventEmitter2 } from "@nestjs/event-emitter";
+import { NotificationType } from "src/common/enum/notification-type.enum";
 
 @Injectable()
 export class ShipmentService {
   constructor(
     private readonly em: EntityManager, 
+    private readonly eventEmitter: EventEmitter2
   ) {}
 
   private async buildQuote(dto: CreateShipmentDTO, session: SessionData) {
@@ -69,17 +72,17 @@ export class ShipmentService {
   }
 
   async create(createShipmentDto: CreateShipmentDTO, session: SessionData) {
-        // Step 1: Validate and build the quote based on shipment type
+        //1) Validate and build the quote based on shipment type
         const quote = await this.buildQuote(createShipmentDto, session);
         
-        // Step 2: Create shipment with the built quote
+        //2) Create shipment with the built quote
         const shipment = new Shipment();
         shipment.shipDate = new Date(createShipmentDto.shipDate);
         shipment.quote = quote;
         shipment.tailgateRequiredInToAddress = createShipmentDto.tailgateRequiredInToAddress ?? false;
         shipment.tailgateRequiredInFromAddress = createShipmentDto.tailgateRequiredInFromAddress ?? false;
 
-        // Step 3: Build and attach billing references
+        //3) Build and attach billing references
         if (createShipmentDto.billingReferences && createShipmentDto.billingReferences?.length > 0) {
             const billingReferences = createShipmentDto.billingReferences.map(code => {
                 const ref = new BillingReference();
@@ -91,13 +94,24 @@ export class ShipmentService {
             shipment.billingReferences.add([...billingReferences]);
         }
 
-        // Step 4: Persist everything in one transaction
+        //4) Persist everything in one transaction
         this.em.persist(quote);
         this.em.persist(shipment);
 
         await this.em.flush()
 
-        // Step 5: Return populated response
+        //5) Send out notification to all memebers of company
+        this.eventEmitter.emit(NotificationType.SHIPMENT_CREATED, {
+          entity: shipment,
+          actorId: session.userId,
+          companyId: session.companyId,
+          metadata: {
+            shipmentId: shipment.id,
+            quoteId: shipment.quote.id
+          }
+        })
+
+        //6) Return populated response
         return {
           message: "Shipment created successfully"
         }
@@ -108,7 +122,7 @@ export class ShipmentService {
     shipmentId: number,
     session: SessionData
   ): Promise<any> {
-
+      //1) Get the shipment
       const shipment = await this.em.findOne(Shipment, shipmentId, {
         populate: [
           'quote',
@@ -118,19 +132,20 @@ export class ShipmentService {
         ]
       });
 
+      //2) Throw exception for invalid shipment id
       if (!shipment) {
         throw new BadRequestException(
           "Invalid shipmentId or you don't have the required permissions"
         );
       }
 
-      // IMPORTANT: operate on SAME managed entity
+      //3) Call in update quote
       await this.updateQuote(shipment.quote, updateShipmentDto, session);
 
-      // Persist all MikroORM changes
+      //4) Persist all changes
       await this.em.flush();
 
-      // Ensure fresh state for response
+      //5) Ensure fresh state for response
       await this.em.refresh(shipment, {
         populate: [
           'quote',
@@ -140,6 +155,18 @@ export class ShipmentService {
         ]
       });
 
+      //6) Send out notification to all members of the company
+      this.eventEmitter.emit(NotificationType.SHIPMENT_UPDATED, {
+          entity: shipment,
+          actorId: session.userId,
+          companyId: session.companyId,
+          metadata: {
+            shipmentId: shipment.id,
+            quoteId: shipment.quote.id
+          }
+        })
+
+      //7) Return success response
       return {
         message: "Shipment updated successfully",
         quote: shipment.quote
