@@ -96,6 +96,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     //6) Check for errorCode
     if(exceptionResponse?.errorCode) errorResponse["errorCode"] = exceptionResponse.errorCode;
     
+    
     //7) Return back exception response
     response.status(status).json(errorResponse);
   }

@@ -4,13 +4,17 @@ import { AddressNotificationFactory } from 'src/factory/notification/address-boo
 import { QuoteNotificationFactory } from 'src/factory/notification/quote.factory';
 import { ShipmentNotificationFactory } from 'src/factory/notification/shipment.factory';
 import { NotificationService } from './service/notification.service';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { NotificationListener } from './listeners/notification.listener';
 
 @Module({
   imports: [
     SSEModule,
+    EventEmitterModule.forRoot()
   ],
   providers: [
     NotificationService,
+    NotificationListener,
     QuoteNotificationFactory,
     ShipmentNotificationFactory,
     AddressNotificationFactory,

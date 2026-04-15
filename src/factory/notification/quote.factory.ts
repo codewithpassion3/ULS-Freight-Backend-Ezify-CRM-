@@ -4,7 +4,7 @@ import { Quote } from 'src/entities/quote.entity';
 import { NotificationType } from 'src/common/enum/notification-type.enum';
 import { Severity } from 'src/common/enum/severity.enum';
 import { EntityType } from 'src/common/enum/entity-type.enum';
-import { NotificationData } from 'src/types/notification';
+import { NotificationActionType, NotificationData } from 'src/types/notification';
 
 
 @Injectable()
@@ -13,29 +13,29 @@ export class QuoteNotificationFactory {
 
   create(
     quote: Quote, 
-    type: 'created' | 'updated' | 'deleted' | 'expired',
+    type: keyof typeof NotificationActionType,
     actorId: number
   ): NotificationData {
     const templates = {
-      created: {
-        title: 'New Quote Created',
+      [NotificationActionType.CREATED]: {
+        title: `New Quote Created`,
         message: `Quote #${quote.id} has been created`,
         severity: Severity.NORMAL,
         type: NotificationType.QUOTE_CREATED
       },
-      updated: {
+      [NotificationActionType.UPDATED]: {
         title: 'Quote Updated',
         message: `Quote #${quote.id} has been modified`,
         severity: Severity.NORMAL,
         type: NotificationType.QUOTE_UPDATED
       },
-      deleted: {
+      [NotificationActionType.DELETED]: {
         title: 'Quote Deleted',
         message: `Quote #${quote.id} has been removed`,
         severity: Severity.HIGH,
         type: NotificationType.QUOTE_DELETED
       },
-      expired: {
+      [NotificationActionType.EXPIRED]: {
         title: 'Quote Expired',
         message: `Quote #${quote.id} has expired`,
         severity: Severity.URGENT,
@@ -53,10 +53,10 @@ export class QuoteNotificationFactory {
         message: template.message,
         entityType: EntityType.QUOTE,
         entityId: quote.id,
-        actionUrl: `/quotes/${quote.id}`,
         metaData: {
-          quoteNumber: quote.id,
-          status: quote.status
+          status: quote.status,
+          shipmentType: quote.shipmentType,
+          signature: quote.signature
         }
       },
       actorId,
@@ -70,7 +70,6 @@ export class QuoteNotificationFactory {
       company: quote.company.id,
       // id: excludeUserId ? { $ne: excludeUserId } : undefined
     }, { fields: ['id'] });
-    console.log({members})
     return members.map(m => m.id);
   }
 }
