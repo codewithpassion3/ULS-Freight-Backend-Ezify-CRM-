@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EntityManager, FilterQuery } from '@mikro-orm/core';
 import { Inject, forwardRef } from '@nestjs/common';
 import { UserNotification } from 'src/entities/user-notification.entity';
@@ -11,6 +11,7 @@ import { GetAllNotificationQueryParams, GetAllNotificationsResult, NotificationB
 import { buildQuery } from 'src/utils/api-query';
 import { SessionData } from 'express-session';
 import { MarkAsReadDTO } from '../dto/mark-as-read.dto';
+import { DismissNotificationQueryDTO } from '../dto/dismiss-notifications.dto';
 
 export interface NotificationData {
   type: NotificationType;
@@ -377,6 +378,30 @@ export class NotificationService {
     //5) Return success response
     return {
         message: `Successfully marked ${updatedCount} notification(s) as read`
+    };
+  }
+
+  async dismissAgainstCurrentUser(
+      session: SessionData, 
+      dto: DismissNotificationQueryDTO
+  ) {
+    //1) Validate incoming query params
+    if (!dto.notificationIds?.length && !dto.dismissAll) {
+        throw new BadRequestException("Provide notificationIds=1,2,3 or dismissAll=true");
+    }
+
+    //2) Construct where clause
+    const where: FilterQuery<UserNotification> = {
+        user: session.userId,
+        ...(dto.notificationIds?.length && { notification: { $in: dto.notificationIds } })
+    };
+
+    //3) Bulk delete
+    const deletedCount = await this.em.nativeDelete(UserNotification, where);
+    
+    //4) Return back success response
+    return {
+        message: `Successfully dismissed ${deletedCount} notification(s)`
     };
   }
 }
