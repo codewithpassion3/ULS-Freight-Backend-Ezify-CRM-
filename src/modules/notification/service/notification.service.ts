@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { EntityManager } from '@mikro-orm/core';
+import { EntityManager, FilterQuery } from '@mikro-orm/core';
 import { Inject, forwardRef } from '@nestjs/common';
 import { UserNotification } from 'src/entities/user-notification.entity';
 import { Notification } from 'src/entities/notification.entity';
@@ -7,7 +7,9 @@ import { SSEService } from 'src/modules/sse/service/sse.service';
 import { NotificationType } from 'src/common/enum/notification-type.enum';
 import { Severity } from 'src/common/enum/severity.enum';
 import { EntityType } from 'src/common/enum/entity-type.enum';
-import { NotificationBroadcastParams } from 'src/types/notification';
+import { GetAllNotificationQueryParams, GetAllNotificationsResult, NotificationBroadcastParams } from 'src/types/notification';
+import { buildQuery } from 'src/utils/api-query';
+import { SessionData } from 'express-session';
 
 export interface NotificationData {
   type: NotificationType;
@@ -243,5 +245,113 @@ export class NotificationService {
     }
 
     await this.em.flush();
+  }
+
+  async getAllAgainstCurrentCompany(session: SessionData, queryParams: GetAllNotificationQueryParams):  Promise<GetAllNotificationsResult> {
+    //1) Define allowed fields
+    const allowedFields = {
+        createdAt: "createdAt",
+        updatedAt: "updatedAt",
+        type: "type",
+        severity: "severity"
+    };
+
+    //2) Build query params
+    const { page, limit, orderBy, search } = buildQuery(
+        queryParams, 
+        allowedFields, 
+        "createdAt:desc"
+    );
+    const offset = (page - 1) * limit;
+
+    //3) Build where clause with company scoping
+    const where: FilterQuery<Notification> = {
+        //4) Scope to current company through userNotifications -> user
+        userNotifications: {
+            user: {
+                company: session.companyId
+            }
+        }
+    };
+
+    //5) Filter: Notification type
+    if (queryParams.type) {
+        where.type = queryParams.type;
+    }
+
+    //6) Filter: Severity level
+    if (queryParams.severity) {
+        where.severity = queryParams.severity;
+    }
+
+    //7) Filter: Entity type (inside JSONB payload)
+    if (queryParams.entityType) {
+        where.payload = { 
+            ...(where.payload || {}),
+            entityType: queryParams.entityType 
+        };
+    }
+
+    //8) Filter: Current user's read status (requires matching specific user)
+   if (queryParams.isRead !== undefined) {
+        const isReadBool = queryParams.isRead === true;
+        where.userNotifications = {
+            user: session.userId,
+            read: isReadBool
+        };
+    }
+
+    //9) Search: apply on title and message inside payload
+    if (search) {
+        where.$or = [
+            { payload: { title: { $ilike: `%${search}%` } } },
+            { payload: { message: { $ilike: `%${search}%` } } }
+        ] as any;
+    }
+
+    //10) Fetch paginated data
+    const [notifications, total] = await this.em.findAndCount(
+        Notification,
+        where,
+        {
+            populate: ["userNotifications"],
+            fields: [
+                "id",
+                "type",
+                "severity",
+                "payload",
+                "actorId",
+                "createdAt",
+                "updatedAt"
+            ],
+            orderBy: Object.keys(orderBy).length > 0 ? orderBy : { createdAt: "DESC" },
+            limit,
+            offset
+        }
+    );
+
+    //11) Optional: Map to include current user's read status without exposing other users' data
+    const mappedData = notifications.map(notification => {
+        const userNotification = notification.userNotifications.getItems().find((userNotification: any) => userNotification.user.id === session.userId);
+            
+        return {
+            ...notification,
+            isRead: userNotification?.read ?? false,
+            readAt: userNotification?.readAt ?? null,
+            userNotifications: undefined 
+        };
+    });
+
+    //12) Return response
+    return {
+        message: "Notifications retrieved successfully",
+        notifications: mappedData as any,
+        meta: {
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit)
+        }
+    };
   }
 }

@@ -6,12 +6,14 @@ import { ShipmentNotificationFactory } from 'src/factory/notification/shipment.f
 import { NotificationService } from './service/notification.service';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { NotificationListener } from './listeners/notification.listener';
+import { NotificationController } from './controller/notification.controller';
 
 @Module({
   imports: [
     SSEModule,
     EventEmitterModule.forRoot()
   ],
+  controllers: [NotificationController],
   providers: [
     NotificationService,
     NotificationListener,
