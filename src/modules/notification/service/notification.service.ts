@@ -10,6 +10,7 @@ import { EntityType } from 'src/common/enum/entity-type.enum';
 import { GetAllNotificationQueryParams, GetAllNotificationsResult, NotificationBroadcastParams } from 'src/types/notification';
 import { buildQuery } from 'src/utils/api-query';
 import { SessionData } from 'express-session';
+import { MarkAsReadDTO } from '../dto/mark-as-read.dto';
 
 export interface NotificationData {
   type: NotificationType;
@@ -352,6 +353,30 @@ export class NotificationService {
             limit,
             totalPages: Math.ceil(total / limit)
         }
+    };
+  }
+
+  async markAsReadAgainstCurrentUser(session: SessionData, dto: MarkAsReadDTO){
+    //1) Construct where clause
+     const where: FilterQuery<UserNotification> = {
+        user: session.userId,
+        read: false,
+        notification: { $in: dto.notificationIds }
+    };
+
+    //2) Find and update all
+    const updatedCount = await this.em.nativeUpdate(
+        UserNotification, 
+        where, 
+        { read: true, readAt: new Date() }
+    );
+  
+    //4) Persist changes
+    await this.em.flush();
+
+    //5) Return success response
+    return {
+        message: `Successfully marked ${updatedCount} notification(s) as read`
     };
   }
 }
