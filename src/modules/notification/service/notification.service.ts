@@ -7,6 +7,7 @@ import { SSEService } from 'src/modules/sse/service/sse.service';
 import { NotificationType } from 'src/common/enum/notification-type.enum';
 import { Severity } from 'src/common/enum/severity.enum';
 import { EntityType } from 'src/common/enum/entity-type.enum';
+import { NotificationBroadcastParams } from 'src/types/notification';
 
 export interface NotificationData {
   type: NotificationType;
@@ -38,8 +39,11 @@ export class NotificationService {
    * Main broadcast method - creates notification records and triggers delivery
    */
   async broadcast(
-    notificationData: NotificationData, 
-    recipients: number[]  // Numeric IDs matching your entity
+    {
+      notificationData,
+      recipients,
+      entityManager
+    }: NotificationBroadcastParams
   ): Promise<Notification | null> {
     const uniqueRecipients = [...new Set(recipients)].filter(Boolean);
     
@@ -49,7 +53,7 @@ export class NotificationService {
     }
 
     // Create Notification entity
-    const notification = this.em.create(Notification, {
+    const notification = entityManager.create(Notification, {
       type: notificationData.type,
       severity: notificationData.severity,
       payload: notificationData.payload,
@@ -59,7 +63,7 @@ export class NotificationService {
 
     // Create junction records
     const userNotifications = uniqueRecipients.map((userId) => 
-      this.em.create(UserNotification, {
+      entityManager.create(UserNotification, {
         notification,
         user: userId,
         read: false,
@@ -67,7 +71,8 @@ export class NotificationService {
       })
     );
 
-    await this.em.persistAndFlush([notification, ...userNotifications]);
+    entityManager.persist([notification, ...userNotifications]);
+    await entityManager.flush();
     
     this.logger.debug(
       `Created notification ${notification.id} for ${uniqueRecipients.length} recipients`
@@ -88,7 +93,7 @@ export class NotificationService {
     notificationData: NotificationData, 
     userId: number
   ): Promise<Notification | null> {
-    return this.broadcast(notificationData, [userId]);
+    return this.broadcast({notificationData, recipients: [userId], entityManager: this.em});
   }
 
   /**
@@ -112,7 +117,7 @@ export class NotificationService {
       return null;
     }
     
-    return this.broadcast(notificationData, recipientIds);
+    return this.broadcast({ notificationData, recipients: recipientIds, entityManager: this.em });
   }
 
   /**

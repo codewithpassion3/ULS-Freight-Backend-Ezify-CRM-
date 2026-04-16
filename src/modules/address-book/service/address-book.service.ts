@@ -14,10 +14,16 @@ import { AddressBookResponseDto } from "../dto/address-book.dto";
 import { buildQuery } from "src/utils/api-query";
 import { SessionData } from "express-session";
 import { RequestContextService } from "src/utils/request-context-service";
+import { EventEmitter2 } from "@nestjs/event-emitter";
+import { NotificationType } from "src/common/enum/notification-type.enum";
+import { EntityEventPayload } from "src/types/notification";
 
 @Injectable()
 export class AddressBookService {
-    constructor(private readonly em: EntityManager, private readonly requestContextService: RequestContextService) {}
+    constructor(private readonly em: EntityManager, 
+        private readonly requestContextService: RequestContextService,
+        private readonly eventEmitter: EventEmitter2
+    ) {}
 
    async create(dto: CreateAddressBookDTO, session: SessionData) {
         return this.em.transactional(async (em) => {
@@ -75,7 +81,19 @@ export class AddressBookService {
             //12) Flush entity manager changes
             await em.flush();
 
-            //13) Return back success response
+            //13) Send out notification to all members of company
+            this.eventEmitter.emit(NotificationType.ADDRESSBOOK_CREATED, {
+                entity: addressBook.id,
+                actorId: session.userId,
+                companyId: session.companyId,
+                metadata: {
+                    addressBookCompanyName: addressBook.companyName,
+                    locationType: addressBook.locationType,
+                    location: addressBook.address.city + ', ' + addressBook.address.country
+                }
+            } as EntityEventPayload<any>);
+
+            //14) Return back success response
             return { message: "Contact added to address book successfully" };
         });
     }
@@ -104,7 +122,6 @@ export class AddressBookService {
         //5) Handle search filter
         if (search) {
             filter.companyName = { $ilike: `${search}%` };
-            console.log("search", search, filter)
         }
 
         //6) Count total address books and pages
@@ -312,7 +329,20 @@ export class AddressBookService {
         //10) Flush changes
         await this.em.flush();
 
-        //11) Return back success response
+        //11) Send out notification to all members of company
+        this.eventEmitter.emit(NotificationType.ADDRESSBOOK_UPDATED, {
+            entity: addressBookContent,
+            actorId: session.userId,
+            companyId: session.companyId,
+            metadata: {
+                changedFields: Object.keys(dto),
+                addressBookCompanyName: addressBookContent.companyName,
+                locationType: addressBookContent.locationType,
+                location: addressBookContent.address.city + ', ' + addressBookContent.address.country
+            }
+        } as EntityEventPayload<AddressBook>);
+
+        //12) Return back success response
         return {
             message: "Contact details updated successfully",
         };
@@ -342,6 +372,15 @@ export class AddressBookService {
 
             //4) Delete the parent entity
             await em.remove(addressBook).flush();
+
+            this.eventEmitter.emit(NotificationType.ADDRESSBOOK_DELETED, {
+                entity: addressBook,
+                actorId: session.userId,
+                companyId: session.companyId,
+                metadata: {
+                    id: addressBook.id
+                }
+            } as EntityEventPayload<AddressBook>);
 
             //5) Return success
             return {

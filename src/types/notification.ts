@@ -1,6 +1,7 @@
 import { NotificationType } from "src/common/enum/notification-type.enum";
 import { Severity } from "src/common/enum/severity.enum";
 import { EntityType } from "src/common/enum/entity-type.enum";
+import { EntityManager } from "@mikro-orm/core";
 
 export interface NotificationData {
   type: NotificationType;
@@ -30,4 +31,17 @@ export enum NotificationActionType  {
     UPDATED = "UPDATED",
     DELETED = "DELETED",
     EXPIRED = "EXPIRED"
+}
+
+export interface NotificationBroadcastParams {
+  notificationData: NotificationData, 
+  recipients: number[],
+  entityManager: EntityManager
+
+}
+
+export interface GetNotificationParticipants {
+  companyId: number, 
+  excludeUserId?: number, 
+  em?: EntityManager
 }
