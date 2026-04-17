@@ -5,6 +5,7 @@ import { Permission } from "./permission.entity";
 import { Quote } from "./quote.entity";
 import { QuoteUserMeta } from "./quote-user-meta.entity";
 import { LineItemUnit } from "./line-item-unit.entity";
+import { Reminder } from "./reminder.entity";
 
 @Entity()
 export class User{
@@ -85,4 +86,7 @@ export class User{
 
     @OneToMany(() => LineItemUnit, itemUnit => itemUnit.createdBy)
     lineItemUnits = new Collection<LineItemUnit>(this);
+
+    @OneToMany(() => Reminder, reminder => reminder.sendTo)
+    remainder = new Collection<Reminder>(this);
 }

@@ -3,9 +3,8 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { MikroORM } from '@mikro-orm/postgresql';
 import session from 'express-session';
-import { RedisStore } from 'connect-redis';
-import { connectRedis } from './config/redis.config';
-// import { seedRolesAndPermissions } from './utils/seedRolesAndPermissions';
+import connectRedis from "connect-redis";
+const RedisStore = connectRedis(session);
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { GlobalExceptionFilter } from './common/filters/global-exception-filter';
 import { statiAssetPaths } from './utils/staticAssetPaths';
@@ -18,6 +17,8 @@ import { runSeeders } from './seeders/main.seeder';
 import * as fs from 'fs';
 import path from 'path'
 import { EXPIRY_IN_MILISECONDS } from './common/constants/cookie';
+import Redis from 'ioredis';
+import { REDIS_CLIENT } from './shared/redis/redis.module';
 
 async function bootstrap() {
     //1) Validate env keys
@@ -82,7 +83,7 @@ async function bootstrap() {
     });
     
     //6) Get redis store for sessions
-    const redisClient = await connectRedis();
+    const redisClient = app.get<Redis>(REDIS_CLIENT); // <-- CHANGED HERE
     const redisStore = new RedisStore({
       client: redisClient,
       prefix: "sess:"

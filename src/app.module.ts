@@ -22,9 +22,13 @@ import { LineItemUnitModule } from './modules/line-item-unit/line-item-unit.modu
 import { ShipmentModule } from './modules/shipment/shipment.module';
 import { SSEModule } from './modules/sse/sse.module';
 import { NotificationsModule } from './modules/notification/notification.module';
+import { ReminderModule } from './modules/reminder/reminder.module';
+import { ConfigModule } from '@nestjs/config';
+import { RedisModule } from './shared/redis/redis.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
     EventEmitterModule.forRoot(),
     MikroOrmModule.forRoot({
       ...config,
@@ -33,6 +37,7 @@ import { NotificationsModule } from './modules/notification/notification.module'
     MulterModule.register({
       dest: getEnv(ENV.IMAGE_UPLOAD_DESTINATION)
     }),
+    RedisModule,
     AuthModule,
     UserModule,
     CompanyModule,
@@ -47,7 +52,8 @@ import { NotificationsModule } from './modules/notification/notification.module'
     LineItemUnitModule,
     ShipmentModule,
     SSEModule,
-    NotificationsModule
+    NotificationsModule,
+    ReminderModule
   ],
   controllers: [AppController],
   providers: [AppService],
