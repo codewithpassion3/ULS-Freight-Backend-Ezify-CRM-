@@ -14,7 +14,7 @@ export class NotificationController {
     @UseGuards(SessionAuthGuard)
     @Get("/")
     async GetAllAgainstCurrentCompany(@Session() session: SessionData, @Query() queryParams: GetAllNotificationQueryParams){
-        return this.notificationService.getAllAgainstCurrentCompany(session, queryParams);
+        return this.notificationService.getAllAgainstCurrentUser(session, queryParams);
     }
 
     @UseGuards(SessionAuthGuard)

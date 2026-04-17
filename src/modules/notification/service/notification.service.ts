@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { EntityManager, FilterQuery } from '@mikro-orm/core';
+import { EntityManager, FilterQuery, raw } from '@mikro-orm/core';
+import { EntityManager as EntityManagerPostgres } from '@mikro-orm/postgresql';
 import { Inject, forwardRef } from '@nestjs/common';
 import { UserNotification } from 'src/entities/user-notification.entity';
 import { Notification } from 'src/entities/notification.entity';
@@ -249,102 +250,72 @@ export class NotificationService {
     await this.em.flush();
   }
 
-  async getAllAgainstCurrentCompany(session: SessionData, queryParams: GetAllNotificationQueryParams):  Promise<GetAllNotificationsResult> {
+  async getAllAgainstCurrentUser(
+      session: SessionData,
+      queryParams: GetAllNotificationQueryParams
+  ): Promise<GetAllNotificationsResult> {
     //1) Define allowed fields
-    const allowedFields = {
-        createdAt: "createdAt",
-        updatedAt: "updatedAt",
-        type: "type",
-        severity: "severity"
-    };
-
-    //2) Build query params
+      const allowedFields = {
+          createdAt: "un.createdAt",
+          read: "un.read",
+          readAt: "un.readAt",
+      };
+    
+    //2) Check valid query params
     const { page, limit, orderBy, search } = buildQuery(
-        queryParams, 
-        allowedFields, 
-        "createdAt:desc"
+        queryParams,
+        allowedFields,
+        "un.createdAt:desc"
     );
+
+    //3) Build query using query builder
     const offset = (page - 1) * limit;
 
-    //3) Build where clause with company scoping
-    const where: FilterQuery<Notification> = {
-        //4) Scope to current company through userNotifications -> user
-        userNotifications: {
-            user: {
-                company: session.companyId
-            }
-        }
-    };
+    const qb = (this.em as EntityManagerPostgres)
+        .createQueryBuilder(UserNotification, 'un')
+        .innerJoinAndSelect('un.notification', 'n')
+        .where({ user: session.userId });
 
-    //5) Filter: Notification type
-    if (queryParams.type) {
-        where.type = queryParams.type;
+    //4) Apply filters
+    if (queryParams.isRead !== undefined) {
+        qb.andWhere({ read: queryParams.isRead === true });
     }
 
-    //6) Filter: Severity level
     if (queryParams.severity) {
-        where.severity = queryParams.severity;
+        qb.andWhere({ 'n.severity': queryParams.severity });
     }
 
-    //7) Filter: Entity type (inside JSONB payload)
-    if (queryParams.entityType) {
-        where.payload = { 
-            ...(where.payload || {}),
-            entityType: queryParams.entityType 
-        };
+    if (queryParams.startDate) {
+        qb.andWhere({ createdAt: { $gte: new Date(queryParams.startDate) } });
     }
 
-    //8) Filter: Current user's read status (requires matching specific user)
-   if (queryParams.isRead !== undefined) {
-        const isReadBool = queryParams.isRead === true;
-        where.userNotifications = {
-            user: session.userId,
-            read: isReadBool
-        };
+    if (queryParams.endDate) {
+        qb.andWhere({ createdAt: { $lte: new Date(queryParams.endDate) } });
     }
 
-    //9) Search: apply on title and message inside payload
     if (search) {
-        where.$or = [
-            { payload: { title: { $ilike: `%${search}%` } } },
-            { payload: { message: { $ilike: `%${search}%` } } }
-        ] as any;
+        const safeSearch = search.replace(/'/g, "''");
+        qb.andWhere(
+            raw(`(n.payload->>'title' ilike '%${safeSearch}%' OR n.payload->>'message' ilike '%${safeSearch}%')`)
+        );
     }
 
-    //10) Fetch paginated data
-    const [notifications, total] = await this.em.findAndCount(
-        Notification,
-        where,
-        {
-            populate: ["userNotifications"],
-            fields: [
-                "id",
-                "type",
-                "severity",
-                "payload",
-                "actorId",
-                "createdAt",
-                "updatedAt"
-            ],
-            orderBy: Object.keys(orderBy).length > 0 ? orderBy : { createdAt: "DESC" },
-            limit,
-            offset
-        }
-    );
+    const finalOrderBy = Object.keys(orderBy).length > 0 ? orderBy : { 'un.createdAt': 'DESC' };
+    
+    qb.orderBy(finalOrderBy).limit(limit).offset(offset);
 
-    //11) Optional: Map to include current user's read status without exposing other users' data
-    const mappedData = notifications.map(notification => {
-        const userNotification = notification.userNotifications.getItems().find((userNotification: any) => userNotification.user.id === session.userId);
-            
-        return {
-            ...notification,
-            isRead: userNotification?.read ?? false,
-            readAt: userNotification?.readAt ?? null,
-            userNotifications: undefined 
-        };
-    });
+    //5) Get back result
+    const [userNotifications, total] = await qb.getResultAndCount();
 
-    //12) Return response
+    //6) Map fields 
+    const mappedData = userNotifications.map(un => ({
+        ...(un.notification as any),
+        isRead: un.read ?? false,
+        readAt: un.readAt ?? null,
+        userNotificationId: un.id,
+    }));
+
+    //7) Return success response
     return {
         message: "Notifications retrieved successfully",
         notifications: mappedData as any,
@@ -352,8 +323,8 @@ export class NotificationService {
             total,
             page,
             limit,
-            totalPages: Math.ceil(total / limit)
-        }
+            totalPages: Math.ceil(total / limit),
+        },
     };
   }
 
