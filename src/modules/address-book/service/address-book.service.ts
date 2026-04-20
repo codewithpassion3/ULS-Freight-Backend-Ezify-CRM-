@@ -17,6 +17,7 @@ import { RequestContextService } from "src/utils/request-context-service";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { NotificationType } from "src/common/enum/notification-type.enum";
 import { EntityEventPayload } from "src/types/notification";
+import { RecentContactDto } from "../dto/recent-contact.dto";
 
 @Injectable()
 export class AddressBookService {
@@ -478,10 +479,15 @@ export class AddressBookService {
             }
         );
 
-        //4) Return response
+        //4) Transform addressBook object in response
+        const transformedContacts = plainToInstance(RecentContactDto, recentContacts, {
+            excludeExtraneousValues: true
+        });  
+
+        //5) Return response
         return {
             message: "Recent contacts retrieved successfully",
-            data: recentContacts,
+            data: transformedContacts,
             meta: {
                 total,
                 page,
