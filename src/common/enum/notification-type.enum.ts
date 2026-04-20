@@ -18,5 +18,5 @@ export enum NotificationType {
   
   // System
   SYSTEM_ANNOUNCEMENT = "SYSTEM_ANNOUNCEMENT",
-  REAMINDER = "REMAINDER"
+  REMINDER = "REMINDER"
 }

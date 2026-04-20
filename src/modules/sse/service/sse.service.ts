@@ -65,7 +65,7 @@ export class SSEService {
   // Called by Controller when client connects
   async handleConnection(
     res: Response, 
-    userId: string, 
+    userId: number, 
     companyId?: string, 
     lastEventId?: string
   ): Promise<void> {
@@ -87,7 +87,7 @@ export class SSEService {
     // 2. Define client with proper typing (avoid 'as any')
     interface SSEClient {
       id: string;
-      userId: string;
+      userId: number;
       companyId?: string;
       lastEventId?: string;
       write: (data: string) => boolean;
@@ -175,14 +175,15 @@ export class SSEService {
     
     clients.forEach(client => {
         try {
-        const success = client.write(payload);
+        
+          const success = client.write(payload);
+        
         if (success) delivered = true;
         } catch (err) {
         this.logger.error(`Write failed for ${client.id}`, err);
         this.connectionRepo.remove(client);
         }
     });
-    
     return delivered;
   }
 

@@ -14,7 +14,7 @@ export class ReminderService {
     ) {}
 
    async create(dto: CreateReminderDTO, currentUserId: number) {
-        const { sendTo, title, message } = dto;
+        const { sendTo, title, message, scheduledAt } = dto;
 
         // Validate users
         const users = await this.em.find(User, { id: { $in: sendTo } });
@@ -25,11 +25,16 @@ export class ReminderService {
 
         // Bulk create reminders via native insert (no entity instances needed yet)
         const testScheduledAt = new Date(Date.now() + 20000);
+
+        if(new Date(scheduledAt).getTime() < Date.now()) {
+            throw new BadRequestException("Can not set past time for the notification")
+        }
         
         const reminders = users.map(user => 
             this.em.create(Reminder, {
                 title,
                 message,
+                // scheduledAt: new Date(scheduledAt),
                 scheduledAt: testScheduledAt,
                 sendTo: user,
                 createdBy: currentUserId,

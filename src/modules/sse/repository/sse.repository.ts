@@ -14,7 +14,7 @@ export class ConnectionRepository {
       this.connections.set(client.userId, new Set());
     }
     this.connections.get(client.userId)!.add(client);
-    
+
     // Auto-subscribe to company room if provided
     if (client.companyId) {
       this.joinRoom(client.companyId, client.userId);

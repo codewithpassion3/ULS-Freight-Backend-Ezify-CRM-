@@ -7,6 +7,7 @@ import { NotificationService } from './service/notification.service';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { NotificationListener } from './listeners/notification.listener';
 import { NotificationController } from './controller/notification.controller';
+import { NotificationSubscriber } from './subscriber/notification.subscriber';
 
 @Module({
   imports: [
@@ -17,15 +18,16 @@ import { NotificationController } from './controller/notification.controller';
   providers: [
     NotificationService,
     NotificationListener,
+    NotificationSubscriber,
     QuoteNotificationFactory,
     ShipmentNotificationFactory,
-    AddressBookNotificationFactory,
+    AddressBookNotificationFactory
   ],
   exports: [
     NotificationService, 
     QuoteNotificationFactory,    
     ShipmentNotificationFactory,   
-    AddressBookNotificationFactory,
+    AddressBookNotificationFactory
   ],
 })
 export class NotificationsModule {}

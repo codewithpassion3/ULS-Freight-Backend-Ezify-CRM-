@@ -11,7 +11,6 @@ export class EmailService {
     }
 
     sendProfileCreatedByAdminEmail(payload: EmailTemplate){
-        console.log("send out email")
         this.eventEmitter.emit("profile.created.by.admin", payload)
     }
 }

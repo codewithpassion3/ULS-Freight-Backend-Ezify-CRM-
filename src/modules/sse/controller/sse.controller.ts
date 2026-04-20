@@ -18,7 +18,7 @@ export class SSEController {
   ) {
     await this.sseService.handleConnection(
       res,
-      String(session.userId as any), 
+      session.userId as number, 
       String(session.companyId as any),
       lastEventId
     );

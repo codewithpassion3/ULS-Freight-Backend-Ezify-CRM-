@@ -35,7 +35,7 @@ export class ReminderWorker implements OnModuleInit, OnModuleDestroy {
           const reminder = await em.findOne(
             Reminder,
             { id: reminderId },
-            { populate: ['sendTo'] }
+            { populate: ['sendTo', 'createdBy'] }
           );
 
           if (!reminder) {
@@ -52,7 +52,7 @@ export class ReminderWorker implements OnModuleInit, OnModuleDestroy {
 
           await this.notificationService.broadcast({
             notificationData: {
-              type: NotificationType.REAMINDER,
+              type: NotificationType.REMINDER,
               severity: Severity.NORMAL,
               payload: {
                 title: reminder.title,
@@ -61,10 +61,10 @@ export class ReminderWorker implements OnModuleInit, OnModuleDestroy {
               actorId: reminder.createdBy.id,
             },
             recipients: [reminder.sendTo.id],
-            entityManager: this.em,
+            entityManager: em,
           });
 
-          await this.em.flush();
+          await em.flush();
           
           console.log(`[WORKER] ✅ Notification sent for reminder ${reminderId}`);
       },
