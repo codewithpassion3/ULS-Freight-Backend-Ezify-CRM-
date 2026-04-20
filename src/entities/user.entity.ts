@@ -88,5 +88,5 @@ export class User{
     lineItemUnits = new Collection<LineItemUnit>(this);
 
     @OneToMany(() => Reminder, reminder => reminder.sendTo)
-    remainder = new Collection<Reminder>(this);
+    reminder = new Collection<Reminder>(this);
 }

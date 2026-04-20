@@ -52,7 +52,7 @@ export class ReminderWorker implements OnModuleInit, OnModuleDestroy {
 
           await this.notificationService.broadcast({
             notificationData: {
-              type: NotificationType.REAMINDER,
+              type: NotificationType.REMINDER,
               severity: Severity.NORMAL,
               payload: {
                 title: reminder.title,

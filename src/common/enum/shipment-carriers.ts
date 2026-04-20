@@ -1,0 +1,37 @@
+export enum ShipmentType {
+  PACKAGE = 'PACKAGE',
+  FREIGHT = 'FREIGHT',
+}
+
+export enum PickupType {
+  DROPOFF_AT_FEDEX_LOCATION = 'DROPOFF_AT_FEDEX_LOCATION',
+  CONTACT_FEDEX_TO_SCHEDULE = 'CONTACT_FEDEX_TO_SCHEDULE',
+  USE_SCHEDULED_PICKUP = 'USE_SCHEDULED_PICKUP',
+  ON_CALL = 'ON_CALL',
+  PACKAGE_RETURN_PROGRAM = 'PACKAGE_RETURN_PROGRAM',
+  REGULAR_STOP = 'REGULAR_STOP',
+  DROP_BOX = 'DROP_BOX',
+}
+
+export enum RateRequestType {
+  ACCOUNT = 'ACCOUNT',
+  LIST = 'LIST',
+  PREFERRED = 'PREFERRED',
+  INCENTIVE = 'INCENTIVE',
+  NONE = 'NONE',
+}
+
+export enum WeightUnit {
+  LB = 'LB',
+  KG = 'KG',
+}
+
+export enum DimensionsUnit {
+  IN = 'IN',
+  CM = 'CM',
+}
+
+export enum FedExServiceType {
+  FEDEX_FREIGHT_PRIORITY = "FEDEX_FREIGHT_PRIORITY",
+  FEDEX_FREIGHT_ECONOMY = "FEDEX_FREIGHT_ECONOMY"
+}

@@ -25,6 +25,7 @@ import { NotificationsModule } from './modules/notification/notification.module'
 import { ReminderModule } from './modules/reminder/reminder.module';
 import { ConfigModule } from '@nestjs/config';
 import { RedisModule } from './shared/redis/redis.module';
+import { ShipmentCarrierModule } from './modules/shipment-carrier/shipmentCarrier.module';
 
 @Module({
   imports: [
@@ -53,7 +54,8 @@ import { RedisModule } from './shared/redis/redis.module';
     ShipmentModule,
     SSEModule,
     NotificationsModule,
-    ReminderModule
+    ReminderModule,
+    ShipmentCarrierModule
   ],
   controllers: [AppController],
   providers: [AppService],

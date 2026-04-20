@@ -27,6 +27,7 @@ export class Shipment {
 
     @OneToMany(() => BillingReference, billingReference => billingReference.shipment, { cascade: [Cascade.PERSIST, Cascade.REMOVE]})
     billingReferences = new Collection<BillingReference>(this); 
+    shipmentType: any;
 
     
 }
