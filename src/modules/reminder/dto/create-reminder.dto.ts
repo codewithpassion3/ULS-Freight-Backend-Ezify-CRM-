@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsDate, IsNotEmpty, IsNumber, IsString } from "class-validator";
+import { IsArray, IsDate, IsNotEmpty, IsNumber, IsString } from "class-validator";
 
 
 export class CreateReminderDTO {
@@ -15,7 +15,7 @@ export class CreateReminderDTO {
     @IsDate()
     scheduledAt!: Date;
 
-    @IsNumber()
+    @IsArray()
     @IsNotEmpty()
-    sendTo!: number;
+    sendTo!: number[];
 }

@@ -25,4 +25,4 @@ RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 
-CMD ["node", "dist/main.js"]
+CMD ["node"]

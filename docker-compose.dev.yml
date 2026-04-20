@@ -59,6 +59,22 @@ services:
     networks:
       - uls_network
     command: ["node", "dist/main.js"]
+  
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - uls_network
+    command: ["node", "dist/worker.js"]
 
 volumes:
   postgres_data:

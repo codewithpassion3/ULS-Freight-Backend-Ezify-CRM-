@@ -1,8 +1,7 @@
 import { EntityManager } from "@mikro-orm/core";
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { CreateReminderDTO } from "../dto/create-reminder.dto";
 import { User } from "src/entities/user.entity";
-import { NotFoundError } from "rxjs";
 import { Reminder } from "src/entities/reminder.entity";
 import { InjectQueue } from "@nestjs/bullmq";
 import { Queue } from "bullmq";
@@ -14,50 +13,54 @@ export class ReminderService {
         @InjectQueue("reminder") private readonly reminderQueue: Queue
     ) {}
 
-    async create(dto: CreateReminderDTO, currentUserId: number){
-        //1) Extract fields
-        const { sendTo } = dto;
+   async create(dto: CreateReminderDTO, currentUserId: number) {
+        const { sendTo, title, message } = dto;
 
-        //2) Validate user
-        const userCount = await this.em.count(User, { id: sendTo });
-
-        //3) Throw error for invalid sendTo id
-        if(!userCount){
-            return new NotFoundException("Invalid sendTo reference")
+        // Validate users
+        const users = await this.em.find(User, { id: { $in: sendTo } });
+        if (users.length !== sendTo.length) {
+            const missing = sendTo.filter(id => !users.some(u => u.id === id));
+            throw new BadRequestException(`Invalid sendTo references: ${missing.join(', ')}`);
         }
 
-        //4) Create reminder
+        // Bulk create reminders via native insert (no entity instances needed yet)
         const testScheduledAt = new Date(Date.now() + 20000);
-
-        const reminder = this.em.create(Reminder, {...dto, scheduledAt: testScheduledAt, createdBy: currentUserId, status: ReminderStatus.PENDING });
-
-        this.em.persist(reminder);
         
-        await this.em.flush();
-
-        //5) Add reminder to background queue with some delay
-        const delay = reminder.scheduledAt.getTime() - Date.now();
-        const job = await this.reminderQueue.add(
-        'send-reminder',
-        { reminderId: reminder.id },
-        { delay: Math.max(0, delay) }
+        const reminders = users.map(user => 
+            this.em.create(Reminder, {
+                title,
+                message,
+                scheduledAt: testScheduledAt,
+                sendTo: user,
+                createdBy: currentUserId,
+                status: ReminderStatus.PENDING
+            })
         );
 
-        console.log('Bull job created:', {
-            jobId: job.id,
-            delay: Math.max(0, delay),
-            scheduledAt: reminder.scheduledAt,
-            queueName: this.reminderQueue.name,
-        });
-        
-        // 6) Store BullMQ job ID for cancellation
-        reminder.bullJobId = job.id;
+        this.em.persist(reminders);
+        await this.em.flush()
 
-        //7) Flush changes
+        // Bulk add to queue
+        const jobs = await Promise.all(
+            reminders.map(reminder => {
+                const delay = reminder.scheduledAt.getTime() - Date.now();
+                return this.reminderQueue.add(
+                    'send-reminder',
+                    { reminderId: reminder.id },
+                    { delay: Math.max(0, delay) }
+                );
+            })
+        );
+
+        // Update bullJobIds
+        reminders.forEach((reminder, i) => {
+            reminder.bullJobId = jobs[i].id;
+        });
+
         await this.em.flush();
 
         return {
-            message: "Reminder created successfully"
-        }
+            message: `Created ${reminders.length} reminders`,
+        };
     }
 }
