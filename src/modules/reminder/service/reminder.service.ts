@@ -34,8 +34,7 @@ export class ReminderService {
             this.em.create(Reminder, {
                 title,
                 message,
-                // scheduledAt: new Date(scheduledAt),
-                scheduledAt: testScheduledAt,
+                scheduledAt: new Date(scheduledAt),
                 sendTo: user,
                 createdBy: currentUserId,
                 status: ReminderStatus.PENDING
