@@ -36,10 +36,16 @@ import { getAllowedFields } from "src/common/constants/line-item-rules";
 import { patchUnit, resetUnit } from "src/utils/line-item-units-helpers";
 import { SessionData } from "express-session";
 import { Company } from "src/entities/company.entity";
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EntityEventPayload } from "src/types/notification";
+import { NotificationType } from "src/common/enum/notification-type.enum";
 
 @Injectable()
 export class QuoteService {
-    constructor(private readonly em: EntityManager) {}
+    constructor(
+        private readonly em: EntityManager,
+        private readonly eventEmitter: EventEmitter2
+    ) {}
     // Helper method
     private getExistingService(quote: Quote, shipmentType: ShipmentType): any {
         switch (shipmentType) {
@@ -300,8 +306,16 @@ export class QuoteService {
 
         //14) Persist (save) all entities
         await em.flush();
+        
+        //15) Send out quote created notificaiton to all members of the company
+        this.eventEmitter.emit(NotificationType.QUOTE_CREATED, {
+            entity: quote,
+            actorId: session.userId,
+            companyId: session.companyId,
+            metadata: { quoteNumber: quote.id }
+        } as EntityEventPayload<Quote>);
 
-        //15) Return back success response
+        //16) Return back success response
         return { message: "Quote created successfully" }
     }
 
@@ -692,7 +706,19 @@ export class QuoteService {
         //18) Flush
         await em.flush();
 
-        //19) Return back success response
+        //19) Send out quote updated notification to all members of 
+        this.eventEmitter.emit(NotificationType.QUOTE_UPDATED, {
+            entity: quote,
+            actorId: currentUserId,
+            companyId: quote.company.id,
+            metadata: {
+                changedFields: Object.keys(dto),
+                quoteNumber: quote.id,
+                quoteStatus: quote.status,
+            }
+        } as EntityEventPayload<Quote>);
+
+        //20) Return back success response
         return { message: "Quote updated successfully" };
     }
 
@@ -846,7 +872,14 @@ export class QuoteService {
         this.em.remove(quote)
         await this.em.flush();
         
-        //5) Return back success response
+        //5) Send out quote deleted notification to all members of company
+        this.eventEmitter.emit(NotificationType.QUOTE_DELETED, {
+            actorId: currentUserId,
+            entity: quote,
+            companyId: quote.company.id
+        } as EntityEventPayload<Quote>);
+
+        //6) Return back success response
         return { message: 'Quote deleted successfully' };
     }
 

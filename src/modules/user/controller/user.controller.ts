@@ -21,8 +21,8 @@ export class UserController {
 
     @UseGuards(SessionAuthGuard)
     @Get("/me")
-    async GetProfile(@CurrentUser() userId: number ) {        
-        const user = await this.userService.getProfile(userId);
+    async GetProfile(@CurrentUser() userId: number, @Session() session: SessionData ) {        
+        const user = await this.userService.getProfile(userId, session);
 
         return {
             message: "Profile details fetched successfully",

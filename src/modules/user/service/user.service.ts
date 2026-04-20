@@ -26,7 +26,7 @@ export class UserService {
         private readonly emailService: EmailService
     ) {}
 
-    async getProfile(userId: number) {
+    async getProfile(userId: number, session: SessionData): Promise<any> {
         //1) Get the user based on userId
         const user = await this.em.findOne(User, { id: userId }, {
             populate: [
@@ -36,15 +36,27 @@ export class UserService {
                 'role',
                 'permissions'
             ]
-        })
+        });
 
         //2) Throw exception for no user data
-        if(!user){
-            throw new BadRequestException("User doesn't exist, Try logging in again")
+        if (!user) {
+            throw new BadRequestException("User doesn't exist, Try logging in again");
         }
 
-        //3) Return user
-        return user;
+        //3) Get team members from the same company (excluding self)
+        const teamMembers = await this.em.find(User, 
+            { 
+                company: session.companyId,
+                id: { $ne: userId }
+            },
+            { fields: ['id', 'firstName', 'lastName'] }
+        );
+
+        //4) Return user with teamMembers
+        return {
+            ...wrap(user).toObject(),
+            teamMembers: teamMembers.map(u => u)
+        };
     }
 
     async createProfile(dto: CreateProfileDTO, companyId: number) {

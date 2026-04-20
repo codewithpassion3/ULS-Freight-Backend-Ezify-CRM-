@@ -20,9 +20,15 @@ import { PalletShippingLocationTypeModule } from './modules/pallet-shipping-loca
 import { QuoteModule } from './modules/quote/quote.module';
 import { LineItemUnitModule } from './modules/line-item-unit/line-item-unit.module';
 import { ShipmentModule } from './modules/shipment/shipment.module';
+import { SSEModule } from './modules/sse/sse.module';
+import { NotificationsModule } from './modules/notification/notification.module';
+import { ReminderModule } from './modules/reminder/reminder.module';
+import { ConfigModule } from '@nestjs/config';
+import { RedisModule } from './shared/redis/redis.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
     EventEmitterModule.forRoot(),
     MikroOrmModule.forRoot({
       ...config,
@@ -31,6 +37,7 @@ import { ShipmentModule } from './modules/shipment/shipment.module';
     MulterModule.register({
       dest: getEnv(ENV.IMAGE_UPLOAD_DESTINATION)
     }),
+    RedisModule,
     AuthModule,
     UserModule,
     CompanyModule,
@@ -43,7 +50,10 @@ import { ShipmentModule } from './modules/shipment/shipment.module';
     PalletShippingLocationTypeModule,
     QuoteModule,
     LineItemUnitModule,
-    ShipmentModule
+    ShipmentModule,
+    SSEModule,
+    NotificationsModule,
+    ReminderModule
   ],
   controllers: [AppController],
   providers: [AppService],
