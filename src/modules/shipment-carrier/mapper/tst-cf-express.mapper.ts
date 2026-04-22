@@ -21,27 +21,27 @@ export class TSTCFExpressMapper {
   }
 
   map(request: any): TSTCFRateRequest {
-    const shipDate = this.formatDate(request.shipDate || new Date());
+    const shipDate = this.formatDate(request?.shipDate || new Date());
 
     return {
       requestor: process.env.TST_CF_REQUESTOR || '',
       authorization: process.env.TST_CF_AUTHORIZATION || '',
       login: process.env.TST_CF_LOGIN || '',
       passwd: process.env.TST_CF_PASSWD || '',
-      testmode: request.testMode === false ? 'N' : 'Y',
+      testmode: request?.testMode === false ? 'N' : 'Y',
       language: 'en',
       xmlversion: '2.0',
-      transit: request.includeTransit !== false ? 'Y' : 'N',
+      transit: request.tst?.includeTransit !== false ? 'Y' : 'N',
       shipdate: shipDate,
-      origin: this.mapAddress(request.from),
-      destination: this.mapAddress(request.to),
+      origin: this.mapAddress(request.tst?.from),
+      destination: this.mapAddress(request.tst?.to),
       service: this.serviceMap[request.serviceType] || 'ST',
       funds: 'C',
       rqby: 'S',
-      terms: request.paymentTerms || 'P',
-      taxexempt: request.taxExempt ? 'Y' : 'N',
-      tllf: request.tailgateLiftFee || 0,
-      cod: request.codAmount || 0,
+      terms: request?.paymentTerms || 'P',
+      taxexempt: request?.taxExempt ? 'Y' : 'N',
+      tllf: request?.tailgateLiftFee || 0,
+      cod: request?.codAmount || 0,
       dclval: {
         amount: request.declaredValue?.amount || 0,
         funds: request.declaredValue?.currency || '',
@@ -55,11 +55,11 @@ export class TSTCFExpressMapper {
 
   private mapAddress(addr: any): TSTCFAddress {
     return {
-      name: addr?.companyName || '',
+      name: addr?.name || '',
       address: addr?.streetAddress || addr?.address || '',
       zip: addr?.postalCode || '',
       city: addr?.city || '',
-      state: addr?.stateCode || addr?.province || '',
+      state: addr?.state || addr?.province || '',
     };
   }
 

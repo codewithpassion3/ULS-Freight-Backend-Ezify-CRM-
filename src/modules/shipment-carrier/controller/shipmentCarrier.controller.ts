@@ -1,5 +1,5 @@
 import { EntityManager } from "@mikro-orm/postgresql";
-import { Body, Controller, Get, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
 import { SessionAuthGuard } from "src/guards/sessionAuth.guard";
 import { ShipmentCarrierService } from "../service/shipmentCarrier.service";
 import { GetShipmentRatesDTO } from "../dto/get-shipment-rates";
@@ -11,7 +11,7 @@ export class ShipmentCarrierController {
     ) {}
 
     @UseGuards(SessionAuthGuard)
-    @Get("/rates")
+    @Post("/rates")
     async GetShipmentCarriersRates(@Body() dto: any){
         return this.shipmentCarrierService.getShipmentCarriersRates(dto);
     }

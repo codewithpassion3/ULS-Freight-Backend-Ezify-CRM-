@@ -44,7 +44,7 @@ export class TSTCFExpressAdapter implements CarrierAdapter {
     });
 
     const xmlPayload = builder.buildObject({ raterequest: payload });
-    console.log("WORKING")
+  
     const response = await fetch('https://www.tst-cfexpress.com/xml/rate-quote', {
       method: 'POST',
       headers: {
@@ -73,73 +73,38 @@ export class TSTCFExpressAdapter implements CarrierAdapter {
 
   parseResponse(carrierResponse: unknown): any[] {
     const tstResponse = carrierResponse as TSTCFRateResponse;
-    const accessorials = this.extractAccessorials(tstResponse);
-    console.log({tstResponse})
-    const quote: any = {
-      carrier: this.carrierName,
-      quoteId: tstResponse.quoteid,
-      totalAmount: parseFloat(tstResponse.totalamt),
-      freightAmount: parseFloat(tstResponse.freightamt),
-      discountPercent: parseFloat(tstResponse.discountpct),
-      discountAmount: parseFloat(tstResponse.discountamt),
-      totalWeight: parseFloat(tstResponse.totalweight),
-      currency: 'CAD',
-      accessorials,
-      transit: tstResponse.transitresults ? {
-        shipDate: tstResponse.transitresults.shipdate,
-        serviceDays: parseInt(tstResponse.transitresults.servicedays),
-        arrivalDate: tstResponse.transitresults.arrivaldate,
-        status: tstResponse.transitresults.status,
-      } : null,
-      tier1: parseFloat(tstResponse.g1amt),
-      tier2: parseFloat(tstResponse.g2amt),
-      tier3: parseFloat(tstResponse.g3amt),
-    };
-
-    return [quote];
-  }
-
-  private getMockRates(req: any): any[] {
-    return [{
-      carrier: this.carrierName,
-      quoteId: 'MOCK-4780001',
-      totalAmount: 262.25,
-      freightAmount: 65.00,
-      discountPercent: 0,
-      discountAmount: 0,
-      totalWeight: req.packages?.reduce((sum, p) => sum + (p.weight || 0), 0) || 100,
-      currency: 'CAD',
-      accessorials: [
-        { code: 'INSPUP', description: 'Inside Pickup', status: 'OK', amount: 68.85, rate: 0 },
-        { code: 'INSDP', description: 'Inside Delivery', status: 'OK', amount: 68.85, rate: 0 },
-        { code: 'FS', description: 'Fuel Surcharge', status: 'OK', amount: 29.38, rate: 45.20 },
-        { code: 'HST', description: 'Federal / Provincial Tax', status: 'OK', amount: 30.17, rate: 0 },
-      ],
-      transit: {
-        shipDate: req.shipDate || '20260422',
-        serviceDays: 1,
-        arrivalDate: '20260423',
-        status: 'OK',
-      },
-      tier1: 384.90,
-      tier2: 0.00,
-      tier3: 446.18,
-    }];
-  }
-
-  private extractAccessorials(response: TSTCFRateResponse): any[] {
-    if (!response.accitems?.item) return [];
+    const totalCAD = parseFloat(tstResponse.totalamt) || 0;
     
-    const items = Array.isArray(response.accitems.item) 
-      ? response.accitems.item 
-      : [response.accitems.item];
+    // Convert to USD for standardization (or keep CAD if your app handles multi-currency)
+    const exchangeRate = 0.73; // Fetch from API in production
+    const totalUSD = +(totalCAD * exchangeRate).toFixed(2);
 
-    return items.map(item => ({
-      code: item.itemcode,
-      description: item.itemdesc,
-      status: item.itemstatus,
-      amount: parseFloat(item.itemamount),
-      rate: parseFloat(item.itemrate) || 0,
-    }));
-  }
+    return [{
+      carrierId: this.carrierName,
+      serviceType: 'ST', // TST only has Standard
+      totalCharge: totalUSD,    // Standardized to USD
+      totalChargeCAD: totalCAD, // Keep original for reference
+      currency: 'USD',
+      originalCurrency: 'CAD',
+      transitDays: tstResponse.transitresults?.servicedays 
+        ? parseInt(tstResponse.transitresults.servicedays) 
+        : undefined,
+    }];
+}
+
+  // private extractAccessorials(response: TSTCFRateResponse): any[] {
+  //   if (!response.accitems?.item) return [];
+    
+  //   const items = Array.isArray(response.accitems.item) 
+  //     ? response.accitems.item 
+  //     : [response.accitems.item];
+
+  //   return items.map(item => ({
+  //     code: item.itemcode,
+  //     description: item.itemdesc,
+  //     status: item.itemstatus,
+  //     amount: parseFloat(item.itemamount),
+  //     rate: parseFloat(item.itemrate) || 0,
+  //   }));
+  // }
 }

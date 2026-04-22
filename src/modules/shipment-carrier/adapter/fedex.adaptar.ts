@@ -109,6 +109,7 @@ interface FedExRateResponse {
     rateShipmentDetails?: Array<{
       serviceType?: string;
       serviceName?: string;
+      transitTime?: number;
       totalNetCharge?: { amount?: number; currency?: string };
     }>;
   };
@@ -144,45 +145,12 @@ class FedExParcelMapper implements CarrierPayloadMapper {
   }
 
 
-  map(req: ShipmentRateRequest, accountNumber: string): unknown {
-    const isFreight = req.shipmentType === 'FREIGHT';
-    
-    // if (isFreight) {
-    //   return {
-    //     accountNumber: { value: accountNumber },
-    //     requestedShipment: {
-    //       shipper: { address: this.toFedExAddress(req.from) },
-    //       recipient: { address: this.toFedExAddress(req.to) },
-    //       pickupType: 'DROPOFF_AT_FEDEX_LOCATION',
-    //       rateRequestType: req.rateRequestType,
-    //       serviceType: req.serviceType,
-    //       freightShipmentDetail: {
-    //         role: 'SHIPPER',
-    //         fedExFreightAccountNumber: accountNumber,
-    //         lineItem: req.packages?.map(pkg => ({
-    //           freightClass: 'CLASS_050',
-    //           packaging: pkg?.packaging || 'BOX',
-    //           description: pkg.description || 'Freight',
-    //           weight: {
-    //             units: pkg.weightUnit,
-    //             value: pkg.weight,
-    //           },
-    //           dimensions: {
-    //             length: pkg.length,
-    //             width: pkg.width,
-    //             height: pkg.height,
-    //             units: pkg.dimensionsUnit,
-    //           },
-    //         })),
-    //       },
-    //     },
-    //   };
-    // }
+  map(req: any, accountNumber: string): unknown {
     return {
       accountNumber: { value: accountNumber },
       requestedShipment: {
-        shipper: { address: this.toFedExAddress(req.from) },
-        recipient: { address: this.toFedExAddress(req.to) },
+        shipper: { address: this.toFedExAddress(req.fedex?.from) },
+        recipient: { address: this.toFedExAddress(req.fedex?.to) },
         pickupType: 'DROPOFF_AT_FEDEX_LOCATION',
         rateRequestType: req.rateRequestType,
         serviceType: req.serviceType,
@@ -343,65 +311,52 @@ export class FedExAdapter implements CarrierAdapter {
   }
 
   parseResponse(carrierResponse: any): any[] {
-    const response = carrierResponse as FedExRateResponse;
-    const quotes: RateQuote[] = [];
+      const response = carrierResponse as FedExRateResponse;
+      const quotes: any[] = [];
 
-    // Handle errors
-    if (response.alerts && response.alerts.length > 0) {
-      const errors = response.alerts
-        .filter(a => a.code.startsWith("ERROR"))
-        .map(a => a.message);
-      if (errors.length > 0) {
-        throw new Error(`FedEx returned errors: ${errors.join(", ")}`);
+      // Handle errors
+      if ((response?.alerts?.length as any) > 0) {
+        const errors = (response?.alerts as any)
+          .filter(a => a.code?.startsWith("ERROR"))
+          .map(a => a.message);
+        if (errors.length > 0) {
+          throw new Error(`FedEx returned errors: ${errors.join(", ")}`);
+        }
       }
-    }
 
-    // Parcel response
-    const parcelDetails = response.output?.rateReplyDetails || [];
+      // Parcel response
+      const parcelDetails = response.output?.rateReplyDetails || [];
       for (const detail of parcelDetails) {
-        const serviceType = detail.serviceType || "UNKNOWN";
-        const serviceName = detail.serviceName || serviceType;
-      
         for (const rated of detail.ratedShipmentDetails || []) {
           quotes.push({
             carrierId: this.carrierName,
-            serviceType,
-            serviceName,
-            totalCharge: rated.totalNetCharge || 0,
-            currency: rated.currency || "USD",
-            rateType: rated.rateType || "UNKNOWN",
-            breakdown: {
-              baseCharge: rated.totalBaseCharge || 0,
-              surcharges: (rated.shipmentRateDetail.surCharges || []).map(s => ({
-                type: s.type || "UNKNOWN",
-                description: s.description || "Unknown",
-                amount: s.amount || 0,
-              }))
-            }
+            serviceType: detail.serviceType,
+            totalCharge: rated.totalNetCharge,
+            currency: rated.currency,
+            transitDays: detail.transitTime ? parseInt(detail.transitTime) : undefined,
           });
         }
       }
 
-    // Freight response
+      // Freight response
       const freightDetails = response.output?.rateShipmentDetails || [];
       for (const detail of freightDetails) {
         quotes.push({
           carrierId: this.carrierName,
           serviceType: detail.serviceType || "FREIGHT",
-          serviceName: detail.serviceName || "FedEx Freight",
-          totalCharge: detail.totalNetCharge?.amount || 0,
-          currency: detail.totalNetCharge?.currency || "USD",
-          rateType: "FREIGHT",
+          totalCharge: detail.totalNetCharge?.amount,
+          currency: detail.totalNetCharge?.currency,
+          transitDays: (detail.transitTime as any) ? parseInt(detail.transitTime as any) : undefined,
         });
       }
 
       return quotes;
-    }
+  }
 
  
   async getRates(req: ShipmentRateRequest): Promise<RateQuote[]> {
     const payload = this.buildRequest(req);
-
+   
     const response = await this.fetchRates(payload);
 
     return this.parseResponse(response);

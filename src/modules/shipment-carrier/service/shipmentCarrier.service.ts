@@ -10,23 +10,31 @@ export class ShipmentCarrierService {
     ) {}
     
    async getShipmentCarriersRates(dto: any) {
-    // FedEx
-    const fedex = new FedExAdapter({
-        name: "FedEx",
-        clientId: process.env.FEDEX_CLIENT_ID!,
-        clientSecret: process.env.FEDEX_CLIENT_SECRET!,
-        accountNumber: process.env.FEDEX_ACCOUNT_NUMBER!
-    });
-    const fedexQuotes = await fedex.getRates(dto);
+        const [fedexQuotes, tstQuotes] = await Promise.all([
+            this.getFedExRates(dto),
+            this.getTSTRates(dto)
+        ]);
 
-    // TST CF Express — same pattern, no credentials in constructor
-    // const tstAdapter = new TSTCFExpressAdapter();
-    // const tstQuotes = await tstAdapter.getRates(dto);
-    // console.log({tstQuotes})
-    return {
-        message: "Rates fetched successfully",
-        fedexQuotes,
-        // tstQuotes
-    };
-}
+        return {
+            message: "Rates fetched successfully",
+            fedexQuotes: fedexQuotes[0],
+            tstQuotes
+        };
+    }
+
+    private async getFedExRates(fedexDto: any) {
+        const fedex = new FedExAdapter({
+            name: "FedEx",
+            clientId: process.env.FEDEX_CLIENT_ID!,
+            clientSecret: process.env.FEDEX_CLIENT_SECRET!,
+            accountNumber: process.env.FEDEX_ACCOUNT_NUMBER!
+        });
+
+        return fedex.getRates(fedexDto);
+    }
+
+    private async getTSTRates(tstDto: any) {
+        const tstAdapter = new TSTCFExpressAdapter();
+        return tstAdapter.getRates(tstDto);
+    }
 }

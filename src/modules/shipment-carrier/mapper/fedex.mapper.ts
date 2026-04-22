@@ -84,8 +84,8 @@ class FedExFreightMapper implements CarrierPayloadMapper {
     return {
       accountNumber: { value: process.env.FEDEX_ACCOUNT_NUMBER! },
       freightRequestedShipment: {
-        shipper: { address: this.toFedExAddress(req.from) },
-        recipient: { address: this.toFedExAddress(req.to) },
+        shipper: { address: this.toFedExAddress(req.fedex.from) },
+        recipient: { address: this.toFedExAddress(req.fedex.to) },
         shipDateStamp: new Date().toISOString().split('T')[0],
         serviceType: "FEDEX_FREIGHT_PRIORITY",
         rateRequestType: ["LIST"],
