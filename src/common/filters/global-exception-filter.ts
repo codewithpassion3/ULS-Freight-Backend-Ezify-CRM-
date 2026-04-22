@@ -54,7 +54,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       status = HttpStatus.CONFLICT;
 
       const constraint = (exception as any).constraint;
-      console.log({status, constraint})
       if (constraint === "user_email_unique") {
         message = "Email already exists";
       } else if (constraint === "user_phone_number_unique") {

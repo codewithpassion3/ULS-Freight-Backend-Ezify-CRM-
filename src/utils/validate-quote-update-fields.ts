@@ -177,7 +177,6 @@ export function validateUpdateQuote(
 
     // Get allowed unit fields from rules (getRules returns unit-level rules)
     const unitRules = getUpdateRules(shipmentType);
-    console.log("Unit Rules =>", unitRules)
     const allowedUnitFields = unitRules.map(rule => rule.field);
   
     // Validate units - only allow whitelisted fields
@@ -190,7 +189,6 @@ export function validateUpdateQuote(
         const sentFields = Object.keys(unit).filter(
           key => unit[key as keyof typeof unit] !== undefined
         );
-        console.log(sentFields)
         // Check for unwanted fields
         for (const field of sentFields) {
           if (!allowedUnitFields.includes(field)) {

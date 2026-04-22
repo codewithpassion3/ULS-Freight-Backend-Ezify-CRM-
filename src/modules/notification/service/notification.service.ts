@@ -13,6 +13,8 @@ import { buildQuery } from 'src/utils/api-query';
 import { SessionData } from 'express-session';
 import { MarkAsReadDTO } from '../dto/mark-as-read.dto';
 import { DismissNotificationQueryDTO } from '../dto/dismiss-notifications.dto';
+import Redis from 'ioredis';
+import { REDIS_CLIENT } from 'src/shared/redis/redis.module';
 
 export interface NotificationData {
   type: NotificationType;
@@ -33,11 +35,13 @@ export interface NotificationData {
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
+ 
 
   constructor(
     private readonly em: EntityManager,
     @Inject(forwardRef(() => SSEService))
-    private readonly sseService: SSEService
+    private readonly sseService: SSEService,
+    @Inject(REDIS_CLIENT) private redisClient: Redis
   ) {}
 
   /**
@@ -84,10 +88,15 @@ export class NotificationService {
     );
 
     // Fire-and-forget delivery
-    this.deliverToRecipients(userNotifications).catch(err => {
-      this.logger.error('Failed to deliver notifications:', err);
-    });
-
+    await this.redisClient.publish(
+      'notification.created',
+      JSON.stringify({
+        notificationId: notification.id,
+        recipients: uniqueRecipients,
+        payload: notificationData.payload,
+        type: notificationData.type,
+      }),
+    );
     return notification;
   }
 
@@ -207,10 +216,10 @@ export class NotificationService {
    * Internal: Deliver via SSE
    */
   private async deliverToRecipients(
-    userNotifications: UserNotification[]
+    userNotifications: UserNotification[],
+    entityManager: EntityManager
   ): Promise<void> {
     const batchSize = 100;
-    
     for (let i = 0; i < userNotifications.length; i += batchSize) {
       const batch = userNotifications.slice(i, i + batchSize);
       
@@ -247,7 +256,7 @@ export class NotificationService {
       );
     }
 
-    await this.em.flush();
+    await entityManager.flush();
   }
 
   async getAllAgainstCurrentUser(
