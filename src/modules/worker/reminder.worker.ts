@@ -28,14 +28,15 @@ export class ReminderWorker implements OnModuleInit, OnModuleDestroy {
 
         console.log(`[WORKER] 🔔 Processing job ${job.id} for reminder ${job.data.reminderId}`);
 
-        // Fork EM for this job context
-          const em = this.em.fork();
-          const { reminderId } = job.data;
+        const em = this.em.fork();
+        const { reminderId } = job.data;
 
-          const reminder = await em.findOne(
+        // Wrap in transaction for atomicity
+        await em.transactional(async (trx) => {
+          const reminder = await trx.findOne(
             Reminder,
             { id: reminderId },
-            { populate: ['sendTo'] }
+            { populate: ['sendTo', 'createdBy'] }
           );
 
           if (!reminder) {
@@ -61,12 +62,13 @@ export class ReminderWorker implements OnModuleInit, OnModuleDestroy {
               actorId: reminder.createdBy.id,
             },
             recipients: [reminder.sendTo.id],
-            entityManager: this.em,
+            entityManager: trx, // <-- FIXED: pass the transactional EM, not this.em
           });
 
-          await this.em.flush();
-          
-          console.log(`[WORKER] ✅ Notification sent for reminder ${reminderId}`);
+          // No need for explicit flush — transactional() commits automatically
+        });
+
+        console.log(`[WORKER] ✅ Notification sent for reminder ${reminderId}`);
       },
       {
         connection: this.redisClient,

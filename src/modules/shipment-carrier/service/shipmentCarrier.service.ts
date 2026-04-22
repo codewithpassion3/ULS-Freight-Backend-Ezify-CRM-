@@ -1,6 +1,7 @@
 import { EntityManager } from "@mikro-orm/postgresql";
 import { Injectable } from "@nestjs/common";
-import { FedExAdapter } from "../adapter/fedex.adaptar";
+import { FedExAdapter, RateQuote } from "../adapter/fedex.adaptar";
+import { TSTCFExpressAdapter } from "../adapter/tst-cf-express.adaptar";
 
 @Injectable()
 export class ShipmentCarrierService {
@@ -8,35 +9,24 @@ export class ShipmentCarrierService {
         private readonly em: EntityManager,
     ) {}
     
-    async getShipmentCarriersRates(dto: any){
-        console.log('ENV CHECK:', {
-        id: process.env.FEDEX_CLIENT_ID,
-        secret: process.env.FEDEX_CLIENT_SECRET ? '***' : undefined,
-        account: process.env.FEDEX_ACCOUNT_NUMBER
-        });
+   async getShipmentCarriersRates(dto: any) {
+    // FedEx
+    const fedex = new FedExAdapter({
+        name: "FedEx",
+        clientId: process.env.FEDEX_CLIENT_ID!,
+        clientSecret: process.env.FEDEX_CLIENT_SECRET!,
+        accountNumber: process.env.FEDEX_ACCOUNT_NUMBER!
+    });
+    const fedexQuotes = await fedex.getRates(dto);
 
-        console.log('MAPPING PACKAGES:', JSON.stringify(dto.packages, null, 2));
-        
-
-        console.log('RAW DTO:', JSON.stringify(dto, null, 2));
-
-        const fedex = new FedExAdapter({
-            name: "FedEx",
-            clientId: process.env.FEDEX_CLIENT_ID!,
-            clientSecret: process.env.FEDEX_CLIENT_SECRET!,
-            accountNumber: process.env.FEDEX_ACCOUNT_NUMBER!
-        });
-
-        console.log({ incomingPayload: dto });
-
-        const quotes = await fedex.getRates(dto);
-
-        console.log({ quotes })
-        
-        return {
-            message: "Fedex rates fetched successfully",
-            fedexQuotes: quotes
-        }
-                
-    }
+    // TST CF Express — same pattern, no credentials in constructor
+    // const tstAdapter = new TSTCFExpressAdapter();
+    // const tstQuotes = await tstAdapter.getRates(dto);
+    // console.log({tstQuotes})
+    return {
+        message: "Rates fetched successfully",
+        fedexQuotes,
+        // tstQuotes
+    };
+}
 }
