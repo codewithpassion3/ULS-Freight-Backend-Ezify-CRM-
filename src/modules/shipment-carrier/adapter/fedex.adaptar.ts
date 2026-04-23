@@ -1,4 +1,6 @@
 import { CarrierAdapter } from "src/types/shipment-carriers";
+import { toFedExCountryCode } from "src/utils/fedex-country-code";
+import { toFedExStateCode } from "src/utils/fedex-state-code";
 
 // ============================================================================
 // FEDEX API TYPES
@@ -130,10 +132,6 @@ export interface RateQuote {
   };
 }
 
-// ============================================================================
-// MAPPER INTERFACE & IMPLEMENTATIONS
-// ============================================================================
-
 interface CarrierPayloadMapper {
   supports(type: ShipmentType): boolean;
   map(request: ShipmentRateRequest, accountNumber: string): unknown;
@@ -222,7 +220,6 @@ export class FedExAdapter implements CarrierAdapter {
   private readonly credentials: FedExCredentials;
   private readonly accountNumber: string;
   private readonly mappers: CarrierPayloadMapper[];
-
   private tokenCache: { token: string; expiresAt: number } | null = null;
 
   constructor(params: {
@@ -231,13 +228,11 @@ export class FedExAdapter implements CarrierAdapter {
     clientSecret: string;
     accountNumber: string;
   }) {
-
     this.credentials = {
       clientId: params.clientId,
       clientSecret: params.clientSecret,
     };
     this.accountNumber = params.accountNumber;
-    
     this.mappers = [new FedExParcelMapper()];
   }
 
@@ -273,25 +268,19 @@ export class FedExAdapter implements CarrierAdapter {
     return data.access_token;
   }
 
- 
   buildRequest(req: any): unknown {
     const mapper = this.mappers.find(m => m.supports(ShipmentType.PACKAGE));
-    
     if (!mapper) {
       throw new Error(`FedEx does not support shipment type: ${req.type}`);
     }
-    
     return mapper.map(req, this.accountNumber);
   }
 
   async fetchRates(carrierPayload: unknown): Promise<unknown> {
     const token = await this.getAuthToken();
-    
     const transactionId = crypto.randomUUID();
 
-    const url = `${this.baseUrl}/rate/v1/rates/quotes`;
-
-    const response = await fetch(url, {
+    const response = await fetch(`${this.baseUrl}/rate/v1/rates/quotes`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -311,54 +300,194 @@ export class FedExAdapter implements CarrierAdapter {
   }
 
   parseResponse(carrierResponse: any): any[] {
-      const response = carrierResponse as FedExRateResponse;
-      const quotes: any[] = [];
+    const response = carrierResponse as FedExRateResponse;
+    const quotes: any[] = [];
 
-      // Handle errors
-      if ((response?.alerts?.length as any) > 0) {
-        const errors = (response?.alerts as any)
-          .filter(a => a.code?.startsWith("ERROR"))
-          .map(a => a.message);
-        if (errors.length > 0) {
-          throw new Error(`FedEx returned errors: ${errors.join(", ")}`);
-        }
+    if ((response?.alerts?.length as any) > 0) {
+      const errors = (response?.alerts as any)
+        .filter(a => a.code?.startsWith("ERROR"))
+        .map(a => a.message);
+      if (errors.length > 0) {
+        throw new Error(`FedEx returned errors: ${errors.join(", ")}`);
       }
+    }
 
-      // Parcel response
-      const parcelDetails = response.output?.rateReplyDetails || [];
-      for (const detail of parcelDetails) {
-        for (const rated of detail.ratedShipmentDetails || []) {
-          quotes.push({
-            carrierId: this.carrierName,
-            serviceType: detail.serviceType,
-            totalCharge: rated.totalNetCharge,
-            currency: rated.currency,
-            transitDays: detail.transitTime ? parseInt(detail.transitTime) : undefined,
-          });
-        }
-      }
-
-      // Freight response
-      const freightDetails = response.output?.rateShipmentDetails || [];
-      for (const detail of freightDetails) {
+    const parcelDetails = response.output?.rateReplyDetails || [];
+    for (const detail of parcelDetails) {
+      for (const rated of detail.ratedShipmentDetails || []) {
         quotes.push({
           carrierId: this.carrierName,
-          serviceType: detail.serviceType || "FREIGHT",
-          totalCharge: detail.totalNetCharge?.amount,
-          currency: detail.totalNetCharge?.currency,
-          transitDays: (detail.transitTime as any) ? parseInt(detail.transitTime as any) : undefined,
+          serviceType: detail.serviceType,
+          serviceName: detail.serviceName,
+          packagingType: detail.packagingType,
+          totalCharge: rated.totalNetCharge,
+          currency: rated.currency,
+          transitDays: detail.transitTime ? parseInt(detail.transitTime) : undefined,
         });
       }
+    }
 
-      return quotes;
+    const freightDetails = response.output?.rateShipmentDetails || [];
+    for (const detail of freightDetails) {
+      quotes.push({
+        carrierId: this.carrierName,
+        serviceType: detail.serviceType || "FREIGHT",
+        totalCharge: detail.totalNetCharge?.amount,
+        currency: detail.totalNetCharge?.currency,
+        transitDays: (detail.transitTime as any) ? parseInt(detail.transitTime as any) : undefined,
+      });
+    }
+
+    return quotes;
   }
 
- 
-  async getRates(req: ShipmentRateRequest): Promise<RateQuote[]> {
+  async getRates(req: ShipmentRateRequest) {
     const payload = this.buildRequest(req);
-   
     const response = await this.fetchRates(payload);
+    return response;
+  }
 
-    return this.parseResponse(response);
+  
+  async createShipment(req: any, quote: any): Promise<any> {
+    const token = await this.getAuthToken();
+  
+    const transactionId = crypto.randomUUID();
+
+    
+    const addresses = await quote.addresses.loadItems();
+    const originShippingAddress = addresses.find((a: any) => a.type === 'FROM') || addresses[0];
+    const destShippingAddress = addresses.find((a: any) => a.type === 'TO') || addresses[1];
+
+    const originAddress = originShippingAddress?.addressBookEntry;
+    const destAddress = destShippingAddress?.addressBookEntry;
+
+    const lineItem = quote.lineItems;
+    const units = await lineItem?.units || [];
+
+    const mappedPackages = units.map((unit: any, i: number) => ({
+      sequenceNumber: i + 1,
+      weight: {
+        units: unit.weightUnit || 'LB',
+        value: String(unit.weight),
+      },
+      dimensions: unit.length && unit.width && unit.height
+        ? {
+            length: String(unit.length),
+            width: String(unit.width),
+            height: String(unit.height),
+            units: unit.dimensionsUnit || 'IN',
+          }
+        : undefined,
+    }));
+
+    const isInternational = toFedExCountryCode(originAddress?.address?.country) !== toFedExCountryCode(destAddress?.address?.country);
+    
+    const payload = {
+      labelResponseOptions: 'URL_ONLY',
+      accountNumber: { value: this.accountNumber },
+      requestedShipment: {
+        shipper: {
+          contact: {
+            personName: originAddress?.contactName || '',
+            phoneNumber: (originAddress?.phoneNumber || '').replace(/\D/g, '').slice(0, 15)
+          },
+          address: {
+            streetLines: [originAddress?.address?.address1 || ''],
+            city: originAddress?.address?.city || '',
+            stateOrProvinceCode: toFedExStateCode(originAddress?.address?.state || ''),
+            postalCode: originAddress?.address?.postalCode || '',
+            countryCode: toFedExCountryCode(originAddress?.address?.country || originAddress?.countryCode),
+          },
+        },
+        recipients: [
+          {
+            contact: {
+              personName: destAddress?.contactName || '',
+              phoneNumber: (destAddress?.phoneNumber || '').replace(/\D/g, '').slice(0, 15),
+            },
+            address: {
+              streetLines: [destAddress?.address?.address1 || ''],
+              city: destAddress?.address?.city || '',
+              stateOrProvinceCode: toFedExStateCode(destAddress?.address?.state || ''),
+              postalCode: destAddress?.address?.postalCode || '',
+              countryCode: toFedExCountryCode(destAddress?.address?.country || destAddress?.countryCode),
+            },
+          },
+        ],
+        serviceType: isInternational ? 'INTERNATIONAL_ECONOMY' : 'STANDARD_OVERNIGHT',
+        packagingType: req.selectedRate?.packagingType || 'YOUR_PACKAGING',
+        pickupType: req.pickupType || 'DROPOFF_AT_FEDEX_LOCATION',
+        shipDateStamp: req.shipDate
+          ? new Date(req.shipDate).toISOString().split('T')[0]
+          : new Date().toISOString().split('T')[0],
+        shippingChargesPayment: {
+          paymentType: 'SENDER',
+          payor: {
+            responsibleParty: {
+              accountNumber: { value: this.accountNumber, key: '' },
+            },
+            address: {
+              streetLines: [originAddress?.address?.address1 || ''],
+              city: originAddress?.address?.city || '',
+              stateOrProvinceCode: toFedExStateCode(originAddress?.address?.state || ''),
+              postalCode: originAddress?.address?.postalCode || '',
+              countryCode: toFedExCountryCode(originAddress?.address?.country || originAddress?.countryCode),
+            },
+          },
+        },
+        labelSpecification: {},
+        customsClearanceDetail: isInternational ? {
+          dutiesPayment: {
+            paymentType: 'SENDER',
+            payor: {
+              responsibleParty: {
+                accountNumber: { value: this.accountNumber },
+              },
+            },
+          },
+          commodities: mappedPackages.map((pkg, i) => ({
+            description: `Package ${i + 1}`,
+            quantity: 1,
+            quantityUnits: 'EA',
+            weight: {
+              units: pkg.weight.units,
+              value: Number(pkg.weight.value),
+            },
+            customsValue: {
+              currency: req.selectedRate?.currency || 'USD',
+              amount: 100,
+            },
+            unitPrice: {
+              currency: req.selectedRate?.currency || 'USD',
+              amount: 100,
+            },
+            countryOfManufacture: toFedExCountryCode(originAddress?.address?.country) || 'US',
+          })),
+          totalCustomsValue: {
+            currency: req.selectedRate?.currency || 'USD',
+            amount: 100 * mappedPackages.length,
+          },
+        } : undefined,
+        requestedPackageLineItems: mappedPackages,
+      },
+    };
+
+    const response = await fetch(`${this.baseUrl}/ship/v1/shipments`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+        "x-customer-transaction-id": transactionId,
+        "x-locale": "en_US",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`FedEx ship API error: ${response.status} - ${errorText}`);
+    }
+
+    return response.json();
   }
 }

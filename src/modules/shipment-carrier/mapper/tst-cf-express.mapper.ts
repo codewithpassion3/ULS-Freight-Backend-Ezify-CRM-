@@ -1,4 +1,5 @@
 import { TSTCFRateRequest, TSTCFAddress, TSTCFShipLine, TSTCFAccessorials } from "src/types/tst-cf-express";
+
 export class TSTCFExpressMapper {
   private readonly serviceMap: Record<string, string> = {
     'STANDARD': 'ST',
@@ -16,7 +17,6 @@ export class TSTCFExpressMapper {
   };
 
   validate(request: any): string[] {
-    // No validation — just return empty
     return [];
   }
 
@@ -50,6 +50,100 @@ export class TSTCFExpressMapper {
         line: request.packages.map((pkg: any, index: number) => this.mapPackage(pkg, index)),
       },
       accitems: this.mapAccessorials(request.accessorials),
+    };
+  }
+
+  // ============================================================================
+  // NEW: MAP QUOTE CREATION PAYLOAD (Pattern B)
+  // ============================================================================
+
+  mapQuote(req: any, selectedRate: any): any {
+    const shipDate = this.formatDate(req?.shipDate || new Date());
+    const fromAddr = req.tst?.from || req.shipper || req.from;
+    const toAddr = req.tst?.to || req.recipient || req.to;
+
+    return {
+      requestor: process.env.TST_CF_REQUESTOR || '',
+      authorization: process.env.TST_CF_AUTHORIZATION || '',
+      login: process.env.TST_CF_LOGIN || '',
+      passwd: process.env.TST_CF_PASSWD || '',
+      testmode: req?.testMode === false ? 'N' : 'Y',
+      language: 'en',
+      xmlversion: '2.0',
+      shipdate: shipDate,
+      origin: this.mapAddress(fromAddr),
+      destination: this.mapAddress(toAddr),
+      service: this.serviceMap[selectedRate?.serviceType] || selectedRate?.serviceType || 'ST',
+      funds: 'C',
+      rqby: 'S',
+      terms: req?.paymentTerms || 'P',
+      taxexempt: req?.taxExempt ? 'Y' : 'N',
+      tllf: req?.tailgateLiftFee || 0,
+      cod: req?.codAmount || 0,
+      dclval: {
+        amount: req.declaredValue?.amount || 0,
+        funds: req.declaredValue?.currency || '',
+      },
+      shipdetail: {
+        line: (req.packages || []).map((pkg: any, index: number) => this.mapPackage(pkg, index)),
+      },
+      accitems: this.mapAccessorials(req.accessorials),
+      confirm: 'Y',
+    };
+  }
+
+  // ============================================================================
+  // NEW: MAP SHIPMENT / PICKUP PAYLOAD (Pattern B — uses quoteId)
+  // ============================================================================
+
+  mapShipment(req: any, quoteId: string): any {
+    const shipDate = this.formatDate(req?.shipDate || new Date());
+    const fromAddr = req.tst?.from || req.shipper || req.from;
+    const toAddr = req.tst?.to || req.recipient || req.to;
+
+    return {
+      requestor: process.env.TST_CF_REQUESTOR || '',
+      authorization: process.env.TST_CF_AUTHORIZATION || '',
+      login: process.env.TST_CF_LOGIN || '',
+      passwd: process.env.TST_CF_PASSWD || '',
+      testmode: req?.testMode === false ? 'N' : 'Y',
+      language: 'en',
+      xmlversion: '2.0',
+      quoteid: quoteId,
+      shipdate: shipDate,
+      origin: this.mapAddress(fromAddr),
+      destination: this.mapAddress(toAddr),
+      service: this.serviceMap[req.selectedRate?.serviceType] || req.selectedRate?.serviceType || 'ST',
+      shipper: {
+        name: fromAddr?.name || '',
+        contact: fromAddr?.phone || '',
+        address: fromAddr?.streetAddress || fromAddr?.address || fromAddr?.street || '',
+        city: fromAddr?.city || '',
+        state: fromAddr?.state || fromAddr?.province || '',
+        zip: fromAddr?.postalCode || '',
+      },
+      consignee: {
+        name: toAddr?.name || '',
+        contact: toAddr?.phone || '',
+        address: toAddr?.streetAddress || toAddr?.address || toAddr?.street || '',
+        city: toAddr?.city || '',
+        state: toAddr?.state || toAddr?.province || '',
+        zip: toAddr?.postalCode || '',
+      },
+      pickup: {
+        date: shipDate,
+        readytime: req.pickup?.readyTime || '0800',
+        closetime: req.pickup?.closeTime || '1700',
+        instructions: req.pickup?.instructions || '',
+      },
+      shipdetail: {
+        line: (req.packages || []).map((pkg: any, index: number) => this.mapPackage(pkg, index)),
+      },
+      accitems: this.mapAccessorials(req.accessorials),
+      references: {
+        bol: req.billingReferences?.find((r: any) => r.type === 'BOL')?.value || '',
+        po: req.billingReferences?.find((r: any) => r.type === 'PO')?.value || '',
+      },
     };
   }
 
