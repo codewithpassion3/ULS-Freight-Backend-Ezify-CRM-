@@ -15,5 +15,6 @@ export class Insurance {
   amount!: number;
 
   @Enum(() => Currency)
-  currency!: Currency; 
+  @Property({ default: Currency.USD})
+  currency?: Currency = Currency.USD; 
 }

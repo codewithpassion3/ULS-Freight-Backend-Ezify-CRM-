@@ -38,29 +38,35 @@ export class PalletQuote extends StandardQuote {
         }
 
         // Store validated data for build phase
-        this.validatedData = this.data.quote;
+        this.validatedData = this.data;
     }
 
     async build(): Promise<Quote> {
         if (!this.validatedData) {
             this.errors.push('Must call validate() before build()');
         }
-
+        console.log({validatedData: this.validatedData})
         const quote = new Quote();
         this.validatedData.quote = quote;
         this.data.quote = quote;
+
         
         quote.quoteType = this.validatedData.quoteType;
         quote.shipmentType = this.validatedData.shipmentType;
         quote.status = this.validatedData.status;
 
+        if (this.validatedData.name) quote.name = this.validatedData.name;
+
+        this.em.persist(quote);
+
         // Build relationships
         const addresses = await this.buildAddresses();
+        console.log({builtAddresses: addresses})
         addresses.forEach(addr => addr.quote = quote);
         quote.addresses.set(addresses);
 
         quote.lineItems = this.buildLineItem() as any;
-        quote.insurance = this.buildInsurance();    
+        quote.insurance = this.buildInsurance() as any;    
         quote.company = this.em.getReference(Company, this.session.companyId as number);
         quote.createdBy = this.em.getReference(User, this.session.userId as number);
 
@@ -77,16 +83,7 @@ export class PalletQuote extends StandardQuote {
         }
     }
 
-    protected validateLineItemSpecific(): void {
-        // Check: dangerousGoods required for pallet
-        if (this.data.quote.lineItem.dangerousGoods === undefined) {
-            this.errors.push("dangerousGoods is required in pallet quote");
-        }
-
-        if (this.data.quote.lineItem.stackable === undefined) {
-            this.errors.push("stackable is required in pallet quote")
-        }
-    }
+    protected validateLineItemSpecific(): void {}
 
     protected processLineItemUnit(units: any): void {
         units.forEach((unit: any, idx: number) => {
@@ -156,7 +153,8 @@ export class PalletQuote extends StandardQuote {
     }
 
     protected attachServiceToQuote(serviceEntity: PalletServices): void {
-        this.validatedData.quote.palletServices = serviceEntity;
+        console.log({data: this.validatedData})
+        this.validatedData.palletServices = serviceEntity;
     }
 }
 

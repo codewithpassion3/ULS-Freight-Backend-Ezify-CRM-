@@ -318,10 +318,12 @@ export class CreateQuoteDTO {
   @Type(() => CreateLineItemDto)
   lineItem?: CreateLineItemDto;
   
+  @IsOptional()
   @ValidateNested()
   @Type(() => CreateInsuranceDto)
   insurance?: CreateInsuranceDto;
 
+  @IsOptional()
   @ValidateNested()
   @Type(() => CreateSpotDetailsDto)
   spotDetails?: CreateSpotDetailsDto;

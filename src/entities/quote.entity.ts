@@ -32,6 +32,9 @@ export class Quote {
     this.quoteId = randomBytes(4).toString('hex').toUpperCase();
   }
   
+  @Property({ nullable: true })
+  name?: string;
+
   @Enum(() => QuoteType)
   quoteType!: QuoteType;
 
@@ -84,6 +87,8 @@ export class Quote {
   @OneToOne(() => PalletServices, pallet => pallet.quote, {
     nullable: true,
     mappedBy: 'quote',
+    orphanRemoval: true,
+    cascade: [Cascade.PERSIST, Cascade.REMOVE],
   })
   palletServices?: PalletServices;
 

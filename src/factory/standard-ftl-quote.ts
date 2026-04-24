@@ -55,7 +55,7 @@ export class StandardFTLQuote extends StandardQuote {
         addresses.forEach(addr => addr.quote = quote);
         quote.addresses.set(addresses);
 
-        quote.insurance = this.buildInsurance();
+        quote.insurance = this.buildInsurance() as any;
         quote.company = this.em.getReference(Company, this.session.companyId as number);
         quote.createdBy = this.em.getReference(User, this.session.userId as number);
         

@@ -146,7 +146,7 @@ export const packageRules: FieldRule[] = [
   { field: 'height', required: true },
   { field: 'weight', required: true },
   { field: 'description', required: false },
-  { field: 'specialHandlingRequired', required: true }
+  { field: 'specialHandlingRequired', required: false }
 ];
 
 export const palletRules: FieldRule[] = [
@@ -155,10 +155,10 @@ export const palletRules: FieldRule[] = [
   { field: 'height', required: true },
   { field: 'weight', required: true },
   { field: 'freightClass', required: true },
-  { field: 'nmfc', required: true },
+  { field: 'nmfc', required: false },
   { field: 'stackable', required: false },
-  { field: 'unitsOnPallet', required: true },
-  { field: 'palletUnitType', required: true },
+  { field: 'unitsOnPallet', required: false },
+  { field: 'palletUnitType', required: false },
   { field: 'description', required: false },
 
 ];
@@ -169,8 +169,8 @@ export const courierPakRules: FieldRule[] = [
 ];
 
 export const standardFTLRule: FieldRule[] = [
-  { field: 'looseFreight', required: true },
-  { field: 'pallets', required: true }
+  { field: 'looseFreight', required: false },
+  { field: 'pallets', required: false }
 ]
 
 export const requiredServiceFields: Record<ShipmentType, string[]> = {
