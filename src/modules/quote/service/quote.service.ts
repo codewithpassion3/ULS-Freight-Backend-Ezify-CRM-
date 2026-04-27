@@ -70,6 +70,14 @@ export class QuoteService {
         
         await this.em.flush();
        
+        this.eventEmitter.emit(NotificationType.QUOTE_CREATED, {
+            entity: quote,
+            actorId: session.userId,
+            companyId: session.companyId,
+            metadata: {
+            quoteId: quote.id
+            }
+        })
         return { message: "Quote created successfully", quote }
     }
 
