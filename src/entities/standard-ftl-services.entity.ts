@@ -7,7 +7,7 @@ export class StandardFtlServices {
   @PrimaryKey()
   id!: number;
 
-  @OneToOne(() => Quote, { owner: true, cascade: [Cascade.REMOVE] })
+  @OneToOne(() => Quote, { hidden: true, owner: true, cascade: [Cascade.REMOVE] })
   quote!: Quote;
 
   @Property({ type: 'json', nullable: true})

@@ -9,6 +9,7 @@ import {
   IsBoolean,
   IsEmail,
   IsDate,
+  IsObject,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { QuoteType } from 'src/common/enum/quote-type.enum';
@@ -24,6 +25,7 @@ import { SpotType } from 'src/common/enum/spot-type.enum';
 import { RefrigeratedType } from 'src/common/enum/refrigerated.enum';
 import { QuoteStatus } from 'src/common/enum/quote-status';
 import { LineItemUnitType } from 'src/common/enum/line-item-unit-type';
+import { DangerousGoodsClass } from 'src/common/enum/line-item.enum';
 
 /* ---------------- ADDRESS ---------------- */
 
@@ -149,8 +151,8 @@ export class CreateLineItemUnitDto {
   description?: string;
 
   @IsOptional()
-  @IsBoolean()
-  dangerousGoods?: boolean;
+  @IsObject()
+  dangerousGoods?: Record<string, any>;
   
   @IsOptional()
   @IsBoolean()
@@ -163,7 +165,14 @@ export class CreateLineItemUnitDto {
 }
 
 /* ---------------- LINE ITEM ---------------- */
+class DangerousGoodsDTO {
+  @IsString()
+  @IsNotEmpty()
+  un!: string;
 
+  @IsEnum(DangerousGoodsClass)
+  class!: DangerousGoodsClass;
+}
 export class CreateLineItemDto {
   @IsEnum(ShipmentType)
   type!: ShipmentType;
@@ -177,8 +186,10 @@ export class CreateLineItemDto {
   measurementUnit!: MeasurementUnits
   
   @IsOptional()
-  @IsBoolean()
-  dangerousGoods?: boolean;
+  @IsObject()
+  @ValidateNested()
+  @Type(() => DangerousGoodsDTO)
+  dangerousGoods?: DangerousGoodsDTO;
 
   @IsOptional()
   @IsBoolean()

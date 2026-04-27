@@ -8,6 +8,7 @@ import { UpdateQuoteDTO } from "src/modules/quote/dto/update-quote.dto";
 import { Quote } from "src/entities/quote.entity";
 import { requiredServiceFields } from "src/common/constants/quote";
 import { BondType, ContactKey, LimitedAccessType } from "src/common/enum/services.enum";
+import { MeasurementUnits } from "src/common/enum/measurement-units.enum";
 
 interface ValidationResult {
   valid: boolean;
@@ -354,9 +355,61 @@ for (const address of normalizedAddresses) {
         LimitedAccessType.PLAZA_MALL_OR_STORES_WITH_PARKING_LOT_STREET_ACCESS
       ],
       "description": ""
+    },
+    LOOSE_FREIGHT: {
+      key: "looseFreight",
+      value: {
+        pieceCount: { required: false },
+        totalWeight: { required: true },
+        measurementUnit: {
+          required: true,
+          enum: [MeasurementUnits.IMPERIAL, MeasurementUnits.METRIC]
+        },
+        message: { required: false }
+      }
+    },
+
+    PALLET: {
+      key: "pallet",
+      value: {
+        pieceCount: { required: false },
+        totalWeight: { required: true },
+        measurementUnit: {
+          required: true,
+          enum: [MeasurementUnits.IMPERIAL, MeasurementUnits.METRIC]
+        },
+        message: { required: false }
+      }
     }
   }
-  
+
+  function validateWeightBasedField({localErrors, data, fieldName }: {localErrors: string[], data: any, fieldName: string}) {
+  if (!data) {
+    localErrors.push(`${fieldName} must be an object`);
+  }
+
+  // required fields
+  if (data.totalWeight == null) {
+    localErrors.push(`${fieldName}.totalWeight is required`);
+  }
+
+  if (!data.measurementUnit) {
+    localErrors.push(`${fieldName}.measurementUnit is required`);
+  }
+
+  if (
+    ![MeasurementUnits.METRIC, MeasurementUnits.IMPERIAL].includes(data.measurementUnit)
+  ) {
+    localErrors.push(`${fieldName}.measurementUnit must in (${MeasurementUnits.METRIC}, ${MeasurementUnits.IMPERIAL})`);
+  }
+
+  // optional sanity check (no strict failure)
+  if (data.totalCount != null && typeof data.totalCount !== "number") {
+     localErrors.push(`${fieldName}.count must be a number`);
+  }
+
+  return true;
+}
   export const validateServicesAgainstQuote = (dtoServices: Record<string, any>, shipmentType: ShipmentType) => {
    
     const requiredFields = requiredServiceFields[shipmentType];
@@ -443,7 +496,16 @@ for (const address of normalizedAddresses) {
                   `services.${field}.contactKey has invalid value: ${contactKey}. Allowed values: ${multiOptionFields.IN_BOUND.value.contactKey.join(", ")}`
                 );
               }
-            }
+        }
+
+        const WEIGHT_BASED_FIELDS = new Set([
+          multiOptionFields.LOOSE_FREIGHT.key,
+          multiOptionFields.PALLET.key
+        ]);
+
+        if (WEIGHT_BASED_FIELDS.has(field)) {
+          validateWeightBasedField({localErrors, data: value, fieldName: field});
+        }
       });
     }
 

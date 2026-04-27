@@ -15,6 +15,7 @@ import { packageRules } from 'src/common/constants/quote';
 import { validateUnit } from 'src/utils/validateQuote';
 import { Signature } from 'src/entities/signature.entity';
 import { Insurance } from 'src/entities/insurance.entity';
+import { DangerousGoodsClass, QuantityType, PackagingGroup } from 'src/common/enum/line-item.enum';
 
 export class CreatePackageQuote extends StandardQuote {
     constructor(params: QuoteConstructorParams) {
@@ -25,6 +26,7 @@ export class CreatePackageQuote extends StandardQuote {
     }
 
     async validate(): Promise<void> {
+        console.log({data: this.data})
         this.errors = [];
         await this.validateAddresses();
         this.validateLineItem();
@@ -39,7 +41,7 @@ export class CreatePackageQuote extends StandardQuote {
         }
 
         // Store validated data for build phase
-        this.validatedData = this.data.quote;
+        this.validatedData = this.data;
     }
 
     async build(): Promise<Quote> {
@@ -48,7 +50,7 @@ export class CreatePackageQuote extends StandardQuote {
         }
 
         const quote = new Quote();
-        
+
         quote.quoteType = this.validatedData.quoteType;
         quote.shipmentType = this.validatedData.shipmentType;
         quote.status = this.validatedData.status;
@@ -76,9 +78,25 @@ export class CreatePackageQuote extends StandardQuote {
     }
 
     protected validateLineItemSpecific(): void {
-        // Check: dangerousGoods required for packages
-        if (this.data.quote.lineItem.dangerousGoods === undefined) {
-            this.errors.push("dangerousGoods is required in package quote");
+        const dangerousGoods = this.data.lineItem.dangerousGoods;
+
+        if (!dangerousGoods) return;
+
+        if (typeof dangerousGoods !== "object") {
+            this.errors.push("dangerousGoods must be an object");
+            return;
+        }
+
+        const { un, class: dgClass } = dangerousGoods;
+
+        if (typeof un !== "string" || !un.trim()) {
+            this.errors.push("dangerousGoods.un is required and must be a non-empty string");
+        }
+
+        if (!Object.values(DangerousGoodsClass).includes(dgClass as DangerousGoodsClass)) {
+            this.errors.push(
+                `dangerousGoods.class must be one of: ${Object.values(DangerousGoodsClass).join(", ")}`
+            );
         }
     }
 
@@ -118,7 +136,8 @@ export class CreatePackageQuote extends StandardQuote {
             });
             shippingAddress.address = addr;
         }
-        
+
+        if(addrData.isResidential) shippingAddress.isResidential = addrData.isResidential as any;
     }
 
     protected assignLineItemFields(lineItem: LineItem): void {

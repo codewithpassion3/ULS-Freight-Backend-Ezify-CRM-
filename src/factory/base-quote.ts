@@ -33,6 +33,8 @@ export enum AddressType {
 
 export interface AddressData {
     type: AddressType;
+    appointmentDelivery?: boolean;
+    includeStraps?: boolean;
     addressBookId?: number;
     address1?: string;
     address2?: string;
@@ -170,7 +172,6 @@ export abstract class BaseQuote {
         return Promise.all(this.validatedData.addresses.map(async (addrData: AddressData) => {
             const shippingAddress = new ShippingAddress();
             shippingAddress.type = addrData.type;
-            shippingAddress.locationType = addrData.locationType as any;
 
             await this.buildAddressDetails(addrData, shippingAddress, bookMap);
             this.em.persist(shippingAddress)
@@ -271,7 +272,12 @@ export abstract class BaseQuote {
         return insurance;
     }
 
-    protected async buildSignature(): Promise<Signature> {
+    protected async buildSignature() {
+        const signatureFromPayload = this.validatedData.signature;
+
+        if (!signatureFromPayload) {
+            return ;
+        }
         const signature = await this.em.findOne(Signature, { id: this.validatedData.signature });
         
         if (!signature) {

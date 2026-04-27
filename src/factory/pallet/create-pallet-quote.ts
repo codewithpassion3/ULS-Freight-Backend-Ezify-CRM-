@@ -131,6 +131,7 @@ export class PalletQuote extends StandardQuote {
             shippingAddress.address = addr;
         }
         
+        if(addrData.locationType) shippingAddress.locationType = addrData.locationType as any;
     }
 
     protected assignLineItemFields(lineItem: LineItem): void {

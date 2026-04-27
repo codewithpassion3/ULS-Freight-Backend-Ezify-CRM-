@@ -38,7 +38,7 @@ export class CourierPakQuote extends StandardQuote {
         }
 
         // Store validated data for build phase
-        this.validatedData = this.data.quote;
+        this.validatedData = this.data;
     }
 
      async build(): Promise<Quote> {
@@ -47,7 +47,7 @@ export class CourierPakQuote extends StandardQuote {
         }
 
         const quote = new Quote();
-        
+
         quote.quoteType = this.validatedData.quoteType;
         quote.shipmentType = this.validatedData.shipmentType;
         quote.status = this.validatedData.status;
@@ -58,6 +58,7 @@ export class CourierPakQuote extends StandardQuote {
         quote.addresses.set(addresses);
 
         quote.lineItems = this.buildLineItem() as LineItem;
+        
         quote.signature = await this.buildSignature() as Signature;
         quote.company = this.em.getReference(Company, this.session.companyId as number);
         quote.createdBy = this.em.getReference(User, this.session.userId as number);
@@ -74,8 +75,8 @@ export class CourierPakQuote extends StandardQuote {
     }
 
     protected validateLineItemSpecific(): void {
-        if (this.data.quote.lineItem.units && this.data.quote.lineItem.units.length > 1) {
-            this.errors.push(`Only one line item unit is required for ${this.data.quote.shipmentType}`);
+        if (this.data.lineItem.units && this.data.lineItem.units.length > 1) {
+            this.errors.push(`Only one line item unit is required for ${this.data.shipmentType}`);
         }
     }
 
@@ -124,7 +125,8 @@ export class CourierPakQuote extends StandardQuote {
             });
             shippingAddress.address = addr;
         }
-        
+
+        if(addrData.isResidential) shippingAddress.isResidential = addrData.isResidential as any;
     }
 
     protected buildUnitFields(unit: LineItemUnit, unitData: any, idx: number): void {
