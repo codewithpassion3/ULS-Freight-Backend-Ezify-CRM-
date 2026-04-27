@@ -76,44 +76,44 @@ export class ShipmentService {
         const quote = await this.buildQuote(createShipmentDto, session);
             
         //2) Create shipment with the built quote
-        // const shipment = new Shipment();
-        // shipment.shipDate = new Date(createShipmentDto.shipDate);
-        // shipment.quote = quote;
-        // shipment.tailgateRequiredInToAddress = createShipmentDto.tailgateRequiredInToAddress ?? false;
-        // shipment.tailgateRequiredInFromAddress = createShipmentDto.tailgateRequiredInFromAddress ?? false;
+        const shipment = new Shipment();
+        shipment.shipDate = new Date(createShipmentDto.shipDate);
+        shipment.quote = quote;
+        shipment.tailgateRequiredInToAddress = createShipmentDto.tailgateRequiredInToAddress ?? false;
+        shipment.tailgateRequiredInFromAddress = createShipmentDto.tailgateRequiredInFromAddress ?? false;
 
-        // //3) Build and attach billing references
-        // if (createShipmentDto.billingReferences && createShipmentDto.billingReferences?.length > 0) {
-        //     const billingReferences = createShipmentDto.billingReferences.map(code => {
-        //         const ref = new BillingReference();
-        //         ref.code = code;
-        //         ref.shipment = shipment; // Set inverse side
-        //         return ref;
-        //     });
+        //3) Build and attach billing references
+        if (createShipmentDto.billingReferences && createShipmentDto.billingReferences?.length > 0) {
+            const billingReferences = createShipmentDto.billingReferences.map(code => {
+                const ref = new BillingReference();
+                ref.code = code;
+                ref.shipment = shipment; // Set inverse side
+                return ref;
+            });
 
-        //     shipment.billingReferences.add([...billingReferences]);
-        // }
+            shipment.billingReferences.add([...billingReferences]);
+        }
 
         //4) Persist everything in one transaction
         this.em.persist(quote);
-        // this.em.persist(shipment);
+        this.em.persist(shipment);
 
         await this.em.flush()
 
         //5) Send out notification to all memebers of company
-        this.eventEmitter.emit(NotificationType.SHIPMENT_CREATED, {
-          // entity: shipment,
+        this.eventEmitter.emit(NotificationType.QUOTE_FOR_SHIPMENT, {
+          entity: shipment,
           actorId: session.userId,
           companyId: session.companyId,
           metadata: {
-            // shipmentId: shipment.id,
+            shipmentId: shipment.id,
             quoteId: quote.id
           }
         })
 
         //6) Return populated response
         return {
-          message: "Shipment created successfully"
+          message: "Quote for shipment created successfully"
         }
     }
 
