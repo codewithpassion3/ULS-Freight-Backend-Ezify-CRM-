@@ -5,7 +5,7 @@ import { QuoteConstructorParams } from "src/types/quote";
 import { CreatePackageQuote } from "./package/create-package-quote";
 import { PalletQuote } from "./pallet/create-pallet-quote";
 import { CourierPakQuote } from "./courier-pak/create-courier-pak-quote";
-import { StandardFTLQuote } from "./standard-ftl-quote";
+import { StandardFTLQuote } from ".//standard-ftl/create-standard-ftl-quote";
 import { UpdatePackageQuote } from "./package/update-package-quote";
 import { UpdatePalletQuote } from "./pallet/update-pallet-quote";
 import { UpdateCourierPakQuote } from "./courier-pak/update-courier-pak-quote";

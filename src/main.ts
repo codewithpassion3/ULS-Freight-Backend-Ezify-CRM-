@@ -19,6 +19,7 @@ import path from 'path'
 import { EXPIRY_IN_MILISECONDS } from './common/constants/cookie';
 import Redis from 'ioredis';
 import { REDIS_CLIENT } from './shared/redis/redis.module';
+import 'dotenv/config';
 
 async function bootstrap() {
     //1) Validate env keys

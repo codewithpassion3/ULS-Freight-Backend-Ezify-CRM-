@@ -33,6 +33,8 @@ export enum AddressType {
 
 export interface AddressData {
     type: AddressType;
+    appointmentDelivery?: boolean;
+    includeStraps?: boolean;
     addressBookId?: number;
     address1?: string;
     address2?: string;
@@ -66,7 +68,7 @@ export abstract class BaseQuote {
     
     // Template method with common logic
     protected async validateAddresses(): Promise<void> {
-        const addresses = this.data.quote.addresses;
+        const addresses = this.data.addresses;
 
         if(!this.hasValidAddressPayload(addresses)) return;
 
@@ -104,18 +106,18 @@ export abstract class BaseQuote {
 
     protected validateLineItem(): void {
         // 1) Line item required
-        if (!this.data.quote.lineItem) {
+        if (!this.data.lineItem) {
             this.errors.push("Line item is required");
             return;
         }
 
         // 2) Units required
-        if (!this.data.quote.lineItem.units || this.data.quote.lineItem.units.length === 0) {
+        if (!this.data.lineItem.units || this.data.lineItem.units.length === 0) {
             this.errors.push("At least one unit is required");
         }
 
         // 3) Type must match shipment type
-        if (this.data.quote.lineItem.type !== this.data.quote.shipmentType) {
+        if (this.data.lineItem.type !== this.data.shipmentType) {
             this.errors.push("Line item type must match shipment type");
         }
 
@@ -124,40 +126,31 @@ export abstract class BaseQuote {
     }
 
     protected validateLineItemUnits(): void {
-        if (!this.data.quote.lineItem?.units?.length) return;
+        if (!this.data.lineItem?.units?.length) return;
 
-        const units = this.data.quote.lineItem.units;
+        const units = this.data.lineItem.units;
 
        this.processLineItemUnit(units)
     }
 
     protected validateServices(): void {
-        const errors = validateServicesAgainstQuote(this.data.quote.services, this.data.quote.shipmentType)
-        this.errors.push(...errors);
+        const services = this.data.services;
+
+        if(services){
+            const errors = validateServicesAgainstQuote(this.data.services, this.data.shipmentType)
+            this.errors.push(...errors);
+        }
     }
     
     protected validateInsurance(): void {
-        if (!this.data.quote.insurance) {
-            this.errors.push("insurance is required");
-            return;
-        }
+        const insurance = this.data.insurance;
 
-        if (this.data.quote.insurance.amount <= 0) {
+        if (insurance && insurance.amount <= 0) {
             this.errors.push("insurance value must be greater than 0");
         }
-
-        if (!this.data.quote.insurance.currency) {
-            this.errors.push("insurance currency is required");
-        }
     }
 
-    protected validateSignature(): void {
-        const signature = this.data.quote.signature;
-        if (!signature) {
-            this.errors.push("Signature is required");
-            return;
-        }
-    }
+    protected validateSignature(): void {}
     
     protected async buildAddresses(): Promise<ShippingAddress[]> {
         const bookIds = this.validatedData.addresses
@@ -179,7 +172,6 @@ export abstract class BaseQuote {
         return Promise.all(this.validatedData.addresses.map(async (addrData: AddressData) => {
             const shippingAddress = new ShippingAddress();
             shippingAddress.type = addrData.type;
-            shippingAddress.locationType = addrData.locationType as any;
 
             await this.buildAddressDetails(addrData, shippingAddress, bookMap);
             this.em.persist(shippingAddress)
@@ -218,6 +210,12 @@ export abstract class BaseQuote {
     }
 
     protected async buildServices(): Promise<void> {
+        const services = this.validatedData.services;
+
+        if (!services || Object.keys(services).length === 0) {
+            return;
+        }
+        console.log({services, data: this.validatedData })
         const serviceFactoryMap = {
             STANDARD_FTL: () => new StandardFtlServices(),
             PALLET: () => new PalletServices(),
@@ -225,7 +223,7 @@ export abstract class BaseQuote {
             SPOT_LTL: () => new SpotLtlServices(),
         };
 
-        const shipmentType = this.data.quote.shipmentType;
+        const shipmentType = this.data.shipmentType;
 
         const factory = serviceFactoryMap[shipmentType];
 
@@ -233,9 +231,15 @@ export abstract class BaseQuote {
 
         const serviceEntity = factory();
 
-        serviceEntity.quote = this.data.quote;
+        serviceEntity.quote = this.validatedData.quote;
 
-        const source = this.validatedData.services ?? {};
+        const limitedAccess = this.validatedData.services.limitedAccess;
+
+        let servicesData = {...this.validatedData.services};
+        
+        if(limitedAccess && limitedAccess === "others") servicesData = {...servicesData, limitedAccessDescription: this.validatedData.services.limitedAccessDescription}
+        
+        const source = servicesData ?? {};
         
         const allowedFields = requiredServiceFields[shipmentType];
         
@@ -252,7 +256,13 @@ export abstract class BaseQuote {
         await this.em.flush();
     }
 
-    protected buildInsurance(): Insurance {
+    protected buildInsurance(): Insurance | void {
+        const insuranceFromPayload = this.validatedData.insurance;
+
+        if (!insuranceFromPayload) {
+            return ;
+        }
+        
         const insurance = new Insurance();
         insurance.amount = this.validatedData.insurance.amount;
         insurance.currency = this.validatedData.insurance.currency;
@@ -262,7 +272,12 @@ export abstract class BaseQuote {
         return insurance;
     }
 
-    protected async buildSignature(): Promise<Signature> {
+    protected async buildSignature() {
+        const signatureFromPayload = this.validatedData.signature;
+
+        if (!signatureFromPayload) {
+            return ;
+        }
         const signature = await this.em.findOne(Signature, { id: this.validatedData.signature });
         
         if (!signature) {
@@ -366,7 +381,7 @@ export abstract class BaseQuote {
 
     protected validateQuoteAddresses(addresses: AddressData[]): void {
         for (const address of addresses) {
-            const addressErrors = validateAddress(address as any, this.data.quote.quoteType);
+            const addressErrors = validateAddress(address as any, this.data.quoteType);
             this.errors.push(...addressErrors);
         }
     }

@@ -118,7 +118,7 @@ export class AddressBookService {
         const { search, page, limit, orderBy } = buildQuery(params, allowedFields);
 
         //4) Build filter query
-        const filter: any = { createdBy: ctx.user, company: ctx.company };
+        const filter: any = { company: ctx.company };
 
         //5) Handle search filter
         if (search) {
@@ -191,7 +191,7 @@ export class AddressBookService {
         const ctx = await this.requestContextService.resolve({session, em: this.em})
      
         //2) Get address book against session details
-        const addressBookContent = await this.em.findOne(AddressBook, { id: addressBookContactId, createdBy: ctx.user, company: ctx.company }, {
+        const addressBookContent = await this.em.findOne(AddressBook, { id: addressBookContactId, company: ctx.company }, {
             populate: ["address"],
             fields: [
                 "companyName",
@@ -287,7 +287,6 @@ export class AddressBookService {
             AddressBook,
             {
                 id: addressBookContactId,
-                createdBy: ctx.user,
                 company: ctx.company
             },
             {
@@ -360,7 +359,6 @@ export class AddressBookService {
             //2) Validate address book exists
             const addressBook = await em.findOne(AddressBook, {
                 id: addressBookContactId,
-                createdBy: ctx.user,
                 company: ctx.company
             }, { populate: ['userUsages'] });
 
@@ -397,7 +395,7 @@ export class AddressBookService {
        //1) Validate session details
         const ctx = await this.requestContextService.resolve({ session, em: this.em })
 
-        const addressBookContent = await this.em.findOne(AddressBook, { id: addressBookContactId, createdBy: ctx.user, company: ctx.company });
+        const addressBookContent = await this.em.findOne(AddressBook, { id: addressBookContactId, company: ctx.company });
 
         //2) Throw error for invalid address book id
         if (!addressBookContent) {
@@ -448,7 +446,7 @@ export class AddressBookService {
         //3) Fetch paginated data
         const [recentContacts, total] = await this.em.findAndCount(
             UserAddressBookUsage,
-            { user: ctx.user,
+            { 
               addressBook: {
                     company: ctx.company
                 }

@@ -1,17 +1,13 @@
 import { wrap } from '@mikro-orm/core';
 import { BadRequestException } from '@nestjs/common';
 import { AddressBook } from 'src/entities/address-book.entity';
-import { Company } from 'src/entities/company.entity';
 import { LineItemUnit } from 'src/entities/line-item-unit.entity';
 import { LineItem } from 'src/entities/line-item.entity';
 import { Quote } from 'src/entities/quote.entity';
 import { ShippingAddress } from 'src/entities/shipping-address.entity';
-import { User } from 'src/entities/user.entity';
 import { StandardQuote } from '../standard-quote';
 import { QuoteConstructorParams, AddressData, AddressType } from '../base-quote';
-import { standardFTLRule } from 'src/common/constants/quote';
 import { validateAndFilterServicesForUpdate, validateUnit } from 'src/utils/validateQuote';
-import { StandardFTLQuote } from '../standard-ftl-quote';
 import { StandardFtlServices } from 'src/entities/standard-ftl-services.entity';
 
 export interface UpdateAddressData extends ShippingAddress {

@@ -1,0 +1,176 @@
+import { TSTCFRateRequest, TSTCFRateResponse } from "src/types/tst-cf-express";
+import { TSTCFExpressMapper } from "src/modules/shipment-carrier/mapper/tst-cf-express.mapper";
+import { BadRequestException } from '@nestjs/common';
+import { Builder } from 'xml2js';
+import { parseStringPromise } from 'xml2js';
+import { CarrierAdapter } from "src/types/shipment-carriers";
+
+export class TSTCFExpressAdapter implements CarrierAdapter {
+  readonly carrierName = 'tst-cf-express';
+  private readonly baseUrl: string;
+  private readonly mapper: TSTCFExpressMapper;
+
+  constructor(params?: {
+    baseUrl?: string;
+    useMock?: boolean;
+  }) {
+    this.baseUrl = process.env.TST_CF_BASE_URL as string;
+    this.mapper = new TSTCFExpressMapper();
+  }
+
+  async getRates(req: any): Promise<any[]> {
+    const carrierPayload = this.buildRequest(req);
+    const carrierResponse = await this.fetchRates(carrierPayload);
+    return this.parseResponse(carrierResponse);
+  }
+
+  buildRequest(req: any): TSTCFRateRequest {
+    return this.mapper.map(req);
+  }
+
+  async fetchRates(carrierPayload: unknown): Promise<unknown> {
+    const payload = carrierPayload as TSTCFRateRequest;
+
+    const builder = new Builder({
+      xmldec: { version: '1.0', encoding: 'ISO-8859-1' },
+      renderOpts: { pretty: false },
+      headless: false,
+    });
+
+    const xmlPayload = builder.buildObject({ raterequest: payload });
+
+    const response = await fetch('https://www.tst-cfexpress.com/xml/rate-quote', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/xml',
+      },
+      body: xmlPayload,
+    });
+
+    if (!response.ok) {
+      throw new BadRequestException(`TST CF Express API error: ${response.status}`);
+    }
+
+    const xmlText = await response.text();
+    const parsed = await parseStringPromise(xmlText, { explicitArray: false });
+
+    if (parsed.rqresults?.errorcode) {
+      throw new BadRequestException({
+        carrier: this.carrierName,
+        code: parsed.rqresults.errorcode,
+        message: parsed.rqresults.errormsg,
+      });
+    }
+
+    return parsed.rqresults as TSTCFRateResponse;
+  }
+
+  parseResponse(carrierResponse: unknown): any[] {
+    const tstResponse = carrierResponse as TSTCFRateResponse;
+    const totalCAD = parseFloat(tstResponse.totalamt) || 0;
+    const exchangeRate = 0.73;
+    const totalUSD = +(totalCAD * exchangeRate).toFixed(2);
+
+    return [{
+      carrierId: this.carrierName,
+      serviceType: 'ST',
+      totalCharge: totalUSD,
+      totalChargeCAD: totalCAD,
+      currency: 'USD',
+      originalCurrency: 'CAD',
+      transitDays: tstResponse.transitresults?.servicedays 
+        ? parseInt(tstResponse.transitresults.servicedays) 
+        : undefined,
+    }];
+  }
+
+  // ============================================================================
+  // NEW: CREATE CARRIER QUOTE (Pattern B — required for TST)
+  // ============================================================================
+
+  async createQuote(req: any, selectedRate: any): Promise<{ quoteId: string; expiresAt: Date }> {
+    const payload = this.mapper.mapQuote(req, selectedRate);
+
+    const builder = new Builder({
+      xmldec: { version: '1.0', encoding: 'ISO-8859-1' },
+      renderOpts: { pretty: false },
+      headless: false,
+    });
+
+    const xmlPayload = builder.buildObject({ quote: payload });
+
+    const response = await fetch(`${this.baseUrl}/xml/quote`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/xml',
+      },
+      body: xmlPayload,
+    });
+
+    if (!response.ok) {
+      throw new BadRequestException(`TST CF Express quote API error: ${response.status}`);
+    }
+
+    const xmlText = await response.text();
+    const parsed = await parseStringPromise(xmlText, { explicitArray: false });
+
+    if (parsed.quoteresults?.errorcode) {
+      throw new BadRequestException({
+        carrier: this.carrierName,
+        code: parsed.quoteresults.errorcode,
+        message: parsed.quoteresults.errormsg,
+      });
+    }
+
+    const quoteId = parsed.quoteresults?.quoteid;
+    if (!quoteId) {
+      throw new BadRequestException('TST CF Express quote response missing quoteid');
+    }
+
+    // TST quotes typically valid for 24 hours
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    return { quoteId, expiresAt };
+  }
+
+  // ============================================================================
+  // NEW: CREATE SHIPMENT / PICKUP (Pattern B — uses quoteId)
+  // ============================================================================
+
+  async createShipment(req: any, quoteId: string): Promise<any> {
+    const payload = this.mapper.mapShipment(req, quoteId);
+
+    const builder = new Builder({
+      xmldec: { version: '1.0', encoding: 'ISO-8859-1' },
+      renderOpts: { pretty: false },
+      headless: false,
+    });
+
+    const xmlPayload = builder.buildObject({ pickup: payload });
+
+    const response = await fetch(`${this.baseUrl}/xml/pickup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/xml',
+      },
+      body: xmlPayload,
+    });
+
+    if (!response.ok) {
+      throw new BadRequestException(`TST CF Express ship API error: ${response.status}`);
+    }
+
+    const xmlText = await response.text();
+    const parsed = await parseStringPromise(xmlText, { explicitArray: false });
+
+    if (parsed.pickupresults?.errorcode) {
+      throw new BadRequestException({
+        carrier: this.carrierName,
+        code: parsed.pickupresults.errorcode,
+        message: parsed.pickupresults.errormsg,
+      });
+    }
+
+    return parsed.pickupresults;
+  }
+}

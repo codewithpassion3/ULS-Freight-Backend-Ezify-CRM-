@@ -7,6 +7,8 @@ import { CreateQuoteDTO } from "src/modules/quote/dto/create-quote.dto";
 import { UpdateQuoteDTO } from "src/modules/quote/dto/update-quote.dto";
 import { Quote } from "src/entities/quote.entity";
 import { requiredServiceFields } from "src/common/constants/quote";
+import { BondType, ContactKey, LimitedAccessType } from "src/common/enum/services.enum";
+import { MeasurementUnits } from "src/common/enum/measurement-units.enum";
 
 interface ValidationResult {
   valid: boolean;
@@ -42,7 +44,7 @@ const packageRules: FieldRule[] = [
   { field: 'height', required: true },
   { field: 'weight', required: true },
   { field: 'description', required: false },
-  { field: 'specialHandlingRequired', required: true }
+  { field: 'specialHandlingRequired', required: false }
 ];
 
 const palletRules: FieldRule[] = [
@@ -53,8 +55,8 @@ const palletRules: FieldRule[] = [
   { field: 'freightClass', required: true },
   { field: 'nmfc', required: false },
   { field: 'stackable', required: false },
-  { field: 'unitsOnPallet', required: true },
-  { field: 'palletUnitType', required: true },
+  { field: 'unitsOnPallet', required: false },
+  { field: 'palletUnitType', required: false },
   { field: 'description', required: false },
 
 ];
@@ -307,6 +309,7 @@ for (const address of normalizedAddresses) {
   };
 
   const requiredFields = requiredServiceFields[shipmentType] || [];
+  
 
   requiredFields.forEach(field => {
     if (services[field] === undefined) {
@@ -326,30 +329,182 @@ for (const address of normalizedAddresses) {
   };
 }
 
+  const multiOptionFields = {
+    "IN_BOUND": {
+      "key": "inbound",
+      "value": {
+        "bondType": [BondType.T_E_BOND, BondType.IT_BOND],
+        "bondCancler": "",
+        "address": "",
+        "contactKey": [ContactKey.EMAIL, ContactKey.FAX_NUMBER, ContactKey.PHONE],
+        "contactValue": ""
+      }
+    },
+    "LIMITED_ACCESS": {
+      "key": "limitedAccess",
+      "value": [
+        LimitedAccessType.OTHERS,
+        LimitedAccessType.AMUSEMENT_PARK,
+        LimitedAccessType.CONSTRUCTION_SITE,
+        LimitedAccessType.FARM_COUNTRY_CLUB_ESTATE,
+        LimitedAccessType.GROCERY_RETAIL_LOCATIONS,
+        LimitedAccessType.INDIVIDUAL_STORAGE_UNIT,
+        LimitedAccessType.SCHOOL_UNIVERSITY,
+        LimitedAccessType.SECURED_LOCATIONS_DELIVERY,
+        LimitedAccessType.PLACE_OF_WORSHIP,
+        LimitedAccessType.PLAZA_MALL_OR_STORES_WITH_PARKING_LOT_STREET_ACCESS
+      ],
+      "description": ""
+    },
+    LOOSE_FREIGHT: {
+      key: "looseFreight",
+      value: {
+        pieceCount: { required: false },
+        totalWeight: { required: true },
+        measurementUnit: {
+          required: true,
+          enum: [MeasurementUnits.IMPERIAL, MeasurementUnits.METRIC]
+        },
+        message: { required: false }
+      }
+    },
+
+    PALLET: {
+      key: "pallet",
+      value: {
+        pieceCount: { required: false },
+        totalWeight: { required: true },
+        measurementUnit: {
+          required: true,
+          enum: [MeasurementUnits.IMPERIAL, MeasurementUnits.METRIC]
+        },
+        message: { required: false }
+      }
+    }
+  }
+
+  function validateWeightBasedField({localErrors, data, fieldName }: {localErrors: string[], data: any, fieldName: string}) {
+  if (!data) {
+    localErrors.push(`${fieldName} must be an object`);
+  }
+
+  // required fields
+  if (data.totalWeight == null) {
+    localErrors.push(`${fieldName}.totalWeight is required`);
+  }
+
+  if (!data.measurementUnit) {
+    localErrors.push(`${fieldName}.measurementUnit is required`);
+  }
+
+  if (
+    ![MeasurementUnits.METRIC, MeasurementUnits.IMPERIAL].includes(data.measurementUnit)
+  ) {
+    localErrors.push(`${fieldName}.measurementUnit must in (${MeasurementUnits.METRIC}, ${MeasurementUnits.IMPERIAL})`);
+  }
+
+  // optional sanity check (no strict failure)
+  if (data.totalCount != null && typeof data.totalCount !== "number") {
+     localErrors.push(`${fieldName}.count must be a number`);
+  }
+
+  return true;
+}
   export const validateServicesAgainstQuote = (dtoServices: Record<string, any>, shipmentType: ShipmentType) => {
    
     const requiredFields = requiredServiceFields[shipmentType];
     let localErrors = [] as string[];
-
-    if(!dtoServices){
-        localErrors.push(`services are required for ${shipmentType}`)
-        return localErrors;
-    }
 
     if(typeof dtoServices !== "object"){
       localErrors.push("services must be an object")
     }
 
     if(requiredFields.length > 0){
-        requiredFields.forEach(field => {
-        if (dtoServices[field] === undefined) {
-          localErrors.push(`${field} is required for ${shipmentType}`);
+      Object.entries(dtoServices).forEach(([field, value]) => {
+        if (requiredFields[field] && value === undefined) {
+          localErrors.push(`${field} does not belongs to ${shipmentType}`);
         }
       });
 
       Object.entries(dtoServices).forEach(([field, value]) => {
-        if (typeof value !== 'boolean') {
-          localErrors.push(`services.${field} must be boolean`);
+        if (field === multiOptionFields.LIMITED_ACCESS.key && value === LimitedAccessType.OTHERS && !value?.limitedAccessDescription){
+          localErrors.push(`services.${field} must provide limitedAccessDescription field when selected others option`);
+        }
+
+        if (field === multiOptionFields.LIMITED_ACCESS.key && !LimitedAccessType[value]) {
+          localErrors.push(
+            `services.${field} has invalid value. Allowed values are: ${multiOptionFields.LIMITED_ACCESS.value.join(",")}`
+          );
+        }
+
+
+        if (field === multiOptionFields.IN_BOUND.key && typeof value !== "object") {
+          localErrors.push(`services.${field} must be an object`);
+        }
+
+        if (field === multiOptionFields.IN_BOUND.key) {
+            const {
+              bondType,
+              bondCancler,
+              contactKey,
+              contactValue,
+              address,
+            } = value;
+
+      
+         if (typeof bondType !== "string" || !bondType.trim()) {
+              localErrors.push(
+                `services.${field}.bondType must be a non-empty string`
+              );
+            }
+
+            if (typeof bondCancler !== "string" || !bondCancler.trim()) {
+              localErrors.push(
+                `services.${field}.bondCancler must be a non-empty string`
+              );
+            }
+
+            if (typeof contactKey !== "string" || !contactKey.trim()) {
+              localErrors.push(
+                `services.${field}.contactKey must be a non-empty string`
+              );
+            }
+
+            if (typeof contactValue !== "string" || !contactValue.trim()) {
+              localErrors.push(
+                `services.${field}.contactValue must be a non-empty string`
+              );
+            }
+
+            if (typeof address !== "string" || !address.trim()) {
+              localErrors.push(
+                `services.${field}.address must be a non-empty string`
+              );
+            }
+
+              const invalidBondTypes =  !BondType[bondType]
+              if (invalidBondTypes) {
+                localErrors.push(
+                  `services.${field}.bondType has invalid value: ${bondType}. Allowed values: ${multiOptionFields.IN_BOUND.value.bondType.join(", ")}`
+                );
+              }
+
+     
+              const invalidContactKey = !ContactKey[contactKey];
+              if (invalidContactKey) {
+                localErrors.push(
+                  `services.${field}.contactKey has invalid value: ${contactKey}. Allowed values: ${multiOptionFields.IN_BOUND.value.contactKey.join(", ")}`
+                );
+              }
+        }
+
+        const WEIGHT_BASED_FIELDS = new Set([
+          multiOptionFields.LOOSE_FREIGHT.key,
+          multiOptionFields.PALLET.key
+        ]);
+
+        if (WEIGHT_BASED_FIELDS.has(field)) {
+          validateWeightBasedField({localErrors, data: value, fieldName: field});
         }
       });
     }

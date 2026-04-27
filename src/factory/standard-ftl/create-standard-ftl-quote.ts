@@ -1,5 +1,5 @@
 import { Quote } from "src/entities/quote.entity";
-import { StandardQuote } from "./standard-quote";
+import { StandardQuote } from "../standard-quote";
 import { BadRequestException } from "@nestjs/common";
 import { wrap } from "@mikro-orm/core";
 import { Mode } from "src/common/enum/mode.enum";
@@ -10,8 +10,9 @@ import { LineItemUnit } from "src/entities/line-item-unit.entity";
 import { LineItem } from "src/entities/line-item.entity";
 import { ShippingAddress } from "src/entities/shipping-address.entity";
 import { User } from "src/entities/user.entity";
-import { QuoteConstructorParams, AddressData } from "./base-quote";
+import { QuoteConstructorParams, AddressData, AddressType } from "../base-quote";
 import { StandardFtlServices } from "src/entities/standard-ftl-services.entity";
+import { ShippingAddressMeta } from "src/entities/shipping-address-meta.entity";
 
 export class StandardFTLQuote extends StandardQuote {
     constructor(params: QuoteConstructorParams) {
@@ -34,7 +35,7 @@ export class StandardFTLQuote extends StandardQuote {
         }
 
         // Store validated data for build phase
-        this.validatedData = this.data.quote;
+        this.validatedData = this.data;
     }
 
     async build(): Promise<Quote> {
@@ -44,7 +45,8 @@ export class StandardFTLQuote extends StandardQuote {
 
         const quote = new Quote();
         this.validatedData.quote = quote;
-        this.data.quote = quote; // whichever you use internally
+        this.data = quote; // whichever you use internally
+        console.log({data: this.data, validatedData: this.validatedData})
         
         quote.quoteType = this.validatedData.quoteType;
         quote.shipmentType = this.validatedData.shipmentType;
@@ -55,7 +57,7 @@ export class StandardFTLQuote extends StandardQuote {
         addresses.forEach(addr => addr.quote = quote);
         quote.addresses.set(addresses);
 
-        quote.insurance = this.buildInsurance();
+        quote.insurance = this.buildInsurance() as any;
         quote.company = this.em.getReference(Company, this.session.companyId as number);
         quote.createdBy = this.em.getReference(User, this.session.userId as number);
         
@@ -77,7 +79,7 @@ export class StandardFTLQuote extends StandardQuote {
         shippingAddress: ShippingAddress, 
         bookMap: Map<number, AddressBook>
     ): Promise<void> {
-        
+        const shippingAddressMeta = new ShippingAddressMeta();
         if (addrData.addressBookId) {
             // CASE 1: Existing AddressBook
             const book = bookMap.get(addrData.addressBookId);
@@ -108,7 +110,19 @@ export class StandardFTLQuote extends StandardQuote {
             });
             shippingAddress.address = addr;
         }
-        
+
+        if(addrData.includeStraps && addrData.type === AddressType.FROM){
+            shippingAddressMeta.includeStraps = addrData.includeStraps as boolean;
+        }
+
+        if(addrData.appointmentDelivery&& addrData.type === AddressType.TO){
+            shippingAddressMeta.appointmentDelivery = addrData.appointmentDelivery as boolean;
+        }
+
+        shippingAddressMeta.shippingAddress = shippingAddress;
+        shippingAddress.meta = shippingAddressMeta;
+        this.em.persist(shippingAddressMeta)
+
     }
 
     protected attachServiceToQuote(serviceEntity: StandardFtlServices): void {
@@ -116,7 +130,16 @@ export class StandardFTLQuote extends StandardQuote {
     }
 
 
-    protected validateLineItemSpecific(): void {}
+    protected validateLineItemSpecific(): void {
+        const hasLooseFreight = !!this.data.lineItem?.looseFreight;
+        const hasPallet = !!this.data.lineItem?.pallet;
+        if (hasLooseFreight && hasPallet) {
+            this.errors.push(
+                "Only one service allowed at a time: looseFreight OR pallet"
+            );
+        }
+    }
+    
     protected processLineItemUnit(units: any): void {}
     protected buildUnitFields(unit: LineItemUnit, unitData: any, idx: number): void {}
     protected assignLineItemFields(lineItem: LineItem): void {}

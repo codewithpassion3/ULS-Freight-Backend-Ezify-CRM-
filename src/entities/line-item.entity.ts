@@ -3,6 +3,7 @@ import { Quote } from "./quote.entity";
 import { ShipmentType } from "src/common/enum/shipment-type.enum";
 import { LineItemUnit } from "./line-item-unit.entity";
 import { MeasurementUnits } from "src/common/enum/measurement-units.enum";
+import { DangerousGoodsClass, QuantityType, PackagingGroup } from "src/common/enum/line-item.enum";
 
 @Entity()
 export class LineItem {
@@ -18,8 +19,16 @@ export class LineItem {
   @Enum(() => MeasurementUnits)
   measurementUnit!: MeasurementUnits
   
-  @Property({  type: 'boolean', nullable: true })
-  dangerousGoods?: boolean | null;
+  @Property({ type: 'json', nullable: true })
+  dangerousGoods?: {
+    un?: string;
+    class?: DangerousGoodsClass;
+    quantityType?: QuantityType;
+    packagingGroup?: PackagingGroup;
+    technicalName?: string;
+    emergencyContactName?: string;
+    emergencyContactNumber?: string;
+  } | null;
 
   @Property({ type: 'boolean', nullable: true })
   stackable?: boolean | null;

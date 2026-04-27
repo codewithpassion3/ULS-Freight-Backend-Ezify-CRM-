@@ -8,12 +8,13 @@ export class Insurance {
   @PrimaryKey()
   id!: number;
 
-  @OneToOne(() => Quote, { cascade: [Cascade.REMOVE]})
+  @OneToOne(() => Quote, { hidden: true, cascade: [Cascade.REMOVE]})
   quote!: Quote;
 
   @Property({ type: 'int'})
   amount!: number;
 
   @Enum(() => Currency)
-  currency!: Currency; 
+  @Property({ default: Currency.USD})
+  currency?: Currency = Currency.USD; 
 }

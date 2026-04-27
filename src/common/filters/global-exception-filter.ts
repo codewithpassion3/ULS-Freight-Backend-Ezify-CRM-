@@ -26,7 +26,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       status = exception.getStatus();
 
       exceptionResponse = exception.getResponse();
-
       message =
         typeof exceptionResponse === "string"
           ? exceptionResponse
