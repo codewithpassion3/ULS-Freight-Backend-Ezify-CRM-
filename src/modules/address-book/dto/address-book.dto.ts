@@ -2,70 +2,79 @@ import { Expose, Transform, Type } from "class-transformer";
 
 export class AddressDto {
   @Expose()
-  id: number;
+  id!: number;
   
   @Expose()
-  address1: string;
+  address1!: string;
 
   @Expose()
-  address2: string;
+  address2!: string;
 
   @Expose()
-  postalCode: string;
+  postalCode!: string;
 
   @Expose()
-  unit: string;
+  unit!: string;
 
   @Expose()
-  city: string;
+  city!: string;
 
   @Expose()
-  state: string;
+  state!: string;
 
   @Expose()
-  country: string;
+  country!: string;
 }
 
 export class AddressBookResponseDto {
   @Expose()
-  id: number;
+  id!: number;
 
   @Expose()
-  companyName: string;
+  companyName!: string;
 
   @Expose()
-  contactId: number;
+  contactId!: number;
 
   @Expose()
-  contactName: string;
+  contactName!: string;
 
   @Expose()
-  phoneNumber: string;
+  phoneNumber!: string;
 
   @Expose()
-  isResidential: boolean;
+  isResidential!: boolean;
 
   @Expose()
   @Transform(({ obj }) => obj.signature?.id)
-  signatureId: number;
+  signatureId!: number;
 
   @Expose()
   @Transform(({ obj }) => obj.locationType?.id)
-  locationTypeId: number;
+  locationTypeId!: number;
 
   @Expose()
-  palletShippingReadyTime: string;
+  palletShippingReadyTime!: string;
 
   @Expose()
-  palletShippingCloseTime: string;
+  palletShippingCloseTime!: string;
 
   @Expose()
-  defaultInstructions: string;
+  defaultInstructions!: string;
 
   @Expose()
-  email: string;
+  email!: string;
 
   @Expose()
   @Type(() => AddressDto)
-  address: AddressDto;
+  address!: AddressDto;
+
+  @Expose()
+  createdAt!: Date;
+
+  @Expose()
+  updatedAt!: Date;
+
+  @Expose()
+  isTemporary!: boolean;
 }

@@ -143,24 +143,7 @@ export class AddressBookService {
                 orderBy: Object.entries(orderBy).map(([field, direction]) => ({
                     [field]: direction
                 })),
-                populate: ["address"],
-                fields: [
-                    "companyName",
-                    "contactId", 
-                    "contactName",
-                    "phoneNumber",
-                    "locationType",
-                    "defaultInstructions",
-                    "email",
-                    "locationType",
-                    "address.address1",
-                    "address.address2",
-                    "address.postalCode",
-                    "address.unit",
-                    "address.city",
-                    "address.state",
-                    "address.country"
-                ],
+                populate: ["address"]
             }
         );
 
