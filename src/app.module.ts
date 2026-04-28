@@ -25,7 +25,7 @@ import { NotificationsModule } from './modules/notification/notification.module'
 import { ReminderModule } from './modules/reminder/reminder.module';
 import { ConfigModule } from '@nestjs/config';
 import { RedisModule } from './shared/redis/redis.module';
-import { ShipmentCarrierModule } from './modules/shipment-carrier/shipmentCarrier.module';
+import { ShipmentCarrierModule } from './modules/shipment-carrier/shipment-carrier.module';
 
 @Module({
   imports: [

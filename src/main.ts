@@ -63,6 +63,7 @@ async function bootstrap() {
           getEnv(ENV.NG_ROK_ORIGIN_FRONTEND),
           getEnv(ENV.LOCALHOST_ORIGIN),
           getEnv(ENV.LIVE_ORIGIN_FRONTEND),
+          getEnv(ENV.SSE_EVENTS)
         ].filter(Boolean); // remove undefined 🚀
 
         if (!origin || allowedOrigins.includes(origin)) {

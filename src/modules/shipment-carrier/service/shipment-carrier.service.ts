@@ -2,8 +2,8 @@ import { EntityManager } from "@mikro-orm/postgresql";
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { FedExAdapter } from "../adapter/fedex.adaptar";
 import { TSTCFExpressAdapter } from "../adapter/tst-cf-express.adaptar";
-import { Observable, from, map, merge } from "rxjs";
-import { Carrier, CreateCarrierShipmentDTO } from "../dto/create-carrier-shipment";
+import { Observable, catchError, from, map, merge, of } from "rxjs";
+import { Carrier, CreateCarrierShipmentDTO } from "../dto/create-carrier-shipment.dto";
 import { Shipment } from "src/entities/shipment.entity";
 import { Quote } from "src/entities/quote.entity";
 import { Currency } from "src/common/enum/currency.enum";
@@ -112,22 +112,17 @@ export class ShipmentCarrierService {
     // NEW: SSE stream — emits each carrier as it completes
     getShipmentCarriersRatesStream(dto: any): Observable<MessageEvent> {
         const carriers = [
-            {
-                name: 'fedex',
-                fetch: () => this.getFedExRates(dto).then(q => ({ carrier: 'fedex', quotes: q, error: null })),
-            },
-            {
-                name: 'tst',
-                fetch: () => this.getTSTRates(dto).then(q => ({ carrier: 'tst', quotes: q, error: null })),
-            },
+            { name: 'fedex', fetch: () => this.getFedExRates(dto) },
+            { name: 'tst', fetch: () => this.getTSTRates(dto) },
         ];
 
         const streams = carriers.map(c => 
-            from(
-                c.fetch().catch(err => ({ carrier: c.name, quotes: null, error: err.message }))
-            ).pipe(
-                map(result => ({
-                    data: JSON.stringify(result)
+            from(c.fetch()).pipe(
+                map(quotes => ({
+                    data: JSON.stringify({ carrier: c.name, quotes, error: null })
+                } as MessageEvent)),
+                catchError(err => of({
+                    data: JSON.stringify({ carrier: c.name, quotes: null, error: err.message })
                 } as MessageEvent))
             )
         );
@@ -142,7 +137,6 @@ export class ShipmentCarrierService {
             clientSecret: process.env.FEDEX_CLIENT_SECRET!,
             accountNumber: process.env.FEDEX_ACCOUNT_NUMBER!
         });
-        
         return fedex.getRates(fedexDto);
     }
 

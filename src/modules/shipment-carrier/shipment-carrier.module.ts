@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
-import { ShipmentCarrierController } from "./controller/shipmentCarrier.controller";
-import { ShipmentCarrierService } from "./service/shipmentCarrier.service";
+import { ShipmentCarrierController } from "./controller/shipment-carrier.controller";
+import { ShipmentCarrierService } from "./service/shipment-carrier.service";
 import { FedExAdapter } from "./adapter/fedex.adaptar";
 import { TSTCFExpressAdapter } from "./adapter/tst-cf-express.adaptar";
 
