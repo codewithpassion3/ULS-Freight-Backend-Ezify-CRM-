@@ -18,7 +18,6 @@ export class ShipmentCarrierService {
     
    async createShipment(dto: CreateCarrierShipmentDTO) {
        let carrierResponse: any;
-       
        if (![Carrier.FEDEX].includes(dto.carrier)) {
            throw new BadRequestException("This carrier hasn't been implemented for shipment");
        }
@@ -45,6 +44,10 @@ export class ShipmentCarrierService {
             throw new BadRequestException(`Quote not found: ${dto.quoteId}`);
         }
 
+        if (quote.shipment) {
+            await this.em.remove(quote.shipment).flush();
+        }
+
         if (dto.carrier === Carrier.FEDEX) {
             carrierResponse = await this.fedexAdapter.createShipment(dto, quote);
         }
@@ -54,9 +57,9 @@ export class ShipmentCarrierService {
         //     console.log({carrierQuote})
         //     carrierResponse = await this.tstAdapter.createShipment(quote, carrierQuote.quoteId);
         // }
-
         const shipment = new Shipment();
-        
+        shipment.quote = quote;
+
         shipment.tailgateRequiredInFromAddress = dto.tailgatePickup ?? false;
         shipment.tailgateRequiredInToAddress = dto.tailgateDelivery ?? false;
         shipment.carrier = dto.carrier;
@@ -67,7 +70,7 @@ export class ShipmentCarrierService {
             const tx = carrierResponse?.output?.transactionShipments?.[0];
             const shipmentRating = tx?.completedShipmentDetail?.shipmentRating?.shipmentRateDetails[0];
             shipment.trackingNumber = tx?.masterTrackingNumber;
-            shipment.shipDate = tx?.shipDatestamp;
+            shipment.shipDate = tx?.shipDatestamp || Date.now();
             shipment.serviceName = tx?.serviceName;
             shipment.serviceType = tx?.serviceType;
             shipment.shippingLabels = tx?.shipmentDocuments[0]?.url;
@@ -77,10 +80,11 @@ export class ShipmentCarrierService {
             shipment.totalNetCharge = shipmentRating.totalNetChargeWithDutiesAndTaxes;
             shipment.totalTax = shipmentRating.totalTaxes;
         }
+        await this.em.persist(shipment).flush(); 
 
-        quote.shipment = shipment;
-        shipment.quote = quote;
-        this.em.persist([quote, shipment]);
+        quote.shipment = shipment;      
+
+        await this.em.persist(quote).flush();
 
         // if (dto.billingReferences?.length) {
         //     shipment.billingReferences.add(
@@ -88,7 +92,6 @@ export class ShipmentCarrierService {
         //     );
         // }
 
-        await this.em.flush();
     
         return {
             message: 'Shipment created successfully',

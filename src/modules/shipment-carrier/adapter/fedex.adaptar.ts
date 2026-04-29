@@ -480,7 +480,6 @@ export class FedExAdapter implements CarrierAdapter {
       },
       body: JSON.stringify(payload),
     });
-
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`FedEx ship API error: ${response.status} - ${errorText}`);
