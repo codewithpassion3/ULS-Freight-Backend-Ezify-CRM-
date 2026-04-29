@@ -19,13 +19,14 @@ export class ShipmentService {
   ) {}
 
   private async buildQuote(dto: CreateShipmentDTO, session: SessionData) {
-    if(dto.quote.quoteType !== QuoteType.STANDARD){
+    if(dto?.quote?.quoteType !== QuoteType.STANDARD){
       throw new BadRequestException("Shipment supports only standard quote shipment types");
     }
 
     const quoteFactory = new StandardQuoteFactory();
-  
-    const quote = quoteFactory.create({ shipmentType: dto.shipmentType, data: dto, em: this.em, session });
+    let finalData = {...dto, ...dto.quote};
+    
+    const quote = quoteFactory.create({ shipmentType: dto.shipmentType, data: finalData, em: this.em, session });
     
     // Sync validation - throws BadRequestException if invalid
     await quote.validate();

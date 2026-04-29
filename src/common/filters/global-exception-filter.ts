@@ -10,6 +10,12 @@ import { UniqueConstraintViolationException, ValidationError } from "@mikro-orm/
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
+  private extractFieldName = (constraintName: string): string => {
+      // Match: anything before _unique, captured between the last two underscores
+      // Example: "shipment_trackingNumber_unique" → "trackingNumber"
+      const match = constraintName.match(/_([^_]+)_unique$/);
+      return match ? match[1] : constraintName;
+  };
 
   catch(exception: unknown, host: ArgumentsHost) {
 
@@ -58,7 +64,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       } else if (constraint === "user_phone_number_unique") {
         message = "Phone number already exists";
       } else {
-        message = "Duplicate value violates database constraint";
+       message = constraint;
       }
     }
 

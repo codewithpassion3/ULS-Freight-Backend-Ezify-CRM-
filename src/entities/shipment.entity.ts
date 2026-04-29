@@ -32,7 +32,7 @@ export class Shipment {
     @Property({ nullable: true })
     carrier?: string;
 
-    @Property()
+    @Property({ nullable: true })
     currency?: string;
 
     @Property({ nullable: true })
@@ -41,26 +41,26 @@ export class Shipment {
     @Property({ nullable: true })
     trackingNumber?: string | null;
 
-    @Property()
-    serviceName!: string;
+    @Property({ nullable: true })
+    serviceName?: string;
     
-    @Property()
-    totalBaseCharge!: number;
+    @Property({ nullable: true })
+    totalBaseCharge?: number;
 
-    @Property()
-    totalFreightDiscounts!: number;
+    @Property({ nullable: true })
+    totalFreightDiscounts?: number;
 
-    @Property()
-    totalSurcharges!: number;
+    @Property({ nullable: true })
+    totalSurcharges?: number;
 
-    @Property()
-    totalNetCharge!: number;
+    @Property({ nullable: true })
+    totalNetCharge?: number;
 
-    @Property()
-    totalTax!: number;
+    @Property({ nullable: true })
+    totalTax?: number;
 
-    @Property()
-    shippingLabels!: string;
+    @Property({ nullable: true})
+    shippingLabels?: string;
 
     @OneToOne(() => Quote, { nullable: false, owner: true, hidden: true })
     quote!: Quote;

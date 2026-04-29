@@ -94,6 +94,10 @@ export class CreateAddressDto {
   phoneNumber?: string;
 
   @IsOptional()
+  @IsEmail()
+  email?: string;
+  
+  @IsOptional()
   @IsString()
   palletShippingReadyTime?: string;
 

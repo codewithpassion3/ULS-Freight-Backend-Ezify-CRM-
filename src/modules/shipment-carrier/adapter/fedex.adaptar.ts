@@ -1,3 +1,4 @@
+import { BadRequestException } from "@nestjs/common";
 import { CarrierAdapter } from "src/types/shipment-carriers";
 import { toFedExCountryCode } from "src/utils/fedex-country-code";
 import { toFedExStateCode } from "src/utils/fedex-state-code";
@@ -481,8 +482,11 @@ export class FedExAdapter implements CarrierAdapter {
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`FedEx ship API error: ${response.status} - ${errorText}`);
+      const errorText = await response.json();
+      
+      const errorMessages = errorText?.errors?.map((e: any) => e.message) || ['Unknown FedEx error'];
+
+      throw new BadRequestException(errorMessages.join('\n'));
     }
 
     return response.json();

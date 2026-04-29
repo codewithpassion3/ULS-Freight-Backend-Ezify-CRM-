@@ -18,7 +18,7 @@ export class CreateShipmentDTO {
     @IsNotEmptyObject()
     @ValidateNested()
     @Type(() => CreateQuoteDTO)
-    quote!: CreateQuoteDTO;
+    quote?: CreateQuoteDTO;
 
     @IsBoolean()
     @IsOptional()
