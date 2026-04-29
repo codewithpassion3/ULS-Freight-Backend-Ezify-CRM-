@@ -92,7 +92,6 @@ export class LineItemUnitService {
 
             //4) Base filter
             const filter: any = {
-                createdBy: ctx.user,
                 company: ctx.company
             };
 
@@ -155,7 +154,7 @@ export class LineItemUnitService {
         const ctx = await this.requestContextService.resolve({ session, em: this.em });
 
         //2) Get line item unit against current user
-        const lineItemUnit = await this.em.findOne(LineItemUnit, {id: lineItemUnitId, createdBy: ctx.user, company: ctx.company});
+        const lineItemUnit = await this.em.findOne(LineItemUnit, {id: lineItemUnitId, company: ctx.company});
         
         //3) Throw error for invalid line item unit
         if(!lineItemUnit) {
@@ -184,7 +183,6 @@ export class LineItemUnitService {
         //4) Fetch line item unit entity
         const lineItemUnit = await this.em.findOne(LineItemUnit, {
             id: lineItemUnitId,
-            createdBy: ctx.user,
             company: ctx.company
         });
 
@@ -263,7 +261,7 @@ export class LineItemUnitService {
         const ctx = await this.requestContextService.resolve({ session, em: this.em })
 
         //2) Get the line item unit against current user
-        const lineItemUnit = await this.em.findOne(LineItemUnit, {id: lineItemUnitId, createdBy: ctx.user, company: ctx.company });
+        const lineItemUnit = await this.em.findOne(LineItemUnit, {id: lineItemUnitId, company: ctx.company });
         
         //3) Throw error for invalid line item unit
         if(!lineItemUnit) {
