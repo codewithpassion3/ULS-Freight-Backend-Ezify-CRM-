@@ -1,6 +1,7 @@
 import { Entity, PrimaryKey, ManyToOne, Property } from "@mikro-orm/core";
 import { Quote } from "./quote.entity";
 import { User } from "./user.entity";
+import { Company } from "./company.entity";
 
 @Entity()
 export class QuoteFavorite {
@@ -9,6 +10,9 @@ export class QuoteFavorite {
 
   @ManyToOne(() => User)
   user!: User;
+
+  @ManyToOne(() => Company)
+  company!: Company
 
   @ManyToOne(() => Quote)
   quote!: Quote;

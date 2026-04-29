@@ -38,6 +38,7 @@ import { EntityEventPayload } from "src/types/notification";
 import { NotificationType } from "src/common/enum/notification-type.enum";
 import { SpotQuoteFactory } from "src/factory/spot-quote.factory";
 import { StandardQuoteFactory } from "src/factory/standard-quote.factory";
+import { Company } from "src/entities/company.entity";
 
 @Injectable()
 export class QuoteService {
@@ -66,6 +67,9 @@ export class QuoteService {
         
         quote = await quote.build();
         
+        quote.company = session.companyId;
+        quote.user = session.userId;
+
         this.em.persist(quote);
         
         await this.em.flush();
@@ -82,7 +86,7 @@ export class QuoteService {
     }
 
 
-    async update(quoteId: number, rawDto: UpdateQuoteDTO, currentUserId: number) {
+    async update(quoteId: number, rawDto: UpdateQuoteDTO, session: SessionData) {
         const isValidPayload = hasValidField(rawDto);
         
         if (!isValidPayload) {
@@ -94,10 +98,11 @@ export class QuoteService {
         //1) Fetch quote with relations
         const quote = await em.findOne(
             Quote,
-            { id: quoteId , createdBy: this.em.getReference(User, currentUserId)},
+            { id: quoteId , company: this.em.getReference(Company, session.companyId as number)},
             {
             populate: [
                 "createdBy",
+                "company",
                 "addresses.address",
                 "addresses.meta",
                 "lineItems",
@@ -118,7 +123,7 @@ export class QuoteService {
         }
 
         //2) Ownership check
-        if (quote.createdBy.id !== currentUserId) {
+        if (quote.company.id !== session.companyId) {
             throw new ForbiddenException("You are not allowed to update this quote");
         }
 
@@ -319,8 +324,8 @@ export class QuoteService {
                 const newUnit = em.create(LineItemUnit, {
                     type: incomingType,
                     lineItem: lineItem,
-                    createdBy: this.em.getReference(User, currentUserId),
-                    company: 3
+                    createdBy: this.em.getReference(User, session.userId as number),
+                    company: this.em.getReference(Company, session.companyId as number),
                 });
 
                 patchUnit(newUnit, unitDto, allowedFields, {
@@ -471,7 +476,7 @@ export class QuoteService {
         //19) Send out quote updated notification to all members of 
         this.eventEmitter.emit(NotificationType.QUOTE_UPDATED, {
             entity: quote,
-            actorId: currentUserId,
+            actorId: session.userId,
             companyId: quote.company.id,
             metadata: {
                 changedFields: Object.keys(dto),
@@ -484,11 +489,11 @@ export class QuoteService {
         return { message: "Quote updated successfully" };
     }
 
-    async getSingleAgainstCurrentUser(quoteId: number, currentUserId: number){
+    async getSingleAgainstCurrentUserCompany(quoteId: number, session: SessionData){
         //1) Get the quote against current user
         const quote = await this.em.findOne(Quote, {
             id: quoteId,
-            createdBy: this.em.getReference(User, currentUserId)
+            company: this.em.getReference(Company, session.companyId as number)
         },{
             populate: ["addresses", "addresses.addressBookEntry", "addresses.addressBookEntry.address", "addresses.address","lineItems", "lineItems.units",
                         "palletServices", "spotFtlServices", "spotLtlServices", "standardFTLService", 
@@ -507,7 +512,7 @@ export class QuoteService {
         }
     }
 
-    async getAllAgainstCurrentUser(currentUser: number, params: PaginationParams) {
+    async getAllAgainstCurrentUserCompany(session: SessionData, params: PaginationParams) {
         //1) Define fields allowed for search and filter by oder
        const allowedFields = {
             quoteNumber: "quoteNumber",
@@ -520,7 +525,7 @@ export class QuoteService {
         const { search, page, limit, orderBy } = buildQuery(params, allowedFields);
         
         //3) Build filter for query
-        const filter: any = { createdBy: this.em.getReference(User, currentUser) };
+        const filter: any = { company: this.em.getReference(Company, session.companyId as number) };
 
         //4) Handle status filter
         if (params?.status) {
@@ -602,12 +607,12 @@ export class QuoteService {
         };
     }
 
-    async deleteSingleAgainstCurrentUser(quoteId: number, currentUserId: number){
+    async deleteSingleAgainstCurrentUserCompany(quoteId: number, session: SessionData){
         //1) Get the user reference
-        const user = this.em.getReference(User, currentUserId);
+        const company = this.em.getReference(Company, session.companyId as number);
 
         //2) Check for valid quote
-        const quote = await this.em.findOne(Quote, { id: quoteId, createdBy: user },
+        const quote = await this.em.findOne(Quote, { id: quoteId, company: company },
             {
                 populate: [
                     'lineItems',
@@ -636,7 +641,7 @@ export class QuoteService {
         
         //5) Send out quote deleted notification to all members of company
         this.eventEmitter.emit(NotificationType.QUOTE_DELETED, {
-            actorId: currentUserId,
+            actorId: session.userId,
             entity: quote,
             companyId: quote.company.id
         } as EntityEventPayload<Quote>);
@@ -645,11 +650,11 @@ export class QuoteService {
         return { message: 'Quote deleted successfully' };
     }
 
-    async markQuoteFavoriteAgainstCurrentUser(quoteId: number, currentUserId: number) {
+    async markQuoteFavoriteAgainstCurrentUserCompany(quoteId: number, session: SessionData) {
         //1) Get the quote
         const quote = await this.em.findOne(Quote, { id: quoteId }, { 
-            populate: ['createdBy'],
-            fields: ['id', 'createdBy'] 
+            populate: ['company'],
+            fields: ['id', 'company'] 
         });
 
         //2) Throw exception for invalid quote
@@ -658,14 +663,14 @@ export class QuoteService {
         }
 
         //3) Throw exception if quote doesn't belong to current user
-        if (quote.createdBy.id !== currentUserId) {
+        if (quote.company.id !== session.companyId) {
             throw new ForbiddenException('You can only favorite your own quotes');
         }
 
         //4) Set quote as favorite
         const existing = await this.em.findOne(QuoteFavorite, {
             quote: quoteId,
-            user: currentUserId,
+            company: session.companyId,
         });
 
         //5) Throw error if it's already favorited
@@ -676,7 +681,8 @@ export class QuoteService {
         //6) Mark as favorite
         const favorite = this.em.create(QuoteFavorite, {
             quote: this.em.getReference(Quote, quoteId),
-            user: this.em.getReference(User, currentUserId),
+            user: this.em.getReference(User, session.userId as number),
+            company: this.em.getReference(Company, session.companyId as number)
         });
 
         //7) Persist changes
@@ -688,11 +694,11 @@ export class QuoteService {
         }
     }
 
-    async unmarkQuoteFavoriteAgainstCurrentUser(quoteId: number, currentUserId: number) {
+    async unmarkQuoteFavoriteAgainstCurrentUserCompany(quoteId: number, session: SessionData) {
         // 1) Verify quote exists and belongs to current user
         const quote = await this.em.findOne(Quote, { 
             id: quoteId, 
-            createdBy: currentUserId 
+            company: session.companyId 
         }, { 
             fields: ['id'] 
         });
@@ -705,7 +711,8 @@ export class QuoteService {
         //3) Find the favorite to remove
         const favorite = await this.em.findOne(QuoteFavorite, {
             quote: quoteId,
-            user: currentUserId,
+            user: session.userId,
+            company: session.companyId
         });
 
         //4) Throw exception for invalid favorite quote
@@ -725,14 +732,14 @@ export class QuoteService {
         }
     }
 
-    async updateStatus(quoteId: number, dto: UpdateQuoteStatusDTO, currentUserId: number) {
+    async updateStatus(quoteId: number, dto: UpdateQuoteStatusDTO, session: SessionData) {
         //1) Extract status 
         const { status } = dto;
         
         //2) Find the quote against current user
         const quote = await this.em.findOne(Quote, {
             id: quoteId,
-            createdBy: currentUserId,
+            company: session.companyId,
         });
 
         //3) Throw error for invalid quote id
@@ -762,8 +769,8 @@ export class QuoteService {
         };
     }
 
-    async getAllFavoritesAgainstCurrentUser(
-        currentUser: number,
+    async getAllFavoritesAgainstCurrentUserCompany(
+        session: SessionData,
         params: PaginationParams
         ) {
         // 1) Allowed fields for sorting/search
@@ -775,9 +782,9 @@ export class QuoteService {
         // 2) Build query params
         const { search, page, limit, orderBy } = buildQuery(params, allowedFields);
 
-        // 3) Base filter (user-scoped)
+        // 3) Base filter (user company scoped)
         const filter: any = {
-            user: this.em.getReference(User, currentUser),
+            company: this.em.getReference(Company, session.companyId as number),
         };
 
         // 4) Optional date filters
@@ -835,13 +842,13 @@ export class QuoteService {
         };
     }
 
-    async getFavoriteQuoteByIdAgainstCurrentUser(currentUserId: number, favoriteId: number) {
+    async getFavoriteQuoteByIdAgainstCurrentUserCompany(session: SessionData, favoriteId: number) {
         //1) Find quote against current user and favoriteId
         const favorite = await this.em.findOne(
             QuoteFavorite,
             {
                 id: favoriteId,
-                user: currentUserId,
+                company: session.companyId,
             },
             {
                 populate: ['quote', 'user'],

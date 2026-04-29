@@ -2,7 +2,6 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Session, UseG
 import { QuoteService } from "../service/quote.service";
 import { SessionAuthGuard } from "src/guards/sessionAuth.guard";
 import { PermissionsGuard } from "src/guards/permissions.guard";
-import { CurrentUser } from "src/decorators/currentUser.decorator";
 import { CreateQuoteDTO } from "../dto/create-quote.dto";
 import type { PaginationParams } from "src/types/pagination";
 import { UpdateQuoteDTO } from "../dto/update-quote.dto";
@@ -21,55 +20,55 @@ export class QuoteController{
 
     @UseGuards(SessionAuthGuard, PermissionsGuard)
     @Get("/")
-    async GetAllAgainstCurrentUser(@CurrentUser() currentUserId: number, @Query() params: PaginationParams){
-        return this.quoteService.getAllAgainstCurrentUser(currentUserId, params);
+    async GetAllAgainstCurrentUser(@Session() session: SessionData, @Query() params: PaginationParams){
+        return this.quoteService.getAllAgainstCurrentUserCompany(session, params);
     }
 
      @Get('/favorites')
     async getAllFavoritesAgainstCurrentUser(
-        @CurrentUser() currentUserId: number,
+        @Session() session: SessionData,
         @Query() params: PaginationParams
     ) {
-        return this.quoteService.getAllFavoritesAgainstCurrentUser(currentUserId, params);
+        return this.quoteService.getAllFavoritesAgainstCurrentUserCompany(session, params);
     }
 
     @UseGuards(SessionAuthGuard, PermissionsGuard)
     @Get('/favorites/:id')
     async GetFavoriteQuoteByIdAgainstCurrentUser(
-        @CurrentUser() currentUserId: number,
+        @Session() session: SessionData,
         @Param('id') id: number,
     ) {
-        return this.quoteService.getFavoriteQuoteByIdAgainstCurrentUser(currentUserId, id);
+        return this.quoteService.getFavoriteQuoteByIdAgainstCurrentUserCompany(session, id);
     }
 
     @UseGuards(SessionAuthGuard, PermissionsGuard)
     @Patch("/:id")
-    async Update(@Param("id") quoteId: number, @Body() dto: UpdateQuoteDTO, @CurrentUser() currentUerId: number){
-        return this.quoteService.update(quoteId, dto, currentUerId)
+    async Update(@Param("id") quoteId: number, @Body() dto: UpdateQuoteDTO, @Session() session: SessionData){
+        return this.quoteService.update(quoteId, dto, session)
     }
 
     @UseGuards(SessionAuthGuard, PermissionsGuard)
     @Get("/:id")
-    async GetSingleAgainstCurrentUser(@Param("id") quoteId: number, @CurrentUser() currentUserId: number){
-        return this.quoteService.getSingleAgainstCurrentUser(quoteId, currentUserId);
+    async GetSingleAgainstCurrentUser(@Param("id") quoteId: number, @Session() session: SessionData){
+        return this.quoteService.getSingleAgainstCurrentUserCompany(quoteId, session);
     }
 
     @UseGuards(SessionAuthGuard, PermissionsGuard)
     @Delete("/:id")
-    async DeleteSingleAgainstCurrentUser(@Param("id") quoteId: number, @CurrentUser() currentUserId: number){
-        return this.quoteService.deleteSingleAgainstCurrentUser(quoteId, currentUserId);
+    async DeleteSingleAgainstCurrentUser(@Param("id") quoteId: number, @Session() session: SessionData){
+        return this.quoteService.deleteSingleAgainstCurrentUserCompany(quoteId, session);
     }
 
     @UseGuards(SessionAuthGuard, PermissionsGuard)
     @Post("/:id/favorite")
-    async MarkQuoteFavoriteAgainstCurrentUser(@Param("id") quoteId: number, @CurrentUser() currentUserId: number){
-        return this.quoteService.markQuoteFavoriteAgainstCurrentUser(quoteId, currentUserId);
+    async MarkQuoteFavoriteAgainstCurrentUser(@Param("id") quoteId: number, @Session() session: SessionData){
+        return this.quoteService.markQuoteFavoriteAgainstCurrentUserCompany(quoteId, session);
     }
 
     @UseGuards(SessionAuthGuard, PermissionsGuard)
     @Delete(':id/favorite')
-    async UnmarkFavoriteAgainstCurrentUser(@Param('id') quoteId: number, @CurrentUser() currentUserId: number) {
-        return this.quoteService.unmarkQuoteFavoriteAgainstCurrentUser(quoteId, currentUserId);
+    async UnmarkFavoriteAgainstCurrentUser(@Param('id') quoteId: number, @Session() session: SessionData) {
+        return this.quoteService.unmarkQuoteFavoriteAgainstCurrentUserCompany(quoteId, session);
     }
 
    
@@ -78,9 +77,9 @@ export class QuoteController{
     async UpdateStatus(
         @Param('id') quoteId: number, 
         @Body() dto: UpdateQuoteStatusDTO,
-        @CurrentUser() currentUserId: number
+        @Session() session: SessionData
     ) {
-        return this.quoteService.updateStatus(quoteId, dto, currentUserId);
+        return this.quoteService.updateStatus(quoteId, dto, session);
     }
 
 }
