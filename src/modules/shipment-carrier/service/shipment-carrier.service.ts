@@ -19,7 +19,7 @@ export class ShipmentCarrierService {
    async createShipment(dto: CreateCarrierShipmentDTO) {
        let carrierResponse: any;
        
-       if (dto.carrier !== Carrier.FEDEX) {
+       if (![Carrier.FEDEX].includes(dto.carrier)) {
            throw new BadRequestException("This carrier hasn't been implemented for shipment");
        }
 
@@ -45,13 +45,14 @@ export class ShipmentCarrierService {
             throw new BadRequestException(`Quote not found: ${dto.quoteId}`);
         }
 
-        if (dto.carrier === 'FEDEX') {
+        if (dto.carrier === Carrier.FEDEX) {
             carrierResponse = await this.fedexAdapter.createShipment(dto, quote);
         }
         
-        // if (dto.carrier === 'TST') {
-        //     const carrierQuote = await this.tstAdapter.createQuote(dto, dto.selectedRate);
-        //     carrierResponse = await this.tstAdapter.createShipment(dto, carrierQuote.quoteId);
+        // if (dto.carrier === Carrier.TST) {
+        //     const carrierQuote = await this.tstAdapter.createQuote(quote, dto.selectedRate);
+        //     console.log({carrierQuote})
+        //     carrierResponse = await this.tstAdapter.createShipment(quote, carrierQuote.quoteId);
         // }
 
         const shipment = new Shipment();
@@ -97,15 +98,18 @@ export class ShipmentCarrierService {
     }
 
    async getShipmentCarriersRates(dto: any) {
-        const [fedexQuotes, tstQuotes] = await Promise.all([
-            this.getFedExRates(dto).catch(() => null),
-            this.getTSTRates(dto).catch(() => [])
-        ]);
+    const fedexQuotes = await this.getFedExRates(dto);
+  
+
+        // const [fedexQuotes, tstQuotes] = await Promise.all([
+        //     this.getFedExRates(dto).catch(() => null),
+        //     this.getTSTRates(dto).catch(() => [])
+        // ]);
 
         return {
             message: "Rates fetched successfully",
             fedexQuotes: fedexQuotes ?? {},
-            tstQuotes
+            // tstQuotes
         };
     }
 
@@ -137,7 +141,10 @@ export class ShipmentCarrierService {
             clientSecret: process.env.FEDEX_CLIENT_SECRET!,
             accountNumber: process.env.FEDEX_ACCOUNT_NUMBER!
         });
-        return fedex.getRates(fedexDto);
+
+        const rates = await fedex.getRates(fedexDto);
+        const normalizedRates = fedex.mapFedExToCarrierRate(rates);
+        return normalizedRates;
     }
 
     private async getTSTRates(tstDto: any) {

@@ -36,7 +36,11 @@ class FedExParcelMapper implements CarrierPayloadMapper {
             amount: req.insurance.value,
             currency: req.insurance.currency
           }
-        } : {})
+        } : {}),
+        rateRequestControlParameters: {
+          returnTransitTimes: true,
+          servicesNeededOnRateFailure: true
+        },
       }
     };
   }

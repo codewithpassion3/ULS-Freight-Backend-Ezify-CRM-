@@ -353,17 +353,25 @@ export class FedExAdapter implements CarrierAdapter {
   
     const transactionId = crypto.randomUUID();
 
-    
     const addresses = await quote.addresses.loadItems();
     const originShippingAddress = addresses.find((a: any) => a.type === 'FROM') || addresses[0];
     const destShippingAddress = addresses.find((a: any) => a.type === 'TO') || addresses[1];
 
-    const originAddress = originShippingAddress?.addressBookEntry;
-    const destAddress = destShippingAddress?.addressBookEntry;
+    const originAddrBook = originShippingAddress?.addressBookEntry;
+    const destAddrBook = destShippingAddress?.addressBookEntry;
+
+    const origin = originAddrBook?.address || originShippingAddress?.address;
+    const dest = destAddrBook?.address || destShippingAddress?.address;
+
+    const originContactName = originAddrBook?.contactName || originAddrBook?.companyName || 'Test Shipper';
+    const originPhone = (originAddrBook?.phoneNumber || '0000000000').replace(/\D/g, '').slice(0, 15);
+    const destContactName = destAddrBook?.contactName || destAddrBook?.companyName || 'Test Recipient';
+    const destPhone = (destAddrBook?.phoneNumber || '0000000000').replace(/\D/g, '').slice(0, 15);
 
     const lineItem = quote.lineItems;
-    const units = await lineItem?.units || [];
-
+    const units =  lineItem?.units || [];
+    const isInternational = toFedExCountryCode(origin?.country) !== toFedExCountryCode(dest?.country);
+  
     const mappedPackages = units.map((unit: any, i: number) => ({
       sequenceNumber: i + 1,
       weight: {
@@ -379,42 +387,32 @@ export class FedExAdapter implements CarrierAdapter {
           }
         : undefined,
     }));
-
-    const isInternational = toFedExCountryCode(originAddress?.address?.country) !== toFedExCountryCode(destAddress?.address?.country);
     
     const payload = {
       labelResponseOptions: 'URL_ONLY',
       accountNumber: { value: this.accountNumber },
       requestedShipment: {
         shipper: {
-          contact: {
-            personName: originAddress?.contactName || '',
-            phoneNumber: (originAddress?.phoneNumber || '').replace(/\D/g, '').slice(0, 15)
-          },
+          contact: { personName: originContactName, phoneNumber: originPhone },
           address: {
-            streetLines: [originAddress?.address?.address1 || ''],
-            city: originAddress?.address?.city || '',
-            stateOrProvinceCode: toFedExStateCode(originAddress?.address?.state || ''),
-            postalCode: originAddress?.address?.postalCode || '',
-            countryCode: toFedExCountryCode(originAddress?.address?.country || originAddress?.countryCode),
+            streetLines: [origin?.address1 || ''],
+            city: origin?.city || '',
+            stateOrProvinceCode: toFedExStateCode(origin?.state || ''),
+            postalCode: origin?.postalCode || '',
+            countryCode: toFedExCountryCode(origin?.country || origin?.countryCode),
           },
         },
-        recipients: [
-          {
-            contact: {
-              personName: destAddress?.contactName || '',
-              phoneNumber: (destAddress?.phoneNumber || '').replace(/\D/g, '').slice(0, 15),
-            },
-            address: {
-              streetLines: [destAddress?.address?.address1 || ''],
-              city: destAddress?.address?.city || '',
-              stateOrProvinceCode: toFedExStateCode(destAddress?.address?.state || ''),
-              postalCode: destAddress?.address?.postalCode || '',
-              countryCode: toFedExCountryCode(destAddress?.address?.country || destAddress?.countryCode),
-            },
+        recipients: [{
+          contact: { personName: destContactName, phoneNumber: destPhone },
+          address: {
+            streetLines: [dest?.address1 || ''],
+            city: dest?.city || '',
+            stateOrProvinceCode: toFedExStateCode(dest?.state || ''),
+            postalCode: dest?.postalCode || '',
+            countryCode: toFedExCountryCode(dest?.country || dest?.countryCode),
           },
-        ],
-        serviceType: isInternational ? 'INTERNATIONAL_ECONOMY' : 'STANDARD_OVERNIGHT',
+        }],
+        serviceType: isInternational ? 'INTERNATIONAL_PRIORITY' : 'STANDARD_OVERNIGHT',
         packagingType: req.selectedRate?.packagingType || 'YOUR_PACKAGING',
         pickupType: req.pickupType || 'DROPOFF_AT_FEDEX_LOCATION',
         shipDateStamp: req.shipDate
@@ -422,53 +420,53 @@ export class FedExAdapter implements CarrierAdapter {
           : new Date().toISOString().split('T')[0],
         shippingChargesPayment: {
           paymentType: 'SENDER',
+        payor: {
+          responsibleParty: {
+            accountNumber: { value: this.accountNumber, key: '' },
+          },
+          address: {
+            streetLines: [origin?.address1 || ''],
+            city: origin?.city || '',
+            stateOrProvinceCode: toFedExStateCode(origin?.state || ''),
+            postalCode: origin?.postalCode || '',
+            countryCode: toFedExCountryCode(origin?.country || origin?.countryCode),
+          },
+        },
+      },
+      labelSpecification: {},
+      customsClearanceDetail: isInternational ? {
+        dutiesPayment: {
+          paymentType: 'SENDER',
           payor: {
             responsibleParty: {
-              accountNumber: { value: this.accountNumber, key: '' },
-            },
-            address: {
-              streetLines: [originAddress?.address?.address1 || ''],
-              city: originAddress?.address?.city || '',
-              stateOrProvinceCode: toFedExStateCode(originAddress?.address?.state || ''),
-              postalCode: originAddress?.address?.postalCode || '',
-              countryCode: toFedExCountryCode(originAddress?.address?.country || originAddress?.countryCode),
+              accountNumber: { value: this.accountNumber },
             },
           },
         },
-        labelSpecification: {},
-        customsClearanceDetail: isInternational ? {
-          dutiesPayment: {
-            paymentType: 'SENDER',
-            payor: {
-              responsibleParty: {
-                accountNumber: { value: this.accountNumber },
-              },
-            },
+        commodities: mappedPackages.map((pkg, i) => ({
+          description: `Package ${i + 1}`,
+          quantity: 1,
+          quantityUnits: 'EA',
+          weight: {
+            units: pkg.weight.units,
+            value: Number(pkg.weight.value),
           },
-          commodities: mappedPackages.map((pkg, i) => ({
-            description: `Package ${i + 1}`,
-            quantity: 1,
-            quantityUnits: 'EA',
-            weight: {
-              units: pkg.weight.units,
-              value: Number(pkg.weight.value),
-            },
-            customsValue: {
-              currency: req.selectedRate?.currency || 'USD',
-              amount: 100,
-            },
-            unitPrice: {
-              currency: req.selectedRate?.currency || 'USD',
-              amount: 100,
-            },
-            countryOfManufacture: toFedExCountryCode(originAddress?.address?.country) || 'US',
-          })),
-          totalCustomsValue: {
+          customsValue: {
             currency: req.selectedRate?.currency || 'USD',
-            amount: 100 * mappedPackages.length,
+            amount: 100,
           },
-        } : undefined,
-        requestedPackageLineItems: mappedPackages,
+          unitPrice: {
+            currency: req.selectedRate?.currency || 'USD',
+            amount: 100,
+          },
+          countryOfManufacture: toFedExCountryCode(origin?.country) || 'US',
+        })),
+        totalCustomsValue: {
+          currency: req.selectedRate?.currency || 'USD',
+          amount: 100 * mappedPackages.length,
+        },
+      } : undefined,
+      requestedPackageLineItems: mappedPackages,
       },
     };
 
@@ -489,5 +487,57 @@ export class FedExAdapter implements CarrierAdapter {
     }
 
     return response.json();
+  }
+
+  mapFedExToCarrierRate(fedexQuotes: any): any[] {
+    if (!fedexQuotes?.output?.rateReplyDetails) return [];
+
+    return fedexQuotes.output.rateReplyDetails.map((rate: any) => {
+      // Prefer ACCOUNT rate, fall back to LIST
+      const selectedRate = 
+        rate.ratedShipmentDetails?.find((r: any) => r.rateType === 'ACCOUNT') ||
+        rate.ratedShipmentDetails?.find((r: any) => r.rateType === 'LIST');
+      
+      const detail = selectedRate?.shipmentRateDetail;
+
+      return {
+        carrier: 'FEDEX',
+        serviceType: rate.serviceType,
+        serviceName: rate.serviceName,
+        packagingType: rate.packagingType,
+        totalPrice: selectedRate?.totalNetCharge ?? null,
+        totalDiscount: selectedRate?.totalDiscounts ?? 0,
+        currency: selectedRate?.currency ?? 'USD',
+        shipDate: fedexQuotes.output.quoteDate,
+        estimatedDeliveryDays: this.getFedExTransitTime(rate.serviceType),
+        billingWeight: detail?.totalBillingWeight ?? null,
+        dimWeight: detail?.totalDimWeight ?? null,
+        zone: detail?.rateZone ?? null,
+        fuelSurcharge: detail?.surCharges?.find((s: any) => s.type === 'FUEL')?.amount ?? 0,
+        additionalHandlingSurcharge: detail?.surCharges?.find((s: any) => s.type === 'ADDITIONAL_HANDLING')?.amount ?? 0,
+        totalSurcharges: detail?.totalSurcharges ?? 0,
+        customerMessages: rate.customerMessages?.map((m: any) => m.message) ?? [],
+        signatureOption: rate.signatureOptionType,
+        transactionId: fedexQuotes.transactionId,
+      };
+    });
+  }
+
+  private getFedExTransitTime(serviceType: string): string {
+    const map: Record<string, string> = {
+      'SAME_DAY': 'Same day',
+      'SAME_DAY_CITY': 'Same day',
+      'FIRST_OVERNIGHT': '1 business day (morning)',
+      'PRIORITY_OVERNIGHT': '1 business day (morning)',
+      'STANDARD_OVERNIGHT': '1 business day (afternoon)',
+      'FEDEX_2_DAY_AM': '2 business days (morning)',
+      'FEDEX_2_DAY': '2 business days',
+      'FEDEX_EXPRESS_SAVER': '3 business days',
+      'FEDEX_GROUND': '1-5 business days',
+      'FEDEX_HOME_DELIVERY': '1-5 business days',
+      'INTERNATIONAL_PRIORITY': '1-3 business days',
+      'INTERNATIONAL_ECONOMY': '2-5 business days',
+    };
+    return map[serviceType] || 'Varies by destination';
   }
 }
