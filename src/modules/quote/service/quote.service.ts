@@ -39,6 +39,7 @@ import { NotificationType } from "src/common/enum/notification-type.enum";
 import { SpotQuoteFactory } from "src/factory/spot-quote.factory";
 import { StandardQuoteFactory } from "src/factory/standard-quote.factory";
 import { Company } from "src/entities/company.entity";
+import { DangerousGoodsClass, PackagingGroup, QuantityType } from "src/common/enum/line-item.enum";
 
 @Injectable()
 export class QuoteService {
@@ -268,11 +269,51 @@ export class QuoteService {
                 lineItem.measurementUnit = dto.lineItem.measurementUnit;
             }
 
-            if (
+          if (
                 dto.lineItem.dangerousGoods !== undefined &&
                 [ShipmentType.PACKAGE, ShipmentType.PALLET].includes(incomingType)
             ) {
-                // lineItem.dangerousGoods = dto.lineItem.dangerousGoods;
+                const dangerousGoods = dto.lineItem.dangerousGoods;
+
+                if (dangerousGoods && typeof dangerousGoods === "object") {
+                    const current = lineItem.dangerousGoods || {};
+
+                    const updated = { ...current, ...dangerousGoods } as any;
+
+                    // UN
+                    if (
+                        dangerousGoods.un !== undefined &&
+                        (typeof dangerousGoods.un !== "string" || !dangerousGoods.un.trim())
+                    ) {
+                        updated.un = current.un;
+                    }
+
+                    // CLASS
+                    if (
+                        dangerousGoods.class !== undefined &&
+                        !DangerousGoodsClass[dangerousGoods.class]
+                    ) {
+                        updated.class = current.class;
+                    }
+
+                    // QUANTITY TYPE
+                    if (
+                        dangerousGoods.quantityType !== undefined &&
+                        !QuantityType[dangerousGoods.quantityType]
+                    ) {
+                        updated.quantityType = current.quantityType;
+                    }
+
+                    // PACKAGING GROUP
+                    if (
+                        dangerousGoods.packagingGroup !== undefined &&
+                        !PackagingGroup[dangerousGoods.packagingGroup]
+                    ) {
+                        updated.packagingGroup = current.packagingGroup;
+                    }
+
+                    lineItem.dangerousGoods = updated;
+                }
             } else if (isTypeChanged) {
                 lineItem.dangerousGoods = null;
             }

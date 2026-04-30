@@ -169,7 +169,7 @@ export class CreateLineItemUnitDto {
 }
 
 /* ---------------- LINE ITEM ---------------- */
-class DangerousGoodsDTO {
+export class DangerousGoodsDTO {
   @IsString()
   @IsNotEmpty()
   un!: string;

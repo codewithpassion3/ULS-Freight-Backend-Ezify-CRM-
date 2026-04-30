@@ -4,6 +4,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Builder } from 'xml2js';
 import { parseStringPromise } from 'xml2js';
 import { CarrierAdapter } from "src/types/shipment-carriers";
+import { Carrier } from "../dto/create-carrier-shipment.dto";
 
 export class TSTCFExpressAdapter implements CarrierAdapter {
   readonly carrierName = 'tst-cf-express';
@@ -77,7 +78,7 @@ export class TSTCFExpressAdapter implements CarrierAdapter {
     const arrivalDate = tstResponse.transitresults?.arrivaldate;
 
     return [{
-      carrier: this.carrierName,
+      carrier: Carrier.TST,
       serviceType: 'ST',
       totalPrice: totalUSD,
       totalPriceCAD: totalCAD,

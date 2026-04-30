@@ -6,6 +6,7 @@ import {
   IsBoolean,
   IsEnum,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   ValidateNested,
@@ -140,8 +141,8 @@ export class LineItemDTO {
   measurementUnit?: MeasurementUnits;
 
   @IsOptional()
-  @IsBoolean()
-  dangerousGoods?: boolean;
+  @IsObject()
+  dangerousGoods?: Record<string, any>;
 
   @IsOptional()
   @IsBoolean()

@@ -2,6 +2,7 @@ import { BadRequestException } from "@nestjs/common";
 import { CarrierAdapter } from "src/types/shipment-carriers";
 import { toFedExCountryCode } from "src/utils/fedex-country-code";
 import { toFedExStateCode } from "src/utils/fedex-state-code";
+import { Carrier } from "../dto/create-carrier-shipment.dto";
 
 // ============================================================================
 // FEDEX API TYPES
@@ -331,7 +332,7 @@ export class FedExAdapter implements CarrierAdapter {
     const freightDetails = response.output?.rateShipmentDetails || [];
     for (const detail of freightDetails) {
       quotes.push({
-        carrierId: this.carrierName,
+        carrierId: Carrier.FEDEX,
         serviceType: detail.serviceType || "FREIGHT",
         totalCharge: detail.totalNetCharge?.amount,
         currency: detail.totalNetCharge?.currency,

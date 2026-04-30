@@ -101,7 +101,7 @@ export interface RateRequestDto {
     street?: string;
   };
   shipDate?: string; // ISO date string
-  dangerousGoods?: boolean;
+  dangerousGoods?: Record<string, any>;
   insurance?: {
     value: number;
     currency: string;

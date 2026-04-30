@@ -14,6 +14,7 @@ import { validateAndFilterServicesForUpdate, validateUnit } from 'src/utils/vali
 import { Insurance } from 'src/entities/insurance.entity';
 import { Currency } from 'src/common/enum/currency.enum';
 import { PalletServices } from 'src/entities/pallet-services.entity';
+import { DangerousGoodsClass, PackagingGroup, QuantityType } from 'src/common/enum/line-item.enum';
 
 export interface UpdateAddressData extends ShippingAddress {
     addressBook?: {
@@ -278,7 +279,47 @@ export class UpdatePalletQuote extends StandardQuote {
         }
         
         if (lineItemData.dangerousGoods !== undefined) {
-            existingLineItem.dangerousGoods = lineItemData.dangerousGoods;
+            const dg = lineItemData.dangerousGoods;
+
+            if (dg && typeof dg === "object") {
+                const current = existingLineItem.dangerousGoods || {};
+
+                const updated = { ...current, ...dg };
+
+                // UN validation
+                if (
+                    dg.un !== undefined &&
+                    (typeof dg.un !== "string" || !dg.un.trim())
+                ) {
+                    updated.un = current.un;
+                }
+
+                // CLASS validation
+                if (
+                    dg.class !== undefined &&
+                    !Object.values(DangerousGoodsClass).includes(dg.class)
+                ) {
+                    updated.class = current.class;
+                }
+
+                // QUANTITY TYPE validation
+                if (
+                    dg.quantityType !== undefined &&
+                    !Object.values(QuantityType).includes(dg.quantityType)
+                ) {
+                    updated.quantityType = current.quantityType;
+                }
+
+                // PACKAGING GROUP validation
+                if (
+                    dg.packagingGroup !== undefined &&
+                    !Object.values(PackagingGroup).includes(dg.packagingGroup)
+                ) {
+                    updated.packagingGroup = current.packagingGroup;
+                }
+
+                existingLineItem.dangerousGoods = updated;
+            }
         }
         
         if (lineItemData.measurementUnit !== undefined) {
