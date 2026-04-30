@@ -329,7 +329,7 @@ for (const address of normalizedAddresses) {
   };
 }
 
-  const multiOptionFields = {
+ export const multiOptionFields = {
     "IN_BOUND": {
       "key": "inbound",
       "value": {
@@ -513,39 +513,89 @@ for (const address of normalizedAddresses) {
   }
 
 
-  export const validateAndFilterServicesForUpdate = (
-  dtoServices: Record<string, any> | undefined,
-  shipmentType: ShipmentType
-): { errors: string[]; validServices: Record<string, boolean> } => {
+export const validateAndFilterServicesForUpdate = (
+    dtoServices: Record<string, any> | undefined,
+    shipmentType: ShipmentType
+): { errors: string[]; validServices: Record<string, any> } => {
+
     const errors: string[] = [];
 
     const requiredFields = requiredServiceFields[shipmentType] || [];
-    if (dtoServices === undefined || dtoServices === null) {
-      return { errors, validServices: {} };
+
+    if (!dtoServices || typeof dtoServices !== "object" || Array.isArray(dtoServices)) {
+        return {
+            errors: ["services must be an object"],
+            validServices: {},
+        };
     }
 
-    if (typeof dtoServices !== "object" || Array.isArray(dtoServices)) {
-      return {
-        errors: ["services must be an object"],
-        validServices: {},
-      };
-    }
-
-    const validServices: Record<string, boolean> = {};
+    const validServices: Record<string, any> = {};
 
     for (const [field, value] of Object.entries(dtoServices)) {
-      if (!requiredFields.includes(field)) { continue; }
 
-      if (typeof value !== "boolean") {
-        errors.push(`services.${field} must be boolean`);
-        continue;
-      }
+        if (!requiredFields.includes(field)) continue;
+        console.log("FROM VALIDARTION", field, value)
 
-      validServices[field] = value;
+        if (field === multiOptionFields.LIMITED_ACCESS.key) {
+            if (typeof value !== "string") {
+                errors.push(`services.${field} must be a string`);
+                continue;
+            }
+
+            if (!Object.values(LimitedAccessType).includes(value as LimitedAccessType)) {
+                errors.push(
+                    `services.${field} has invalid value. Allowed values: ${Object.values(LimitedAccessType).join(", ")}`
+                );
+                continue;
+            }
+
+            validServices[field] = value;
+
+            // -----------------------------
+            // handle dependent field
+            // -----------------------------
+            if (value === LimitedAccessType.OTHERS) {
+                const desc = dtoServices.limitedAccessDescription;
+
+                if (desc !== undefined) {
+                    if (typeof desc !== "string" || !desc.trim()) {
+                        errors.push(`services.limitedAccessDescription must be a non-empty string`);
+                    } else {
+                        validServices.limitedAccessDescription = desc.trim();
+                    }
+                }
+            }
+
+            continue;
+        }
+        
+        // -----------------------------
+        // OBJECT SERVICES
+        // -----------------------------
+        if (
+            field === multiOptionFields.IN_BOUND.key
+        ) {
+            if (value === null || typeof value !== "object") {
+                continue; // ignore invalid object shape
+            }
+
+            validServices[field] = value;
+            continue;
+        }
+
+        // -----------------------------
+        // BOOLEAN SERVICES (default)
+        // -----------------------------
+        if (typeof value !== "boolean") {
+            errors.push(`services.${field} must be boolean`);
+            continue;
+        }
+
+        validServices[field] = value;
     }
 
     return {
-      errors,
-      validServices,
+        errors,
+        validServices,
     };
 };

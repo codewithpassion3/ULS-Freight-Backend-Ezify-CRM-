@@ -249,9 +249,9 @@ export function validateUpdateQuote(
   if (filteredDto.services) {
     const requiredServices = getRequiredServices(shipmentType);
     for (const service of requiredServices) {
-      if (filteredDto.services[service as keyof typeof filteredDto.services] === undefined) {
-        errors.push(`services.${service} is required for ${shipmentType}`);
-      }
+      // if (filteredDto.services[service as keyof typeof filteredDto.services] === undefined) {
+      //   errors.push(`services.${service} is required for ${shipmentType}`);
+      // }
     }
   }
 

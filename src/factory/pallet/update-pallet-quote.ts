@@ -10,11 +10,12 @@ import { User } from 'src/entities/user.entity';
 import { StandardQuote } from '../standard-quote';
 import { QuoteConstructorParams, AddressData, AddressType } from '../base-quote';
 import { palletRules } from 'src/common/constants/quote';
-import { validateAndFilterServicesForUpdate, validateUnit } from 'src/utils/validateQuote';
+import { multiOptionFields, validateAndFilterServicesForUpdate, validateUnit } from 'src/utils/validateQuote';
 import { Insurance } from 'src/entities/insurance.entity';
 import { Currency } from 'src/common/enum/currency.enum';
 import { PalletServices } from 'src/entities/pallet-services.entity';
 import { DangerousGoodsClass, PackagingGroup, QuantityType } from 'src/common/enum/line-item.enum';
+import { LimitedAccessType, BondType, ContactKey } from 'src/common/enum/services.enum';
 
 export interface UpdateAddressData extends ShippingAddress {
     addressBook?: {
@@ -200,10 +201,94 @@ export class UpdatePalletQuote extends StandardQuote {
     }
 
     protected updateServices(): void {
-        const validServices = this.validatedData.services;
+        const incomingServices = this.validatedData.services || {};
+        console.log("Incoming services", incomingServices)
+        const currentServices = this.existingQuote.palletServices as PalletServices;
 
-        for (const [key, value] of Object.entries(validServices)) {
-            (this.existingQuote.palletServices as PalletServices)[key] = value;
+        for (const [field, value] of Object.entries(incomingServices)) {
+            console.log({field, value})
+            // LIMITED_ACCESS
+            if (field === multiOptionFields.LIMITED_ACCESS.key) {
+                if (typeof value !== "string") continue;
+
+                if (!Object.values(LimitedAccessType).includes(value as LimitedAccessType)) {
+                    continue; // ignore invalid enum
+                }
+
+                currentServices[field] = value;
+
+                // -----------------------------
+                // OTHERS → set description
+                // -----------------------------
+                if (value === LimitedAccessType.OTHERS) {
+                    const desc = incomingServices.limitedAccessDescription;
+
+                    if (typeof desc === "string" && desc.trim()) {
+                        currentServices.limitedAccessDescription = desc.trim();
+                    } else {
+                        currentServices.limitedAccessDescription = null;
+                    }
+                }
+
+                continue;
+            }
+
+            // IN_BOUND
+           if (field === multiOptionFields.IN_BOUND.key) {
+                if (!value || typeof value !== "object") continue;
+
+                const current = currentServices[field] || {};
+                const updated: any = { ...current };
+
+                const {
+                    bondType,
+                    bondCancler,
+                    contactKey,
+                    contactValue,
+                    address,
+                } = value as any;
+                console.log({bondType, bondCancler, contactKey, contactValue, address})
+                // -----------------------------
+                // bondType (enum)
+                // -----------------------------
+                if (
+                    bondType !== undefined &&
+                    Object.values(BondType).includes(bondType)
+                ) {
+                    updated["bondType"] = bondType;
+                }
+
+                // -----------------------------
+                // contactKey (enum)
+                // -----------------------------
+                if (
+                    contactKey !== undefined &&
+                    Object.values(ContactKey).includes(contactKey)
+                ) {
+                    updated["contactKey"] = contactKey;
+                }
+
+                // -----------------------------
+                // strings
+                // -----------------------------
+                if (typeof bondCancler === "string" && bondCancler.trim()) {
+                    updated["bondCancler"] = bondCancler.trim();
+                }
+
+                if (typeof contactValue === "string" && contactValue.trim()) {
+                    updated["contactValue"] = contactValue.trim();
+                }
+
+                if (typeof address === "string" && address.trim()) {
+                    updated["address"] = address.trim();
+                }
+
+                currentServices["inBound"] = updated;
+                continue;
+            }
+
+            // DEFAULT (simple fields)
+            currentServices[field] = value;
         }
     }
 

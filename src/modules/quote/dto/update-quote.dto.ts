@@ -174,9 +174,13 @@ export class InsuranceDTO {
 export class ServicesDTO {
   // PALLET services
   @IsOptional()
-  @IsBoolean()
-  limitedAccess?: boolean;
+  @IsString()
+  limitedAccess?: string;
 
+  @IsOptional()
+  @IsString()
+  limitedAccessDescription?: string;
+  
   @IsOptional()
   @IsBoolean()
   appointmentDelivery?: boolean;
@@ -200,8 +204,8 @@ export class ServicesDTO {
 
   // SPOT_LTL services
   @IsOptional()
-  @IsBoolean()
-  inbound?: boolean;
+  @IsObject()
+  inbound?: Record<string, any>;
 
   @IsOptional()
   @IsBoolean()

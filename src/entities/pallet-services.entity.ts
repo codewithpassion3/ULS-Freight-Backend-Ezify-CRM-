@@ -20,7 +20,7 @@ export class PalletServices {
   limitedAccess?: string = "";
 
   @Property({ default: "", nullable: false })
-  limitedAccessDescription?: string = "";
+  limitedAccessDescription?: string | null = "" ;
 
   @Property({ default: false, nullable: false })
   appointmentDelivery?: boolean = false;
