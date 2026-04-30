@@ -514,13 +514,9 @@ export class FedExAdapter implements CarrierAdapter {
         shipDate: fedexQuotes.output.quoteDate,
         estimatedDeliveryDays: this.getFedExTransitTime(rate.serviceType),
         billingWeight: detail?.totalBillingWeight ?? null,
-        dimWeight: detail?.totalDimWeight ?? null,
-        zone: detail?.rateZone ?? null,
         fuelSurcharge: detail?.surCharges?.find((s: any) => s.type === 'FUEL')?.amount ?? 0,
         additionalHandlingSurcharge: detail?.surCharges?.find((s: any) => s.type === 'ADDITIONAL_HANDLING')?.amount ?? 0,
         totalSurcharges: detail?.totalSurcharges ?? 0,
-        customerMessages: rate.customerMessages?.map((m: any) => m.message) ?? [],
-        signatureOption: rate.signatureOptionType,
         transactionId: fedexQuotes.transactionId,
       };
     });

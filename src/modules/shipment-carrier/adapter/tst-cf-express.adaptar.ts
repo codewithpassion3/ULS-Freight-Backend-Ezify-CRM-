@@ -70,16 +70,26 @@ export class TSTCFExpressAdapter implements CarrierAdapter {
     const totalCAD = parseFloat(tstResponse.totalamt) || 0;
     const exchangeRate = 0.73;
     const totalUSD = +(totalCAD * exchangeRate).toFixed(2);
+    const shipDate = tstResponse.transitresults?.shipdate;
+    const totalDiscount = tstResponse.discountamt;
+    const billingWeight = tstResponse.totalweight;
+    const transactionId = tstResponse.quoteid;
+    const arrivalDate = tstResponse.transitresults?.arrivaldate;
 
     return [{
-      carrierId: this.carrierName,
+      carrier: this.carrierName,
       serviceType: 'ST',
-      totalCharge: totalUSD,
-      totalChargeCAD: totalCAD,
+      totalPrice: totalUSD,
+      totalPriceCAD: totalCAD,
+      shipDate,
+      totalDiscount,
+      billingWeight,
+      transactionId,
+      arrivalDate,
       currency: 'USD',
       originalCurrency: 'CAD',
-      transitDays: tstResponse.transitresults?.servicedays 
-        ? parseInt(tstResponse.transitresults.servicedays) 
+      estimatedDeliveryDays: tstResponse.transitresults?.servicedays 
+        ? `${parseInt(tstResponse.transitresults.servicedays)} business days` 
         : undefined,
     }];
   }

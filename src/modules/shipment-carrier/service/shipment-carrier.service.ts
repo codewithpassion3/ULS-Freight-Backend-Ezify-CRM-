@@ -118,21 +118,20 @@ export class ShipmentCarrierService {
         };
     }
 
-   async getShipmentCarriersRates(dto: any) {
-    const fedexQuotes = await this.getFedExRates(dto);
-  
+  async getShipmentCarriersRates(dto: any) {
+    const [tstResult, fedexResult] = await Promise.all([
+        this.getTSTRates(dto).then(r => ({ success: true as const, data: r })).catch(e => ({ success: false as const, error: e.message })),
+        this.getFedExRates(dto).then(r => ({ success: true as const, data: r })).catch(e => ({ success: false as const, error: e.message }))
+    ]);
 
-        // const [fedexQuotes, tstQuotes] = await Promise.all([
-        //     this.getFedExRates(dto).catch(() => null),
-        //     this.getTSTRates(dto).catch(() => [])
-        // ]);
-
-        return {
-            message: "Rates fetched successfully",
-            fedexQuotes: fedexQuotes ?? {},
-            // tstQuotes
-        };
-    }
+    return {
+        message: "Rates fetched",
+        fedexQuotes: fedexResult.success ? fedexResult.data : null,
+        fedexError: fedexResult.success ? null : fedexResult.error,
+        tstQuotes: tstResult.success ? tstResult.data : null,
+        tstError: tstResult.success ? null : tstResult.error,
+    };
+}
 
     // NEW: SSE stream — emits each carrier as it completes
     getShipmentCarriersRatesStream(dto: any): Observable<MessageEvent> {
