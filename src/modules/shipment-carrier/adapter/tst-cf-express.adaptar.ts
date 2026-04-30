@@ -39,7 +39,7 @@ export class TSTCFExpressAdapter implements CarrierAdapter {
 
     const xmlPayload = builder.buildObject({ raterequest: payload });
 
-    const response = await fetch('https://www.tst-cfexpress.com/xml/rate-quote', {
+    const response = await fetch(`${this.baseUrl}/xml/rate-quote`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/xml',
@@ -84,93 +84,105 @@ export class TSTCFExpressAdapter implements CarrierAdapter {
     }];
   }
 
-  // ============================================================================
-  // NEW: CREATE CARRIER QUOTE (Pattern B — required for TST)
-  // ============================================================================
+  // // ============================================================================
+  // // NEW: CREATE CARRIER QUOTE (Pattern B — required for TST)
+  // // ============================================================================
 
-  async createQuote(req: any, selectedRate: any): Promise<{ quoteId: string; expiresAt: Date }> {
-    const payload = this.mapper.mapQuote(req, selectedRate);
+  // async createQuote(quote: any, selectedRate: any): Promise<{ quoteId: string; expiresAt: Date }> {
+  //   const payload = this.mapper.mapQuote(quote, selectedRate);
 
-    const builder = new Builder({
-      xmldec: { version: '1.0', encoding: 'ISO-8859-1' },
-      renderOpts: { pretty: false },
-      headless: false,
-    });
+  //   const builder = new Builder({
+  //     xmldec: { version: '1.0', encoding: 'ISO-8859-1' },
+  //     renderOpts: { pretty: false },
+  //     headless: false,
+  //   });
 
-    const xmlPayload = builder.buildObject({ quote: payload });
+  //   const xmlPayload = builder.buildObject({ quote: payload });
 
-    const response = await fetch(`${this.baseUrl}/xml/quote`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/xml',
-      },
-      body: xmlPayload,
-    });
+  //   const response = await fetch(`${this.baseUrl}/xml/quote`, {
+  //     method: 'POST',
+  //     headers: {
+  //       'Content-Type': 'application/xml',
+  //     },
+  //     body: xmlPayload,
+  //   });
+  //   console.log({response})
+  //   if (!response.ok) {
+  //     throw new BadRequestException(`TST CF Express quote API error: ${response.status}`);
+  //   }
 
-    if (!response.ok) {
-      throw new BadRequestException(`TST CF Express quote API error: ${response.status}`);
-    }
+  //   const xmlText = await response.text();
+  //   const parsed = await parseStringPromise(xmlText, { explicitArray: false });
 
-    const xmlText = await response.text();
-    const parsed = await parseStringPromise(xmlText, { explicitArray: false });
+  //   if (parsed.quoteresults?.errorcode) {
+  //     throw new BadRequestException({
+  //       carrier: this.carrierName,
+  //       code: parsed.quoteresults.errorcode,
+  //       message: parsed.quoteresults.errormsg,
+  //     });
+  //   }
 
-    if (parsed.quoteresults?.errorcode) {
-      throw new BadRequestException({
-        carrier: this.carrierName,
-        code: parsed.quoteresults.errorcode,
-        message: parsed.quoteresults.errormsg,
-      });
-    }
+  //   const quoteId = parsed.quoteresults?.quoteid;
+  //   if (!quoteId) {
+  //     throw new BadRequestException('TST CF Express quote response missing quoteid');
+  //   }
 
-    const quoteId = parsed.quoteresults?.quoteid;
-    if (!quoteId) {
-      throw new BadRequestException('TST CF Express quote response missing quoteid');
-    }
+  //   // TST quotes typically valid for 24 hours
+  //   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    // TST quotes typically valid for 24 hours
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-    return { quoteId, expiresAt };
-  }
+  //   return { quoteId, expiresAt };
+  // }
 
   // ============================================================================
   // NEW: CREATE SHIPMENT / PICKUP (Pattern B — uses quoteId)
   // ============================================================================
 
-  async createShipment(req: any, quoteId: string): Promise<any> {
-    const payload = this.mapper.mapShipment(req, quoteId);
+  async createShipment(quote: any, selectedRate: any): Promise<any> {
+    try {
+      const payload = this.mapper.mapShipment(quote, selectedRate);
 
-    const builder = new Builder({
-      xmldec: { version: '1.0', encoding: 'ISO-8859-1' },
-      renderOpts: { pretty: false },
-      headless: false,
-    });
-
-    const xmlPayload = builder.buildObject({ pickup: payload });
-
-    const response = await fetch(`${this.baseUrl}/xml/pickup`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/xml',
-      },
-      body: xmlPayload,
-    });
-
-    if (!response.ok) {
-      throw new BadRequestException(`TST CF Express ship API error: ${response.status}`);
-    }
-
-    const xmlText = await response.text();
-    const parsed = await parseStringPromise(xmlText, { explicitArray: false });
-
-    if (parsed.pickupresults?.errorcode) {
-      throw new BadRequestException({
-        carrier: this.carrierName,
-        code: parsed.pickupresults.errorcode,
-        message: parsed.pickupresults.errormsg,
+      const builder = new Builder({
+        xmldec: { version: '1.0', encoding: 'ISO-8859-1' },
+        renderOpts: { pretty: false },
+        headless: false,
       });
-    }
 
-    return parsed.pickupresults;
+      const xmlPayload = builder.buildObject({ bolpickuprequest: payload });
+
+      // FIX: removed trailing space
+      const response = await fetch(`${this.baseUrl}/xml/bol-pickup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/xml' },
+        body: xmlPayload,
+      });
+
+
+      const responseText = await response.text();
+
+      if (!response.ok) {
+        throw new BadRequestException(
+          `TST CF Express BOL API error: ${response.status} — ${responseText}`
+        );
+      }
+
+      const parsed = await parseStringPromise(responseText, { explicitArray: false });
+
+      // FIX: include bolpuresults (the actual root element from TST XML)
+      const results = parsed.bolpuresults || parsed.bolpickupresults || parsed.bolresults || parsed.pickupresults;
+
+      if (results?.errorcode) {
+        throw new BadRequestException({
+          carrier: this.carrierName,
+          code: results.errorcode,
+          message: results.errormsg,
+        });
+      }
+
+      return results;
+
+    } catch (err: any) {
+      console.error('>>> TST fetch threw:', err.message);
+      throw err;
+    }
   }
 }

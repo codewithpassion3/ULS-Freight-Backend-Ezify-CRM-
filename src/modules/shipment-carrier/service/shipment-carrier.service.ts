@@ -18,7 +18,7 @@ export class ShipmentCarrierService {
     
    async createShipment(dto: CreateCarrierShipmentDTO) {
        let carrierResponse: any;
-       if (![Carrier.FEDEX].includes(dto.carrier)) {
+       if (![Carrier.FEDEX, Carrier.TST].includes(dto.carrier)) {
            throw new BadRequestException("This carrier hasn't been implemented for shipment");
        }
 
@@ -43,34 +43,20 @@ export class ShipmentCarrierService {
         if(!quote.shipment) {
             throw new BadRequestException("Convert quote into shipment to proceed further")
         }
-        // if (quote.shipment) {
-        //     await this.em.remove(quote.shipment).flush();
+
+        // if(quote.shipment.carrier) {
+        //     throw new BadRequestException("Quote already has an associated shipment")
         // }
+
+        let shipment = quote.shipment as Shipment;
 
         if (dto.carrier === Carrier.FEDEX) {
             carrierResponse = await this.fedexAdapter.createShipment(dto, quote);
-        }
-        
-        // if (dto.carrier === Carrier.TST) {
-        //     const carrierQuote = await this.tstAdapter.createQuote(quote, dto.selectedRate);
-        //     console.log({carrierQuote})
-        //     carrierResponse = await this.tstAdapter.createShipment(quote, carrierQuote.quoteId);
-        // }
-    
-        let shipment = quote.shipment as Shipment;
-
-
-        shipment.tailgateRequiredInFromAddress = dto.tailgatePickup ?? false;
-        shipment.tailgateRequiredInToAddress = dto.tailgateDelivery ?? false;
-        shipment.carrier = dto.carrier;
-        shipment.currency = dto.selectedRate?.currency || Currency.USD;
-       
-        
-        if (dto.carrier === 'FEDEX') {
+            
             const tx = carrierResponse?.output?.transactionShipments?.[0];
             const shipmentRating = tx?.completedShipmentDetail?.shipmentRating?.shipmentRateDetails[0];
             shipment.trackingNumber = tx?.masterTrackingNumber;
-            shipment.shipDate = tx?.shipDatestamp || Date.now();
+            shipment.shipDate = tx?.shipDatestamp || Date.now(); //refactor later
             shipment.serviceName = tx?.serviceName;
             shipment.serviceType = tx?.serviceType;
             shipment.shippingLabels = tx?.shipmentDocuments?.[0]?.url;
@@ -80,8 +66,41 @@ export class ShipmentCarrierService {
             shipment.totalNetCharge = shipmentRating.totalNetChargeWithDutiesAndTaxes;
             shipment.totalTax = shipmentRating.totalTaxes;
         }
+        
+        if (dto.carrier === Carrier.TST) {
+            carrierResponse = await this.tstAdapter.createShipment(quote, dto.selectedRate);
 
+            const proNumber = carrierResponse?.pro || '';
+            const bolPdfBase64 = carrierResponse?.bol?.imagedata || '';
 
+            shipment.trackingNumber = proNumber;
+            shipment.carrierQuoteId = proNumber;
+
+            shipment.serviceName = dto.selectedRate?.serviceName || dto.selectedRate?.serviceType || 'STANDARD';
+            shipment.serviceType = dto.selectedRate?.serviceType || 'ST';
+            shipment.shipDate = quote?.shipment?.shipDate || new Date();
+            shipment.currency = dto.selectedRate?.currency || Currency.CAD;
+
+            // BOL PDF
+            // shipment.shippingLabels = bolPdfBase64 ? `data:application/pdf;base64,${bolPdfBase64}` : undefined;
+            shipment.shippingLabels = null;
+            // ─── Use selectedRate as the charge source ───
+            const quotedTotal = Number(dto.selectedRate?.totalCharge || 0);
+            
+            // If TST returns breakdowns (production mode), use them; otherwise use quote
+            shipment.totalBaseCharge = Number(carrierResponse?.charges || quotedTotal);
+            shipment.totalSurcharges = Number(carrierResponse?.surcharges || 0);
+            shipment.totalFreightDiscounts = Number(carrierResponse?.discounts || 0);
+            shipment.totalNetCharge = Number(carrierResponse?.totalnet || carrierResponse?.total || quotedTotal);
+            shipment.totalTax = Number(carrierResponse?.taxes || 0);
+            shipment.totalCharge = quotedTotal; // This is what the customer agreed to
+        }
+    
+        shipment.tailgateRequiredInFromAddress = dto.tailgatePickup ?? false;
+        shipment.tailgateRequiredInToAddress = dto.tailgateDelivery ?? false;
+        shipment.carrier = dto.carrier;
+        shipment.currency = dto.selectedRate?.currency || Currency.USD;
+       
         this.em.persist([shipment, quote])
 
         // if (dto.billingReferences?.length) {

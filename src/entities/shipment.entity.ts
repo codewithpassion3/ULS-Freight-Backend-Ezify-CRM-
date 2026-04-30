@@ -42,6 +42,9 @@ export class Shipment {
     trackingNumber?: string | null;
 
     @Property({ nullable: true })
+    bolNumber?: string | null;
+
+    @Property({ nullable: true })
     serviceName?: string;
     
     @Property({ nullable: true })
@@ -59,8 +62,8 @@ export class Shipment {
     @Property({ nullable: true })
     totalTax?: number;
 
-    @Property({ nullable: true})
-    shippingLabels?: string;
+    @Property({ type: 'text', nullable: true })
+    shippingLabels?: string | null;
 
     @OneToOne(() => Quote, { nullable: false, owner: true, hidden: true })
     quote!: Quote;
