@@ -27,6 +27,7 @@ import { ConfigModule } from '@nestjs/config';
 import { RedisModule } from './shared/redis/redis.module';
 import { ShipmentCarrierModule } from './modules/shipment-carrier/shipment-carrier.module';
 import { TrackingModule } from './modules/tracking/tracking.module';
+import { PostalCodeModule } from './modules/postal-code/postal-code.module';
 
 @Module({
   imports: [
@@ -57,7 +58,8 @@ import { TrackingModule } from './modules/tracking/tracking.module';
     NotificationsModule,
     ReminderModule,
     ShipmentCarrierModule,
-    TrackingModule
+    TrackingModule,
+    PostalCodeModule
   ],
   controllers: [AppController],
   providers: [AppService],
