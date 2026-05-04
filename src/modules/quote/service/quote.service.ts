@@ -48,6 +48,12 @@ export class QuoteService {
         private readonly em: EntityManager,
         private readonly eventEmitter: EventEmitter2
     ) {}
+    private quoteShipmentTypesMapping = {
+            [ShipmentType.SPOT_LTL] : ShipmentType.PALLET,
+            [ShipmentType.PACKAGE] : ShipmentType.PACKAGE,
+            [ShipmentType.PALLET] : ShipmentType.PALLET,
+            [ShipmentType.COURIER_PAK] : ShipmentType.COURIER_PAK
+        }
     // Helper method
     private getExistingService(quote: Quote, shipmentType: ShipmentType): any {
         switch (shipmentType) {
@@ -61,14 +67,11 @@ export class QuoteService {
 
     async create(dto: CreateQuoteDTO, session: SessionData) {
         
-        const quoteFactory = dto.quoteType === QuoteType.STANDARD ? new StandardQuoteFactory() : new SpotQuoteFactory();
-          
+        const quoteFactory: any = dto.quoteType === QuoteType.STANDARD ? new StandardQuoteFactory() : new SpotQuoteFactory();
         let quote = quoteFactory.create({ shipmentType: dto.shipmentType, data: dto, em: this.em, session });
-            
         await quote.validate();
         
         quote = await quote.build();
-        
         quote.company = session.companyId;
         quote.user = session.userId;
 
@@ -242,8 +245,13 @@ export class QuoteService {
                 }
 
                 if (addrDto.isResidential !== undefined) {
-                existingAddress.isResidential = addrDto.isResidential;
+                    existingAddress.isResidential = addrDto.isResidential;
                 }
+
+                if (addrDto.additionalNotes !== undefined) {
+                    existingAddress.additionalNotes = addrDto.additionalNotes;
+                }
+
             }
         }
         //8) Line Item
@@ -252,8 +260,8 @@ export class QuoteService {
             ShipmentType.PACKAGE,
             ShipmentType.PALLET
         ];
-
-        if (dto.lineItem && LINE_ITEM_SHIPMENT_TYPES.includes(quote.shipmentType as ShipmentType)) {
+       
+        if (dto.lineItem && LINE_ITEM_SHIPMENT_TYPES.includes(this.quoteShipmentTypesMapping[quote.shipmentType as ShipmentType])) {
             const lineItem = quote.lineItems as LineItem;
             
             if (!lineItem) throw new NotFoundException('Line item not found for this quote');
@@ -319,6 +327,7 @@ export class QuoteService {
                 lineItem.dangerousGoods = null;
             }
 
+            
             if (incomingType === ShipmentType.PALLET) {
                 if (dto.lineItem.stackable !== undefined) lineItem.stackable = dto.lineItem.stackable;
                 if (dto.lineItem.quantity  !== undefined) lineItem.quantity  = dto.lineItem.quantity;
@@ -467,7 +476,7 @@ export class QuoteService {
     const mapping: Record<string, any> = {
         [ShipmentType.PALLET]: PalletServices,
         [ShipmentType.STANDARD_FTL]: StandardFtlServices,
-        [ShipmentType.SPOT_LTL]: SpotLtlServices,
+        [ShipmentType.SPOT_LTL]: PalletServices,
         [ShipmentType.SPOT_FTL]: SpotFtlServices,
     };
 
@@ -486,10 +495,10 @@ export class QuoteService {
         // -----------------------------
         // ONLY CHANGE: PALLET SAFE MERGE
         // -----------------------------
-        if (quote.shipmentType === ShipmentType.PALLET) {
+        if ([ShipmentType.PALLET, ShipmentType.SPOT_LTL].includes(quote.shipmentType)) {
             const current = new PalletServices();
             const incoming = dto.services || {};
-
+            console.log({incoming})
             // reuse SAME logic style as your updateServices()
             const merged: any = { ...current, ...incoming };
 
@@ -502,7 +511,6 @@ export class QuoteService {
 
                 if (incoming.limitedAccess === LimitedAccessType.OTHERS) {
                     const desc = incoming.limitedAccessDescription as any;
-
                     merged.limitedAccessDescription =
                         typeof desc === "string" && desc.trim()
                             ? desc.trim()
@@ -547,7 +555,7 @@ export class QuoteService {
 
                 merged.inBound = updated;
             }
-
+            console.log({finalSchema: merged})
             // copy final merged result into entity
             Object.assign(serviceSchema, merged);
         } else {
@@ -563,7 +571,7 @@ export class QuoteService {
                 quote.spotFtlServices = serviceSchema;
                 break;
             case ShipmentType.SPOT_LTL:
-                quote.spotLtlServices = serviceSchema;
+                quote.palletServices = serviceSchema;
                 break;
             case ShipmentType.STANDARD_FTL:
                 quote.standardFTLService = serviceSchema;

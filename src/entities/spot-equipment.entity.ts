@@ -7,7 +7,7 @@ export class SpotEquipment {
   @PrimaryKey()
   id!: number;
 
-  @OneToOne(() => SpotDetails, spot => spot.spotEquipment,{ owner: true, cascade: [Cascade.REMOVE] })
+  @OneToOne(() => SpotDetails, spot => spot.spotEquipment,{ hidden: true, owner: true, cascade: [Cascade.REMOVE] })
   spotDetail!: SpotDetails;
   
   @Property({ nullable: true})

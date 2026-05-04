@@ -10,7 +10,7 @@ export class SpotDetails {
   @PrimaryKey()
   id!: number;
 
-  @OneToOne(() => Quote, {cascade: [Cascade.REMOVE]})
+  @OneToOne(() => Quote, {hidden: true, cascade: [Cascade.REMOVE]})
   quote!: Quote;
 
   @Enum(() => SpotType)

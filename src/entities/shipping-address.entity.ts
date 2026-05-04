@@ -32,6 +32,10 @@ export class ShippingAddress{
     @Property({ type: 'boolean', nullable: true})
     isResidential?: boolean | null;
 
+    //add additional note 
+    @Property({ nullable: true})
+    additionalNotes?: string | null;
+
     // Optional metadata (FTL / Spot fields)
     @OneToOne(() => ShippingAddressMeta, meta => meta.shippingAddress, { nullable: true })
     meta?: ShippingAddressMeta | null;

@@ -3,6 +3,7 @@ import { BadRequestException } from '@nestjs/common';
 import { SessionData } from 'express-session';
 import { packageRules, palletRules, requiredServiceFields } from 'src/common/constants/quote';
 import { Mode } from 'src/common/enum/mode.enum';
+import { ShipmentType } from 'src/common/enum/shipment-type.enum';
 import { AddressBook } from 'src/entities/address-book.entity';
 import { Address } from 'src/entities/address.entity';
 import { Company } from 'src/entities/company.entity';
@@ -56,6 +57,7 @@ export interface AddressData {
     signatureId?: number;
     companyId?: number;
     userId?: number;
+    additionalNotes?: string;
 }
 
 export abstract class BaseQuote {
@@ -223,10 +225,16 @@ export abstract class BaseQuote {
             SPOT_LTL: () => new SpotLtlServices(),
         };
 
-        const shipmentType = this.data.shipmentType;
-
-        const factory = serviceFactoryMap[shipmentType];
-
+        let shipmentType = this.data.shipmentType;
+        let factory;
+        
+        if(shipmentType === ShipmentType.SPOT_LTL){
+            factory = serviceFactoryMap[ShipmentType.PALLET]
+            shipmentType = ShipmentType.PALLET
+        }else{
+            factory = serviceFactoryMap[shipmentType];
+        } 
+        console.log({factory})
         if (!factory) throw new Error('Unsupported type');
 
         const serviceEntity = factory();
@@ -244,13 +252,14 @@ export abstract class BaseQuote {
         const allowedFields = requiredServiceFields[shipmentType];
         
         for (const field of allowedFields) {
+            console.log({field, allowedFields})
             if (source[field] !== undefined) {
                 (serviceEntity as any)[field] = source[field];
             }
         }
 
         this.attachServiceToQuote(serviceEntity, shipmentType);
-
+        
         this.em.persist(serviceEntity);
         
         await this.em.flush();
