@@ -1,0 +1,80 @@
+extends ./layout
+
+block title
+  | Spot Quote Created
+
+block content
+  | Hi Admin,
+  br
+  br
+  | A new spot quote has been created 
+  if companyName
+    | by 
+    strong #{companyName}
+  br
+  | with the following details:
+  br
+  br
+
+  | Shipment Type:&nbsp;
+  strong #{shipmentType}
+  br
+
+  | Estimated Amount:&nbsp;
+  if estimatedAmount
+    strong #{estimatedAmount} #{currency || ''}
+  else
+    strong Not provided
+  br
+
+  | Created At:&nbsp;
+  strong #{createdAt}
+  br
+
+  | Created By:&nbsp;
+  strong #{createdBy}
+  if companyName
+    |  (
+    strong #{companyName}
+    | )
+  br
+
+  | Contact Number:&nbsp;
+  if contactNumber
+    strong #{contactNumber}
+  else
+    strong Not provided
+  br
+  br
+
+  | Units:
+  br
+  br
+
+  if lineItemUnits.length === 0
+    | No units available.
+  else
+    table(border="1" cellpadding="4" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 14px;")
+      thead
+        tr
+          th(style="text-align: center;") Type
+          th(style="text-align: center;") Quantity
+          th(style="text-align: center;") Weight
+          th(style="text-align: center;") Length
+          th(style="text-align: center;") Width
+          th(style="text-align: center;") Height
+      tbody
+        each item in lineItemUnits
+          tr
+            td(style="text-align: center;") #{item.unitType || '-'}
+            td(style="text-align: center;") #{item.quantity || '-'}
+            td(style="text-align: center;") #{item.weight || '-'} #{item.weight ? (measurementUnit === 'METRIC' ? 'kg' : 'lbs') : ''}
+            td(style="text-align: center;") #{item.length || '-'} #{item.length ? (measurementUnit === 'METRIC' ? 'cm' : 'in') : ''}
+            td(style="text-align: center;") #{item.width || '-'} #{item.width ? (measurementUnit === 'METRIC' ? 'cm' : 'in') : ''}
+            td(style="text-align: center;") #{item.height || '-'} #{item.height ? (measurementUnit === 'METRIC' ? 'cm' : 'in') : ''}
+
+  br
+  br
+
+  | Please review this quote in the system.
+  br

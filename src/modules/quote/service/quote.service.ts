@@ -42,12 +42,21 @@ import { Company } from "src/entities/company.entity";
 import { DangerousGoodsClass, PackagingGroup, QuantityType } from "src/common/enum/line-item.enum";
 import { BondType, ContactKey, LimitedAccessType } from "src/common/enum/services.enum";
 import { EQUIPMENT_RULES } from "src/common/constants/spot-equipment";
+import { getEnv } from 'src/utils/getEnv';
+import { ENV } from 'src/common/constants/env';
+import { EmailTemplate } from "src/common/enum/email-template.enum";
+import { EmailService } from "src/email/service/email.service";
+import { getEmailTemplate } from "src/utils/get-email-template";
+import { ShipmentTypeLabel } from "src/utils/shipment-type-label-mapping";
+import { RequestContextService } from "src/utils/request-context-service";
 
 @Injectable()
 export class QuoteService {
     constructor(
         private readonly em: EntityManager,
-        private readonly eventEmitter: EventEmitter2
+        private readonly eventEmitter: EventEmitter2,
+        private readonly emailService: EmailService,
+        private readonly requestContextService: RequestContextService,
     ) {}
     private quoteShipmentTypesMapping = {
             [ShipmentType.SPOT_LTL] : ShipmentType.PALLET,
@@ -68,20 +77,63 @@ export class QuoteService {
     }
 
     async create(dto: CreateQuoteDTO, session: SessionData) {
-        
+        //1) Resolve currently logged in user and his company details
+        const ctx = await this.requestContextService.resolve({ session, em: this.em })
+
+        //2) Generate factory function based on quote type
         const quoteFactory: any = dto.quoteType === QuoteType.STANDARD ? new StandardQuoteFactory() : new SpotQuoteFactory();
+        
+        //3) Create quote from factory
         let quote = quoteFactory.create({ shipmentType: dto.shipmentType, data: dto, em: this.em, session });
+        
+        //4) Validate created quote
         await quote.validate();
         
+        //5) Build validated quote
         quote = await quote.build();
         quote.company = session.companyId;
         quote.user = session.userId;
 
+        //6) Persist and save quote
         this.em.persist(quote);
         
         await this.em.flush();
-       
-        this.eventEmitter.emit(NotificationType.QUOTE_CREATED, {
+        
+        //7) Format created at for email template
+        const createdAtFormatted = new Date(quote.createdAt).toLocaleString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        });
+
+        //8) Send out email only for spot quotes
+        if(dto.quoteType === QuoteType.SPOT) {
+            this.emailService.sendSpotQuoteEmail({
+                to: getEnv(ENV.ADMIN_EMAIL),
+                subject: "Spot Quote Created",
+                template: getEmailTemplate(EmailTemplate.SPOT_QUOTE_CREATED),
+                context: {
+                    shipmentType: ShipmentTypeLabel[quote.shipmentType],
+                    estimatedAmount: dto.estimatedAmount?.amount,
+                    currency: dto.estimatedAmount?.currency,
+                    measurementUnit: quote.lineItems.measurementUnit,
+                    createdAt: createdAtFormatted,
+                    companyName: ctx.company.name,
+                    contactNumber: ctx.user.phoneNumber,
+                    createdBy: `${ctx.user?.firstName} ${ctx.user?.lastName}`,
+                    lineItemUnits: quote.lineItems.units
+                }
+            });
+        }
+
+        //9) Get the notification type
+        const notificationType = dto.quoteType === QuoteType.STANDARD ? NotificationType.QUOTE_CREATED : NotificationType.SPOT_QUOTE_CREATED
+        
+        //10) Emit notification event
+        this.eventEmitter.emit(notificationType, {
             entity: quote,
             actorId: session.userId,
             companyId: session.companyId,
@@ -89,7 +141,9 @@ export class QuoteService {
             quoteId: quote.id
             }
         })
-        return { message: "Quote created successfully", quote }
+
+        //11) Return back success response
+        return { message: "Quote created successfully" }
     }
 
 
@@ -602,7 +656,6 @@ export class QuoteService {
 
                         merged.inBound = updated;
                     }
-                    console.log({finalSchema: merged})
                     // copy final merged result into entity
                     Object.assign(serviceSchema, merged);
                 } else {

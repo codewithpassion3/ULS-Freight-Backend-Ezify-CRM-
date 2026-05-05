@@ -1,3 +1,5 @@
+import { Quote } from "src/entities/quote.entity";
+
 export interface EmailTemplate {
     to: string;
     subject: string;
@@ -9,7 +11,27 @@ export interface EmailTemplate {
         loginUrl?: string;
         companyName?: string;
         administratorName?: string;
+        estimatedAmount?: number;
+        currency?: string;
         name?: string;
         otp?: string;
+        contactNumber?: string;
+        shipmentType?: string;
+        measurementUnit?: string;
+        createdAt?: string;
+        createdBy?: string;
+        lineItemUnits?: Array<{
+        unitType?: string;
+        quantity?: number;
+        weight?: number;
+        length?: number;
+        width?: number;
+        height?: number;
+        }>;
+  
     };
+}
+
+export interface SpotQuoteEmailTemplate extends EmailTemplate {
+    quote: Partial<Quote>
 }

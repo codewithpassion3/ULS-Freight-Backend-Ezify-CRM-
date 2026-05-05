@@ -312,9 +312,21 @@ export class CreateSpotDetailsDto {
   knownShipper?: boolean;
 }
 
+export class EstimatedAmountDTO {
+  @IsNumber()
+  amount!: number;
+
+  @IsEnum(Currency)
+  currency!: Currency;
+}
 /* ---------------- ROOT DTO ---------------- */
 
 export class CreateQuoteDTO {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => EstimatedAmountDTO)
+  estimatedAmount?: EstimatedAmountDTO;
+
   @IsEnum(QuoteStatus)
   status!: QuoteStatus;
   
