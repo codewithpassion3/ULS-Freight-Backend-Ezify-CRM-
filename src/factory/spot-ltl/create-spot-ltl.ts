@@ -84,7 +84,8 @@ export class CreateSpotLTLQuote extends SpotQuote {
 
         await this.buildServices();
         
-        quote.spotDetails = this.buildSpotDetails();
+        quote.spotDetails = this.buildSpotDetails(this.validatedData.spotDetails);
+        quote.additionalNotes = this.validatedData.additionalNotes;
 
         return quote;
     }
@@ -186,37 +187,6 @@ export class CreateSpotLTLQuote extends SpotQuote {
         unit.unitsOnPallet = unitData.unitsOnPallet;
         unit.palletUnitType = unitData.palletUnitType;
         unit.description = unitData.description ?? ""
-    }
-
-    protected buildSpotDetails() {
-        const { spotContact: contact, spotEquipment, spotType } = this.validatedData.spotDetails;
-
-        const spotDetails = new SpotDetails();
-        const spotContact = new SpotContact();
-        const spotEquipments = new SpotEquipment();
-        
-        wrap(spotContact).assign({
-            contactName:    contact.contactName,
-            phoneNumber:    contact.phoneNumber,
-            email:          contact.email,
-            shipDate:       contact.shipDate,
-            deliveryDate:   contact.deliveryDate   ?? null,
-            spotQuoteName:  contact.spotQuoteName  ?? null,
-        })
-
-        wrap(spotEquipments).assign({
-            dryVan:         spotEquipment.dryVan,
-            refrigerated:   spotEquipment.refrigerated,
-
-        })
-
-        spotDetails.spotContact  = spotContact;
-        spotDetails.spotEquipment = spotEquipments;
-        spotDetails.spotType = spotType;
-        
-        this.em.persist([spotEquipments, spotContact, spotDetails]);
-
-        return spotDetails;
     }
 
 

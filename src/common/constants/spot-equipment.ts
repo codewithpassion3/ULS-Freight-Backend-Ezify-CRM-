@@ -1,4 +1,5 @@
 import { ShipmentType } from "../enum/shipment-type.enum";
+import { SpotType } from "../enum/spot-type.enum";
 
 export const EQUIPMENT_RULES = {
   [ShipmentType.TIME_CRITICAL]: [
@@ -17,4 +18,14 @@ export const EQUIPMENT_RULES = {
     'dryVan',
     'refrigerated',
   ],
+  [SpotType.FTL]: [
+    'dryVan',
+    'refrigerated',
+    'flatbed',
+    'ventilated',
+  ],
+  [SpotType.LTL]: [
+    'dryVan',
+    'refrigerated',
+  ]
 };

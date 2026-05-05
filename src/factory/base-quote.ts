@@ -217,7 +217,6 @@ export abstract class BaseQuote {
         if (!services || Object.keys(services).length === 0) {
             return;
         }
-        console.log({services, data: this.validatedData })
         const serviceFactoryMap = {
             STANDARD_FTL: () => new StandardFtlServices(),
             PALLET: () => new PalletServices(),
@@ -234,7 +233,6 @@ export abstract class BaseQuote {
         }else{ 
             factory = serviceFactoryMap[shipmentType];
         } 
-        console.log({factory})
         if (!factory) throw new Error('Unsupported type');
 
         const serviceEntity = factory();
@@ -252,7 +250,6 @@ export abstract class BaseQuote {
         const allowedFields = requiredServiceFields[shipmentType];
         
         for (const field of allowedFields) {
-            console.log({field, allowedFields})
             if (source[field] !== undefined) {
                 (serviceEntity as any)[field] = source[field];
             }

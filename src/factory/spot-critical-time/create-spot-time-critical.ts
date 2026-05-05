@@ -10,9 +10,9 @@ import { LineItemUnit } from "src/entities/line-item-unit.entity";
 import { LineItem } from "src/entities/line-item.entity";
 import { ShippingAddress } from "src/entities/shipping-address.entity";
 import { User } from "src/entities/user.entity";
-import { QuoteConstructorParams, AddressData, AddressType } from "../base-quote";
+import { QuoteConstructorParams, AddressData } from "../base-quote";
 import { PalletServices } from "src/entities/pallet-services.entity";
-import { palletRules, spotFTLRules } from "src/common/constants/quote";
+import { palletRules } from "src/common/constants/quote";
 import { validateUnit } from "src/utils/validateQuote";
 import { DangerousGoodsClass } from "src/common/enum/line-item.enum";
 import { EquipmentType } from "src/common/enum/equipment-type.enum";
@@ -21,8 +21,9 @@ import { SpotContact } from "src/entities/spot-contact.entity";
 import { SpotEquipment } from "src/entities/spot-equipment.entity";
 import { SpotQuote } from "../spot-quote";
 import { RefrigeratedType } from "src/common/enum/refrigerated.enum";
+import { EQUIPMENT_RULES } from "src/common/constants/spot-equipment";
 
-export class CreateSpotFTLQuote extends SpotQuote {
+export class CreateSpotTimeCriticalQuote extends SpotQuote {
     constructor(params: QuoteConstructorParams) {
         super();
         this.data = params.data;
@@ -32,14 +33,12 @@ export class CreateSpotFTLQuote extends SpotQuote {
     }
 
     async validate(): Promise<void> {
-        console.log("Validate spot ftl")
         this.errors = [];
         await this.validateAddresses();
-        // this.validateSpotDetails();
+
         this.validateLineItem();
         this.validateLineItemUnits();
         this.errors.push(...this.validateSpotDetails(this.data.spotDetails, this.errors, this.data.shipmentType));
-        this.validateServices();
         this.validateInsurance();
         
         if (this.errors.length > 0) {
@@ -82,8 +81,6 @@ export class CreateSpotFTLQuote extends SpotQuote {
         quote.insurance = this.buildInsurance() as any;    
         quote.company = this.em.getReference(Company, this.session.companyId as number);
         quote.createdBy = this.em.getReference(User, this.session.userId as number);
-
-        await this.buildServices();
         
         quote.spotDetails = this.buildSpotDetails(this.validatedData.spotDetails);
         quote.additionalNotes = this.validatedData.additionalNotes;
@@ -91,21 +88,6 @@ export class CreateSpotFTLQuote extends SpotQuote {
     }
 
     
-    protected async validateAddresses(): Promise<void> {
-        const fromAddress = this.data.addresses.find((a: AddressData) => a.type === AddressType.FROM);
-        const toAddress = this.data.addresses.find((a: AddressData) => a.type === AddressType.TO);
-
-        if (!fromAddress) this.errors.push("FROM address is missing");
-        if (!toAddress) this.errors.push("TO address is missing");
-
-        const normalizedAddresses = this.data.addresses.map((addr: AddressData) => ({
-            ...addr,
-            locationType: addr.locationType ?? undefined,
-        }));
-
-        // Delegate to derived implementation
-        await this.validateAddressDetails(normalizedAddresses);
-    }
 
     protected async validateAddressDetails(addresses: AddressData[]): Promise<void> {
       this.validateQuoteAddresses(addresses);  
@@ -134,23 +116,9 @@ export class CreateSpotFTLQuote extends SpotQuote {
         }
     }
 
-    protected validateLineItemUnits(): void {
-        if (!this.data.lineItem?.units?.length) return;
-
-        const units = this.data.lineItem.units;
-        const hasStandardSize = this.data.lineItem.hasStandardSize;
-
-        if(!hasStandardSize && units.length > 1) {
-            this.errors.push("Exactly one line item is required for non standard sizes")
-        }
-
-       this.processLineItemUnit(units)
-    }
     protected processLineItemUnit(units: any): void {
-        const hasStandardSize = this.data.lineItem.hasStandardSize;
-        let validationRule = hasStandardSize ? palletRules : spotFTLRules;
         units.forEach((unit: any, idx: number) => {
-            const result = validateUnit(unit, validationRule, { unitIndex: idx });
+            const result = validateUnit(unit, palletRules, { unitIndex: idx });
             if (result.errors) {
                 this.errors.push(...result.errors);
             }

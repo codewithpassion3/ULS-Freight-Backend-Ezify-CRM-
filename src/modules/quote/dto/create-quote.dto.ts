@@ -348,5 +348,8 @@ export class CreateQuoteDTO {
   spotDetails?: CreateSpotDetailsDto;
 
   @IsOptional()
+  additionalNotes?: string;
+  
+  @IsOptional()
   services?: SpotFtlServices | SpotLtlServices | StandardFtlServices | PalletServices;
 }
