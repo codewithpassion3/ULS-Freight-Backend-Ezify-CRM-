@@ -41,13 +41,30 @@ import { StandardQuoteFactory } from "src/factory/standard-quote.factory";
 import { Company } from "src/entities/company.entity";
 import { DangerousGoodsClass, PackagingGroup, QuantityType } from "src/common/enum/line-item.enum";
 import { BondType, ContactKey, LimitedAccessType } from "src/common/enum/services.enum";
+import { EQUIPMENT_RULES } from "src/common/constants/spot-equipment";
+import { getEnv } from 'src/utils/getEnv';
+import { ENV } from 'src/common/constants/env';
+import { EmailTemplate } from "src/common/enum/email-template.enum";
+import { EmailService } from "src/email/service/email.service";
+import { getEmailTemplate } from "src/utils/get-email-template";
+import { ShipmentTypeLabel } from "src/utils/shipment-type-label-mapping";
+import { RequestContextService } from "src/utils/request-context-service";
 
 @Injectable()
 export class QuoteService {
     constructor(
         private readonly em: EntityManager,
-        private readonly eventEmitter: EventEmitter2
+        private readonly eventEmitter: EventEmitter2,
+        private readonly emailService: EmailService,
+        private readonly requestContextService: RequestContextService,
     ) {}
+    private quoteShipmentTypesMapping = {
+            [ShipmentType.SPOT_LTL] : ShipmentType.PALLET,
+            [ShipmentType.SPOT_FTL] : ShipmentType.PALLET,
+            [ShipmentType.PACKAGE] : ShipmentType.PACKAGE,
+            [ShipmentType.PALLET] : ShipmentType.PALLET,
+            [ShipmentType.COURIER_PAK] : ShipmentType.COURIER_PAK
+        }
     // Helper method
     private getExistingService(quote: Quote, shipmentType: ShipmentType): any {
         switch (shipmentType) {
@@ -60,23 +77,63 @@ export class QuoteService {
     }
 
     async create(dto: CreateQuoteDTO, session: SessionData) {
+        //1) Resolve currently logged in user and his company details
+        const ctx = await this.requestContextService.resolve({ session, em: this.em })
+
+        //2) Generate factory function based on quote type
+        const quoteFactory: any = dto.quoteType === QuoteType.STANDARD ? new StandardQuoteFactory() : new SpotQuoteFactory();
         
-        const quoteFactory = dto.quoteType === QuoteType.STANDARD ? new StandardQuoteFactory() : new SpotQuoteFactory();
-          
+        //3) Create quote from factory
         let quote = quoteFactory.create({ shipmentType: dto.shipmentType, data: dto, em: this.em, session });
-            
+        
+        //4) Validate created quote
         await quote.validate();
         
+        //5) Build validated quote
         quote = await quote.build();
-        
         quote.company = session.companyId;
         quote.user = session.userId;
 
+        //6) Persist and save quote
         this.em.persist(quote);
         
         await this.em.flush();
-       
-        this.eventEmitter.emit(NotificationType.QUOTE_CREATED, {
+        
+        //7) Format created at for email template
+        const createdAtFormatted = new Date(quote.createdAt).toLocaleString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        });
+
+        //8) Send out email only for spot quotes
+        if(dto.quoteType === QuoteType.SPOT) {
+            this.emailService.sendSpotQuoteEmail({
+                to: getEnv(ENV.ADMIN_EMAIL),
+                subject: "Spot Quote Created",
+                template: getEmailTemplate(EmailTemplate.SPOT_QUOTE_CREATED),
+                context: {
+                    shipmentType: ShipmentTypeLabel[quote.shipmentType],
+                    estimatedAmount: dto.estimatedAmount?.amount,
+                    currency: dto.estimatedAmount?.currency,
+                    measurementUnit: quote.lineItems.measurementUnit,
+                    createdAt: createdAtFormatted,
+                    companyName: ctx.company.name,
+                    contactNumber: ctx.user.phoneNumber,
+                    createdBy: `${ctx.user?.firstName} ${ctx.user?.lastName}`,
+                    lineItemUnits: quote.lineItems.units
+                }
+            });
+        }
+
+        //9) Get the notification type
+        const notificationType = dto.quoteType === QuoteType.STANDARD ? NotificationType.QUOTE_CREATED : NotificationType.SPOT_QUOTE_CREATED
+        
+        //10) Emit notification event
+        this.eventEmitter.emit(notificationType, {
             entity: quote,
             actorId: session.userId,
             companyId: session.companyId,
@@ -84,7 +141,9 @@ export class QuoteService {
             quoteId: quote.id
             }
         })
-        return { message: "Quote created successfully", quote }
+
+        //11) Return back success response
+        return { message: "Quote created successfully" }
     }
 
 
@@ -242,8 +301,13 @@ export class QuoteService {
                 }
 
                 if (addrDto.isResidential !== undefined) {
-                existingAddress.isResidential = addrDto.isResidential;
+                    existingAddress.isResidential = addrDto.isResidential;
                 }
+
+                if (addrDto.additionalNotes !== undefined) {
+                    existingAddress.additionalNotes = addrDto.additionalNotes;
+                }
+
             }
         }
         //8) Line Item
@@ -252,8 +316,8 @@ export class QuoteService {
             ShipmentType.PACKAGE,
             ShipmentType.PALLET
         ];
-
-        if (dto.lineItem && LINE_ITEM_SHIPMENT_TYPES.includes(quote.shipmentType as ShipmentType)) {
+       
+        if (dto.lineItem && LINE_ITEM_SHIPMENT_TYPES.includes(this.quoteShipmentTypesMapping[quote.shipmentType as ShipmentType])) {
             const lineItem = quote.lineItems as LineItem;
             
             if (!lineItem) throw new NotFoundException('Line item not found for this quote');
@@ -319,6 +383,7 @@ export class QuoteService {
                 lineItem.dangerousGoods = null;
             }
 
+            
             if (incomingType === ShipmentType.PALLET) {
                 if (dto.lineItem.stackable !== undefined) lineItem.stackable = dto.lineItem.stackable;
                 if (dto.lineItem.quantity  !== undefined) lineItem.quantity  = dto.lineItem.quantity;
@@ -439,24 +504,69 @@ export class QuoteService {
             }
 
             // Equipment - with null checks
-            if (dto.spotDetails.spotEquipment) {
-            const equipment = spotDetail.spotEquipment ?? new SpotEquipment();
-            const eq = dto.spotDetails.spotEquipment;
+            if (dto.spotDetails?.spotEquipment) {
+                const eq = dto.spotDetails.spotEquipment;
 
-            equipment.car = eq.car ?? null;
-            equipment.dryVan = eq.dryVan ?? null;
-            equipment.flatbed = eq.flatbed ?? null;
-            equipment.truck = eq.truck ?? null;
-            equipment.van = eq.van ?? null;
-            equipment.ventilated = eq.ventilated ?? null;
-            equipment.refrigerated = eq.refrigerated ? { type: eq.refrigerated.type  as RefrigeratedType } : null;
-            equipment.nextFlightOut = eq.nextFlightOut
-                ? { knownShipper: eq.nextFlightOut.knownShipper ?? false }
-                : null;
+                const equipment = spotDetail.spotEquipment ?? new SpotEquipment();
 
-            equipment.spotDetail = spotDetail;
-            spotDetail.spotEquipment = equipment;
-            em.persist(equipment);
+                const allowedFields = EQUIPMENT_RULES[quote.shipmentType] || [];
+
+                // Step 1: find provided fields
+                const providedFields = allowedFields.filter(
+                    (field) => eq[field] !== undefined && eq[field] !== null
+                );
+
+                // Step 2: enforce only one field
+                if (providedFields.length !== 1) {
+                    throw new BadRequestException(
+                    `Exactly one equipment must be provided: ${allowedFields.join(", ")}`
+                    );
+                }
+
+                const selectedField = providedFields[0];
+
+                // Step 3: reset all fields first (since only one allowed)
+                for (const field of allowedFields) {
+                    equipment[field] = null;
+                }
+
+                // Step 4: assign selected field safely
+                switch (selectedField) {
+                    case "dryVan":
+                    case "flatbed":
+                    case "ventilated":
+                    case "car":
+                    case "truck":
+                    case "van":
+                    if (typeof eq[selectedField] !== "boolean") {
+                        throw new BadRequestException(`${selectedField} must be boolean`);
+                    }
+                    equipment[selectedField] = eq[selectedField];
+                    break;
+
+                    case "refrigerated":
+                    if (typeof eq.refrigerated !== "object") {
+                        throw new BadRequestException("refrigerated must be an object");
+                    }
+                    equipment.refrigerated = {
+                        type: eq.refrigerated.type as RefrigeratedType,
+                    };
+                    break;
+
+                    case "nextFlightOut":
+                    if (typeof eq.nextFlightOut !== "object") {
+                        throw new BadRequestException("nextFlightOut must be an object");
+                    }
+                    equipment.nextFlightOut = {
+                        knownShipper: eq.nextFlightOut.knownShipper ?? false,
+                    };
+                    break;
+                }
+
+                equipment.spotDetail = spotDetail;
+                spotDetail.spotEquipment = equipment;
+
+                em.persist(equipment);
             }
 
             em.persist(spotDetail);
@@ -464,115 +574,113 @@ export class QuoteService {
 
         //17) Services
         if (dto.services) {
-    const mapping: Record<string, any> = {
-        [ShipmentType.PALLET]: PalletServices,
-        [ShipmentType.STANDARD_FTL]: StandardFtlServices,
-        [ShipmentType.SPOT_LTL]: SpotLtlServices,
-        [ShipmentType.SPOT_FTL]: SpotFtlServices,
-    };
+            const mapping: Record<string, any> = {
+                [ShipmentType.PALLET]: PalletServices,
+                [ShipmentType.STANDARD_FTL]: StandardFtlServices,
+                [ShipmentType.SPOT_LTL]: PalletServices,
+                [ShipmentType.SPOT_FTL]: SpotFtlServices,
+            };
 
-    const ServiceEntity = mapping[quote.shipmentType as ShipmentType];
+            const ServiceEntity = mapping[quote.shipmentType as ShipmentType];
 
-    if (ServiceEntity) {
-        const existingService = this.getExistingService(
-            quote,
-            quote.shipmentType as ShipmentType
-        );
+            if (ServiceEntity) {
+                const existingService = this.getExistingService(
+                    quote,
+                    quote.shipmentType as ShipmentType
+                );
 
-        if (existingService) em.remove(existingService);
+                if (existingService) em.remove(existingService);
 
-        const serviceSchema = new ServiceEntity();
+                const serviceSchema = new ServiceEntity();
 
-        // -----------------------------
-        // ONLY CHANGE: PALLET SAFE MERGE
-        // -----------------------------
-        if (quote.shipmentType === ShipmentType.PALLET) {
-            const current = new PalletServices();
-            const incoming = dto.services || {};
+                // -----------------------------
+                // ONLY CHANGE: PALLET SAFE MERGE
+                // -----------------------------
+                if ([ShipmentType.PALLET, ShipmentType.SPOT_LTL].includes(quote.shipmentType)) {
+                    const current = new PalletServices();
+                    const incoming = dto.services || {};
 
-            // reuse SAME logic style as your updateServices()
-            const merged: any = { ...current, ...incoming };
+                    // reuse SAME logic style as your updateServices()
+                    const merged: any = { ...current, ...incoming };
 
-            // LIMITED_ACCESS
-            if (
-                incoming.limitedAccess !== undefined &&
-                Object.values(LimitedAccessType).includes(incoming.limitedAccess as any)
-            ) {
-                merged.limitedAccess = incoming.limitedAccess;
+                    // LIMITED_ACCESS
+                    if (
+                        incoming.limitedAccess !== undefined &&
+                        Object.values(LimitedAccessType).includes(incoming.limitedAccess as any)
+                    ) {
+                        merged.limitedAccess = incoming.limitedAccess;
 
-                if (incoming.limitedAccess === LimitedAccessType.OTHERS) {
-                    const desc = incoming.limitedAccessDescription as any;
+                        if (incoming.limitedAccess === LimitedAccessType.OTHERS) {
+                            const desc = incoming.limitedAccessDescription as any;
+                            merged.limitedAccessDescription =
+                                typeof desc === "string" && desc.trim()
+                                    ? desc.trim()
+                                    : null;
+                        } else {
+                            merged.limitedAccessDescription = null;
+                        }
+                    }
 
-                    merged.limitedAccessDescription =
-                        typeof desc === "string" && desc.trim()
-                            ? desc.trim()
-                            : null;
+                    // IN_BOUND
+                    if (incoming.inbound && typeof incoming.inbound === "object") {
+                        const currentIn = merged.inbound || {};
+                        const inB = incoming.inbound;
+
+                        const updated: any = { ...currentIn };
+
+                        if (
+                            inB.bondType !== undefined &&
+                            Object.values(BondType).includes(inB.bondType)
+                        ) {
+                            updated.bondType = inB.bondType;
+                        }
+
+                        if (
+                            inB.contactKey !== undefined &&
+                            Object.values(ContactKey).includes(inB.contactKey)
+                        ) {
+                            updated.contactKey = inB.contactKey;
+                        }
+
+                        if (typeof inB.bondCancler === "string" && inB.bondCancler.trim()) {
+                            updated.bondCancler = inB.bondCancler.trim();
+                        }
+
+                        if (typeof inB.contactValue === "string" && inB.contactValue.trim()) {
+                            updated.contactValue = inB.contactValue.trim();
+                        }
+
+                        if (typeof inB.address === "string" && inB.address.trim()) {
+                            updated.address = inB.address.trim();
+                        }
+
+                        merged.inBound = updated;
+                    }
+                    // copy final merged result into entity
+                    Object.assign(serviceSchema, merged);
                 } else {
-                    merged.limitedAccessDescription = null;
+                    // ALL OTHER TYPES untouched
+                    Object.assign(serviceSchema, dto.services);
                 }
+
+                switch (quote.shipmentType) {
+                    case ShipmentType.PALLET:
+                        quote.palletServices = serviceSchema;
+                        break;
+                    case ShipmentType.SPOT_FTL:
+                        quote.spotFtlServices = serviceSchema;
+                        break;
+                    case ShipmentType.SPOT_LTL:
+                        quote.palletServices = serviceSchema;
+                        break;
+                    case ShipmentType.STANDARD_FTL:
+                        quote.standardFTLService = serviceSchema;
+                        break;
+                }
+
+                em.persist(serviceSchema);
             }
-
-            // IN_BOUND
-            if (incoming.inbound && typeof incoming.inbound === "object") {
-                const currentIn = merged.inbound || {};
-                const inB = incoming.inbound;
-
-                const updated: any = { ...currentIn };
-
-                if (
-                    inB.bondType !== undefined &&
-                    Object.values(BondType).includes(inB.bondType)
-                ) {
-                    updated.bondType = inB.bondType;
-                }
-
-                if (
-                    inB.contactKey !== undefined &&
-                    Object.values(ContactKey).includes(inB.contactKey)
-                ) {
-                    updated.contactKey = inB.contactKey;
-                }
-
-                if (typeof inB.bondCancler === "string" && inB.bondCancler.trim()) {
-                    updated.bondCancler = inB.bondCancler.trim();
-                }
-
-                if (typeof inB.contactValue === "string" && inB.contactValue.trim()) {
-                    updated.contactValue = inB.contactValue.trim();
-                }
-
-                if (typeof inB.address === "string" && inB.address.trim()) {
-                    updated.address = inB.address.trim();
-                }
-
-                merged.inBound = updated;
-            }
-
-            // copy final merged result into entity
-            Object.assign(serviceSchema, merged);
-        } else {
-            // ALL OTHER TYPES untouched
-            Object.assign(serviceSchema, dto.services);
         }
-
-        switch (quote.shipmentType) {
-            case ShipmentType.PALLET:
-                quote.palletServices = serviceSchema;
-                break;
-            case ShipmentType.SPOT_FTL:
-                quote.spotFtlServices = serviceSchema;
-                break;
-            case ShipmentType.SPOT_LTL:
-                quote.spotLtlServices = serviceSchema;
-                break;
-            case ShipmentType.STANDARD_FTL:
-                quote.standardFTLService = serviceSchema;
-                break;
-        }
-
-        em.persist(serviceSchema);
-    }
-}
 
         if ([ShipmentType.COURIER_PAK, ShipmentType.PACKAGE].includes(quote.shipmentType) && dto.signature) {
             const signature = await this.em.findOne(Signature, { id: dto.signature });

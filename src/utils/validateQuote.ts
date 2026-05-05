@@ -9,6 +9,7 @@ import { Quote } from "src/entities/quote.entity";
 import { requiredServiceFields } from "src/common/constants/quote";
 import { BondType, ContactKey, LimitedAccessType } from "src/common/enum/services.enum";
 import { MeasurementUnits } from "src/common/enum/measurement-units.enum";
+import { TRADE_SHOW_DELIVERY } from "src/common/enum/quote";
 
 interface ValidationResult {
   valid: boolean;
@@ -330,7 +331,7 @@ for (const address of normalizedAddresses) {
 }
 
  export const multiOptionFields = {
-    "IN_BOUND": {
+    IN_BOUND: {
       "key": "inbound",
       "value": {
         "bondType": [BondType.T_E_BOND, BondType.IT_BOND],
@@ -340,7 +341,7 @@ for (const address of normalizedAddresses) {
         "contactValue": ""
       }
     },
-    "LIMITED_ACCESS": {
+    LIMITED_ACCESS: {
       "key": "limitedAccess",
       "value": [
         LimitedAccessType.OTHERS,
@@ -368,7 +369,6 @@ for (const address of normalizedAddresses) {
         message: { required: false }
       }
     },
-
     PALLET: {
       key: "pallet",
       value: {
@@ -379,7 +379,48 @@ for (const address of normalizedAddresses) {
           enum: [MeasurementUnits.IMPERIAL, MeasurementUnits.METRIC]
         },
         message: { required: false }
-      }
+      },
+      TRADE_SHOW_DELIVERY: {
+        key: "tradeShowDelivery",
+        value: {
+          isBeingCheckedInStandardQuote: { required: false },
+          appointmentDeliveryRequired: { required: false },
+          deliveryTo: {
+            require: true,
+            enum: [TRADE_SHOW_DELIVERY.ADVANCE_WAREHOUSE, TRADE_SHOW_DELIVERY.TRADE_SHOW]
+          },
+          moveInDate: { required: true },
+          tradeShowName: { required: true },
+          tradeShowBooth: { required: true },
+          contactName: { required: true },
+          contactNumber: { required: true },
+          generalInstructions: { required: true }
+        }
+      },
+      AMAZON_OR_FBA_DELIVERY: {
+        key: "amazonOrFbaDelivery",
+        value: {
+          isBeingCheckedInStandardQuote: { reqiored: false },
+          appointmentScheduledAlready: { required: true },
+          appointmentDate: { required: false },
+          appointmentTime: { required: false }, 
+          fba: { required: true },
+          orderId: { required: true }
+        }
+      },
+      GROCERY_DISTRIBUTOR_CENTER: {
+        key: "groceryDistributorCenter",
+        value: {
+          facilityName: { required: true },
+          orderId: { required: false },
+          hasAppointmentAlreadyBeenScheduled: { required: true },
+          appointmentDate: { required: false },
+          appointmentTime: { required: false }, 
+          appointmentConfirmation: { required: false },
+          appointmentPortal: { required: false },
+          additionalRemarks: { required: false }
+        }
+    }
     }
   }
 
@@ -583,9 +624,129 @@ export const validateAndFilterServicesForUpdate = (
             continue;
         }
 
-        // -----------------------------
-        // BOOLEAN SERVICES (default)
-        // -----------------------------
+         // ─── TRADE_SHOW_DELIVERY ───────────────────────────────────────────────────
+      if (field === multiOptionFields.PALLET.TRADE_SHOW_DELIVERY.key) {
+        if (typeof value !== "object") {
+          errors.push(`services.${field} must be an object`);
+        } else {
+          const {
+            deliveryTo,
+            moveInDate,
+            tradeShowName,
+            tradeShowBooth,
+            contactName,
+            contactNumber,
+            generalInstructions,
+          } = value;
+
+         if (!deliveryTo || !Object.values(TRADE_SHOW_DELIVERY).includes(deliveryTo)) {
+            errors.push(
+              `services.${field}.deliveryTo has invalid value. Allowed values are: ${Object.values(TRADE_SHOW_DELIVERY).join(", ")}`
+            );
+          }
+
+          if (typeof moveInDate !== "string" || !moveInDate.trim()) {
+            errors.push(`services.${field}.moveInDate must be a non-empty string`);
+          }
+
+          if (typeof tradeShowName !== "string" || !tradeShowName.trim()) {
+            errors.push(`services.${field}.tradeShowName must be a non-empty string`);
+          }
+
+          if (typeof tradeShowBooth !== "string" || !tradeShowBooth.trim()) {
+            errors.push(`services.${field}.tradeShowBooth must be a non-empty string`);
+          }
+
+          if (typeof contactName !== "string" || !contactName.trim()) {
+            errors.push(`services.${field}.contactName must be a non-empty string`);
+          }
+
+          if (typeof contactNumber !== "string" || !contactNumber.trim()) {
+            errors.push(`services.${field}.contactNumber must be a non-empty string`);
+          }
+
+          if (typeof generalInstructions !== "string" || !generalInstructions.trim()) {
+            errors.push(`services.${field}.generalInstructions must be a non-empty string`);
+          }
+        }
+      }
+
+      // ─── AMAZON_OR_FBA_DELIVERY ────────────────────────────────────────────────
+      if (field === multiOptionFields.PALLET.AMAZON_OR_FBA_DELIVERY.key) {
+        if (typeof value !== "object") {
+          errors.push(`services.${field} must be an object`);
+        } else {
+          const {
+            appointmentScheduledAlready,
+            appointmentDate,
+            appointmentTime,
+            fba,
+            orderId,
+          } = value;
+
+          if (typeof fba !== "string" || !fba.trim()) {
+            errors.push(`services.${field}.fba must be a non-empty string`);
+          }
+
+          if (typeof orderId !== "string" || !orderId.trim()) {
+            errors.push(`services.${field}.orderId must be a non-empty string`);
+          }
+
+          if (appointmentScheduledAlready === true) {
+            if (typeof appointmentDate !== "string" || !appointmentDate.trim()) {
+              errors.push(
+                `services.${field}.appointmentDate must be a non-empty string when appointmentScheduledAlready is true`
+              );
+            }
+
+            if (typeof appointmentTime !== "string" || !appointmentTime.trim()) {
+              errors.push(
+                `services.${field}.appointmentTime must be a non-empty string when appointmentScheduledAlready is true`
+              );
+            }
+          }
+        }
+      }
+
+      // ─── GROCERY_DISTRIBUTOR_CENTER ────────────────────────────────────────────
+      if (field === multiOptionFields.PALLET.GROCERY_DISTRIBUTOR_CENTER.key) {
+        if (typeof value !== "object") {
+          errors.push(`services.${field} must be an object`);
+        } else {
+          const {
+            facilityName,
+            hasAppointmentAlreadyBeenScheduled,
+            appointmentDate,
+            appointmentTime,
+            appointmentConfirmation,
+          } = value;
+
+          if (typeof facilityName !== "string" || !facilityName.trim()) {
+            errors.push(`services.${field}.facilityName must be a non-empty string`);
+          }
+
+          if (hasAppointmentAlreadyBeenScheduled === true) {
+            if (typeof appointmentDate !== "string" || !appointmentDate.trim()) {
+              errors.push(
+                `services.${field}.appointmentDate must be a non-empty string when hasAppointmentAlreadyBeenScheduled is true`
+              );
+            }
+
+            if (typeof appointmentTime !== "string" || !appointmentTime.trim()) {
+              errors.push(
+                `services.${field}.appointmentTime must be a non-empty string when hasAppointmentAlreadyBeenScheduled is true`
+              );
+            }
+
+            if (typeof appointmentConfirmation !== "string" || !appointmentConfirmation.trim()) {
+              errors.push(
+                `services.${field}.appointmentConfirmation must be a non-empty string when hasAppointmentAlreadyBeenScheduled is true`
+              );
+            }
+          }
+        }
+      }
+
         if (typeof value !== "boolean") {
             errors.push(`services.${field} must be boolean`);
             continue;

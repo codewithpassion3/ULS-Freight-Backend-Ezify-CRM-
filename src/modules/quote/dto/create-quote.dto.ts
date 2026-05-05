@@ -178,6 +178,10 @@ export class DangerousGoodsDTO {
   class!: DangerousGoodsClass;
 }
 export class CreateLineItemDto {
+  @IsOptional()
+  @IsBoolean()
+  hasStandardSize?: boolean;
+  
   @IsEnum(ShipmentType)
   type!: ShipmentType;
 
@@ -308,9 +312,21 @@ export class CreateSpotDetailsDto {
   knownShipper?: boolean;
 }
 
+export class EstimatedAmountDTO {
+  @IsNumber()
+  amount!: number;
+
+  @IsEnum(Currency)
+  currency!: Currency;
+}
 /* ---------------- ROOT DTO ---------------- */
 
 export class CreateQuoteDTO {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => EstimatedAmountDTO)
+  estimatedAmount?: EstimatedAmountDTO;
+
   @IsEnum(QuoteStatus)
   status!: QuoteStatus;
   
@@ -343,6 +359,9 @@ export class CreateQuoteDTO {
   @Type(() => CreateSpotDetailsDto)
   spotDetails?: CreateSpotDetailsDto;
 
+  @IsOptional()
+  additionalNotes?: string;
+  
   @IsOptional()
   services?: SpotFtlServices | SpotLtlServices | StandardFtlServices | PalletServices;
 }

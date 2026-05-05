@@ -3,6 +3,7 @@ import { BadRequestException } from '@nestjs/common';
 import { SessionData } from 'express-session';
 import { packageRules, palletRules, requiredServiceFields } from 'src/common/constants/quote';
 import { Mode } from 'src/common/enum/mode.enum';
+import { ShipmentType } from 'src/common/enum/shipment-type.enum';
 import { AddressBook } from 'src/entities/address-book.entity';
 import { Address } from 'src/entities/address.entity';
 import { Company } from 'src/entities/company.entity';
@@ -56,6 +57,7 @@ export interface AddressData {
     signatureId?: number;
     companyId?: number;
     userId?: number;
+    additionalNotes?: string;
 }
 
 export abstract class BaseQuote {
@@ -215,7 +217,6 @@ export abstract class BaseQuote {
         if (!services || Object.keys(services).length === 0) {
             return;
         }
-        console.log({services, data: this.validatedData })
         const serviceFactoryMap = {
             STANDARD_FTL: () => new StandardFtlServices(),
             PALLET: () => new PalletServices(),
@@ -223,10 +224,15 @@ export abstract class BaseQuote {
             SPOT_LTL: () => new SpotLtlServices(),
         };
 
-        const shipmentType = this.data.shipmentType;
-
-        const factory = serviceFactoryMap[shipmentType];
-
+        let shipmentType = this.data.shipmentType;
+        let factory;
+        
+        if([ShipmentType.SPOT_FTL, ShipmentType.SPOT_LTL].includes(shipmentType)){
+            factory = serviceFactoryMap[ShipmentType.PALLET]
+            shipmentType = ShipmentType.PALLET
+        }else{ 
+            factory = serviceFactoryMap[shipmentType];
+        } 
         if (!factory) throw new Error('Unsupported type');
 
         const serviceEntity = factory();
@@ -250,7 +256,7 @@ export abstract class BaseQuote {
         }
 
         this.attachServiceToQuote(serviceEntity, shipmentType);
-
+        
         this.em.persist(serviceEntity);
         
         await this.em.flush();

@@ -1,15 +1,31 @@
 import { IQuoteFactory } from "src/interfaces/IQuote.inteface";
 import { ShipmentType } from "src/common/enum/shipment-type.enum";
-import { SpotFTLQuote } from "./spot-ftl-quote";
+import { NotFoundException } from "@nestjs/common";
 import { QuoteConstructorParams } from "src/types/quote";
 
+import { CreateSpotLTLQuote } from "./spot-ltl/create-spot-ltl";
+import { CreateSpotFTLQuote } from "./spot-ftl/create-spot-ftl";
+import { CreateSpotTimeCriticalQuote } from "./spot-critical-time/create-spot-time-critical";
+
 export class SpotQuoteFactory implements IQuoteFactory {
-    create(params: QuoteConstructorParams): any {  
+    create(params: QuoteConstructorParams) {
         switch(params.shipmentType){
+            case ShipmentType.SPOT_LTL:
+                return new CreateSpotLTLQuote({data: params.data, em: params.em, session: params.session});
             case ShipmentType.SPOT_FTL:
-                return new SpotFTLQuote();
+                return new CreateSpotFTLQuote({data: params.data, em: params.em, session: params.session});
+            case ShipmentType.TIME_CRITICAL:
+                return new CreateSpotTimeCriticalQuote({data: params.data, em: params.em, session: params.session});
+          
             default:
-                return new Error("Invalid shipment type")
+                throw new NotFoundException(`Spot quote factory doesn't support ${params.shipmentType}`)
+        }
+    }
+
+    update(params: QuoteConstructorParams) {
+        switch(params.shipmentType){
+            default:
+                throw new NotFoundException(`Spot quote factory doesn't support ${params.shipmentType}`)
         }
     }
 }

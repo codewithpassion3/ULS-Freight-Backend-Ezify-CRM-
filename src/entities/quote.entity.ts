@@ -56,6 +56,9 @@ export class Quote {
   @ManyToOne(() => User)
   createdBy! : User;
 
+  @Property({ nullable: true })
+  additionalNotes?: string | null;
+  
   @OneToMany(() => QuoteUserMeta, meta => meta.quote, { cascade: [Cascade.REMOVE] })
   userMeta = new Collection<QuoteUserMeta>(this);
   
