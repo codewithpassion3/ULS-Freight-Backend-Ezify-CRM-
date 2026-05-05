@@ -37,7 +37,7 @@ export class CreateSpotLTLQuote extends SpotQuote {
         // this.validateSpotDetails();
         this.validateLineItem();
         this.validateLineItemUnits();
-        this.errors.push(...this.validateSpotDetails(this.data.spotDetails, this.errors));
+        this.errors.push(...this.validateSpotDetails(this.data.spotDetails, this.errors, this.data.shipmentType));
         this.validateServices();
         this.validateInsurance();
         

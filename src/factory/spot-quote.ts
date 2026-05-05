@@ -1,11 +1,12 @@
 import { RefrigeratedType } from "src/common/enum/refrigerated.enum";
 import { BaseQuote } from "./base-quote";
+import { EQUIPMENT_RULES } from "src/common/constants/spot-equipment";
 export abstract class SpotQuote extends BaseQuote {
     constructor(){
         super();
     }
 
-    protected validateSpotDetails(spotDetails: any, errors: any): string[] {
+    protected validateSpotDetails(spotDetails: any, errors: any, shipmentType: any): string[] {
         if (typeof spotDetails !== "object" || spotDetails === null) {
             errors.push("spotDetails must be an object");
             return errors;
@@ -44,36 +45,55 @@ export abstract class SpotQuote extends BaseQuote {
         }
 
         // ─── spotEquipment ──────────────────────────────────────────────────────────
-        if (typeof spotEquipment !== "object" || spotEquipment === null) {
+       if (typeof spotEquipment !== "object" || spotEquipment === null) {
             errors.push("spotDetails.spotEquipment must be an object");
-        } else {
-            const { dryVan, refrigerated } = spotEquipment;
-
-            const booleanFields: [string, unknown][] = [["dryVan", dryVan]];
-
-            for (const [name, val] of booleanFields) {
-            if (val !== undefined && val !== null && typeof val !== "boolean") {
-                errors.push(`spotDetails.spotEquipment.${name} must be a boolean or null`);
-            }
-            }
-
-            // van — boolean with extra shape check
-            if (dryVan !== undefined && dryVan !== null && typeof dryVan !== "boolean") {
-            errors.push("spotDetails.spotEquipment.dryVan must be a boolean or null");
-            }
-
-            // refrigerated — validate object shape and enum value
-            if (refrigerated !== undefined && refrigerated !== null) {
-            if (typeof refrigerated !== "object") {
-                errors.push("spotDetails.spotEquipment.refrigerated must be an object or null");
             } else {
-                const { type } = refrigerated;
-                if (!type || !Object.values(RefrigeratedType).includes(type)) {
+            const allowedFields = EQUIPMENT_RULES[shipmentType] || [];
+
+            // Step 1: find provided fields
+            const providedFields = allowedFields.filter(
+                (field) => spotEquipment[field] !== undefined && spotEquipment[field] !== null
+            );
+
+            // Step 2: enforce only one field
+            if (providedFields.length === 0) {
                 errors.push(
-                    `spotDetails.spotEquipment.refrigerated.type has invalid value. Allowed values are: ${Object.values(RefrigeratedType).join(", ")}`
+                `spotDetails.spotEquipment must contain exactly one of: ${allowedFields.join(", ")}`
                 );
+            } else if (providedFields.length > 1) {
+                errors.push(
+                `spotDetails.spotEquipment must contain only one of: ${allowedFields.join(", ")}`
+                );
+            } else {
+                // Step 3: validate the single field
+                const field = providedFields[0];
+                const value = spotEquipment[field];
+
+                switch (field) {
+                case "dryVan":
+                case "flatbed":
+                case "ventilated":
+                    if (typeof value !== "boolean") {
+                    errors.push(`spotDetails.spotEquipment.${field} must be a boolean`);
+                    }
+                    break;
+
+                case "refrigerated":
+                    if (typeof value !== "object") {
+                    errors.push("spotDetails.spotEquipment.refrigerated must be an object");
+                    } else {
+                    const { type } = value;
+                    if (!type || !Object.values(RefrigeratedType).includes(type)) {
+                        errors.push(
+                        `spotDetails.spotEquipment.refrigerated.type has invalid value. Allowed values are: ${Object.values(RefrigeratedType).join(", ")}`
+                        );
+                    }
+                    }
+                    break;
+
+                default:
+                    errors.push(`Invalid equipment type: ${field}`);
                 }
-            }
             }
         }
 

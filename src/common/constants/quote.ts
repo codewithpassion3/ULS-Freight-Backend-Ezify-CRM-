@@ -162,7 +162,11 @@ export const palletRules: FieldRule[] = [
   { field: 'description', required: false },
 
 ];
-
+export const spotFTLRules: FieldRule[] = [
+  { field: 'weight', required: true },
+  { field: 'unitsOnPallet', required: true },
+  { field: 'description', required: true },
+]
 export const courierPakRules: FieldRule[] = [
   { field: 'weight', required: true },
   { field: 'description', required: false },

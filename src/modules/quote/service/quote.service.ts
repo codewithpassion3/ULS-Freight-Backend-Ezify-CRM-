@@ -41,6 +41,7 @@ import { StandardQuoteFactory } from "src/factory/standard-quote.factory";
 import { Company } from "src/entities/company.entity";
 import { DangerousGoodsClass, PackagingGroup, QuantityType } from "src/common/enum/line-item.enum";
 import { BondType, ContactKey, LimitedAccessType } from "src/common/enum/services.enum";
+import { EQUIPMENT_RULES } from "src/common/constants/spot-equipment";
 
 @Injectable()
 export class QuoteService {
@@ -50,6 +51,7 @@ export class QuoteService {
     ) {}
     private quoteShipmentTypesMapping = {
             [ShipmentType.SPOT_LTL] : ShipmentType.PALLET,
+            [ShipmentType.SPOT_FTL] : ShipmentType.PALLET,
             [ShipmentType.PACKAGE] : ShipmentType.PACKAGE,
             [ShipmentType.PALLET] : ShipmentType.PALLET,
             [ShipmentType.COURIER_PAK] : ShipmentType.COURIER_PAK
@@ -448,24 +450,69 @@ export class QuoteService {
             }
 
             // Equipment - with null checks
-            if (dto.spotDetails.spotEquipment) {
-            const equipment = spotDetail.spotEquipment ?? new SpotEquipment();
-            const eq = dto.spotDetails.spotEquipment;
+            if (dto.spotDetails?.spotEquipment) {
+                const eq = dto.spotDetails.spotEquipment;
 
-            equipment.car = eq.car ?? null;
-            equipment.dryVan = eq.dryVan ?? null;
-            equipment.flatbed = eq.flatbed ?? null;
-            equipment.truck = eq.truck ?? null;
-            equipment.van = eq.van ?? null;
-            equipment.ventilated = eq.ventilated ?? null;
-            equipment.refrigerated = eq.refrigerated ? { type: eq.refrigerated.type  as RefrigeratedType } : null;
-            equipment.nextFlightOut = eq.nextFlightOut
-                ? { knownShipper: eq.nextFlightOut.knownShipper ?? false }
-                : null;
+                const equipment = spotDetail.spotEquipment ?? new SpotEquipment();
 
-            equipment.spotDetail = spotDetail;
-            spotDetail.spotEquipment = equipment;
-            em.persist(equipment);
+                const allowedFields = EQUIPMENT_RULES[quote.shipmentType] || [];
+
+                // Step 1: find provided fields
+                const providedFields = allowedFields.filter(
+                    (field) => eq[field] !== undefined && eq[field] !== null
+                );
+
+                // Step 2: enforce only one field
+                if (providedFields.length !== 1) {
+                    throw new BadRequestException(
+                    `Exactly one equipment must be provided: ${allowedFields.join(", ")}`
+                    );
+                }
+
+                const selectedField = providedFields[0];
+
+                // Step 3: reset all fields first (since only one allowed)
+                for (const field of allowedFields) {
+                    equipment[field] = null;
+                }
+
+                // Step 4: assign selected field safely
+                switch (selectedField) {
+                    case "dryVan":
+                    case "flatbed":
+                    case "ventilated":
+                    case "car":
+                    case "truck":
+                    case "van":
+                    if (typeof eq[selectedField] !== "boolean") {
+                        throw new BadRequestException(`${selectedField} must be boolean`);
+                    }
+                    equipment[selectedField] = eq[selectedField];
+                    break;
+
+                    case "refrigerated":
+                    if (typeof eq.refrigerated !== "object") {
+                        throw new BadRequestException("refrigerated must be an object");
+                    }
+                    equipment.refrigerated = {
+                        type: eq.refrigerated.type as RefrigeratedType,
+                    };
+                    break;
+
+                    case "nextFlightOut":
+                    if (typeof eq.nextFlightOut !== "object") {
+                        throw new BadRequestException("nextFlightOut must be an object");
+                    }
+                    equipment.nextFlightOut = {
+                        knownShipper: eq.nextFlightOut.knownShipper ?? false,
+                    };
+                    break;
+                }
+
+                equipment.spotDetail = spotDetail;
+                spotDetail.spotEquipment = equipment;
+
+                em.persist(equipment);
             }
 
             em.persist(spotDetail);
@@ -473,114 +520,114 @@ export class QuoteService {
 
         //17) Services
         if (dto.services) {
-    const mapping: Record<string, any> = {
-        [ShipmentType.PALLET]: PalletServices,
-        [ShipmentType.STANDARD_FTL]: StandardFtlServices,
-        [ShipmentType.SPOT_LTL]: PalletServices,
-        [ShipmentType.SPOT_FTL]: SpotFtlServices,
-    };
+            const mapping: Record<string, any> = {
+                [ShipmentType.PALLET]: PalletServices,
+                [ShipmentType.STANDARD_FTL]: StandardFtlServices,
+                [ShipmentType.SPOT_LTL]: PalletServices,
+                [ShipmentType.SPOT_FTL]: SpotFtlServices,
+            };
 
-    const ServiceEntity = mapping[quote.shipmentType as ShipmentType];
+            const ServiceEntity = mapping[quote.shipmentType as ShipmentType];
 
-    if (ServiceEntity) {
-        const existingService = this.getExistingService(
-            quote,
-            quote.shipmentType as ShipmentType
-        );
+            if (ServiceEntity) {
+                const existingService = this.getExistingService(
+                    quote,
+                    quote.shipmentType as ShipmentType
+                );
 
-        if (existingService) em.remove(existingService);
+                if (existingService) em.remove(existingService);
 
-        const serviceSchema = new ServiceEntity();
+                const serviceSchema = new ServiceEntity();
 
-        // -----------------------------
-        // ONLY CHANGE: PALLET SAFE MERGE
-        // -----------------------------
-        if ([ShipmentType.PALLET, ShipmentType.SPOT_LTL].includes(quote.shipmentType)) {
-            const current = new PalletServices();
-            const incoming = dto.services || {};
-            console.log({incoming})
-            // reuse SAME logic style as your updateServices()
-            const merged: any = { ...current, ...incoming };
+                // -----------------------------
+                // ONLY CHANGE: PALLET SAFE MERGE
+                // -----------------------------
+                if ([ShipmentType.PALLET, ShipmentType.SPOT_LTL].includes(quote.shipmentType)) {
+                    const current = new PalletServices();
+                    const incoming = dto.services || {};
 
-            // LIMITED_ACCESS
-            if (
-                incoming.limitedAccess !== undefined &&
-                Object.values(LimitedAccessType).includes(incoming.limitedAccess as any)
-            ) {
-                merged.limitedAccess = incoming.limitedAccess;
+                    // reuse SAME logic style as your updateServices()
+                    const merged: any = { ...current, ...incoming };
 
-                if (incoming.limitedAccess === LimitedAccessType.OTHERS) {
-                    const desc = incoming.limitedAccessDescription as any;
-                    merged.limitedAccessDescription =
-                        typeof desc === "string" && desc.trim()
-                            ? desc.trim()
-                            : null;
+                    // LIMITED_ACCESS
+                    if (
+                        incoming.limitedAccess !== undefined &&
+                        Object.values(LimitedAccessType).includes(incoming.limitedAccess as any)
+                    ) {
+                        merged.limitedAccess = incoming.limitedAccess;
+
+                        if (incoming.limitedAccess === LimitedAccessType.OTHERS) {
+                            const desc = incoming.limitedAccessDescription as any;
+                            merged.limitedAccessDescription =
+                                typeof desc === "string" && desc.trim()
+                                    ? desc.trim()
+                                    : null;
+                        } else {
+                            merged.limitedAccessDescription = null;
+                        }
+                    }
+
+                    // IN_BOUND
+                    if (incoming.inbound && typeof incoming.inbound === "object") {
+                        const currentIn = merged.inbound || {};
+                        const inB = incoming.inbound;
+
+                        const updated: any = { ...currentIn };
+
+                        if (
+                            inB.bondType !== undefined &&
+                            Object.values(BondType).includes(inB.bondType)
+                        ) {
+                            updated.bondType = inB.bondType;
+                        }
+
+                        if (
+                            inB.contactKey !== undefined &&
+                            Object.values(ContactKey).includes(inB.contactKey)
+                        ) {
+                            updated.contactKey = inB.contactKey;
+                        }
+
+                        if (typeof inB.bondCancler === "string" && inB.bondCancler.trim()) {
+                            updated.bondCancler = inB.bondCancler.trim();
+                        }
+
+                        if (typeof inB.contactValue === "string" && inB.contactValue.trim()) {
+                            updated.contactValue = inB.contactValue.trim();
+                        }
+
+                        if (typeof inB.address === "string" && inB.address.trim()) {
+                            updated.address = inB.address.trim();
+                        }
+
+                        merged.inBound = updated;
+                    }
+                    console.log({finalSchema: merged})
+                    // copy final merged result into entity
+                    Object.assign(serviceSchema, merged);
                 } else {
-                    merged.limitedAccessDescription = null;
+                    // ALL OTHER TYPES untouched
+                    Object.assign(serviceSchema, dto.services);
                 }
+
+                switch (quote.shipmentType) {
+                    case ShipmentType.PALLET:
+                        quote.palletServices = serviceSchema;
+                        break;
+                    case ShipmentType.SPOT_FTL:
+                        quote.spotFtlServices = serviceSchema;
+                        break;
+                    case ShipmentType.SPOT_LTL:
+                        quote.palletServices = serviceSchema;
+                        break;
+                    case ShipmentType.STANDARD_FTL:
+                        quote.standardFTLService = serviceSchema;
+                        break;
+                }
+
+                em.persist(serviceSchema);
             }
-
-            // IN_BOUND
-            if (incoming.inbound && typeof incoming.inbound === "object") {
-                const currentIn = merged.inbound || {};
-                const inB = incoming.inbound;
-
-                const updated: any = { ...currentIn };
-
-                if (
-                    inB.bondType !== undefined &&
-                    Object.values(BondType).includes(inB.bondType)
-                ) {
-                    updated.bondType = inB.bondType;
-                }
-
-                if (
-                    inB.contactKey !== undefined &&
-                    Object.values(ContactKey).includes(inB.contactKey)
-                ) {
-                    updated.contactKey = inB.contactKey;
-                }
-
-                if (typeof inB.bondCancler === "string" && inB.bondCancler.trim()) {
-                    updated.bondCancler = inB.bondCancler.trim();
-                }
-
-                if (typeof inB.contactValue === "string" && inB.contactValue.trim()) {
-                    updated.contactValue = inB.contactValue.trim();
-                }
-
-                if (typeof inB.address === "string" && inB.address.trim()) {
-                    updated.address = inB.address.trim();
-                }
-
-                merged.inBound = updated;
-            }
-            console.log({finalSchema: merged})
-            // copy final merged result into entity
-            Object.assign(serviceSchema, merged);
-        } else {
-            // ALL OTHER TYPES untouched
-            Object.assign(serviceSchema, dto.services);
         }
-
-        switch (quote.shipmentType) {
-            case ShipmentType.PALLET:
-                quote.palletServices = serviceSchema;
-                break;
-            case ShipmentType.SPOT_FTL:
-                quote.spotFtlServices = serviceSchema;
-                break;
-            case ShipmentType.SPOT_LTL:
-                quote.palletServices = serviceSchema;
-                break;
-            case ShipmentType.STANDARD_FTL:
-                quote.standardFTLService = serviceSchema;
-                break;
-        }
-
-        em.persist(serviceSchema);
-    }
-}
 
         if ([ShipmentType.COURIER_PAK, ShipmentType.PACKAGE].includes(quote.shipmentType) && dto.signature) {
             const signature = await this.em.findOne(Signature, { id: dto.signature });

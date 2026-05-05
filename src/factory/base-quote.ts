@@ -228,10 +228,10 @@ export abstract class BaseQuote {
         let shipmentType = this.data.shipmentType;
         let factory;
         
-        if(shipmentType === ShipmentType.SPOT_LTL){
+        if([ShipmentType.SPOT_FTL, ShipmentType.SPOT_LTL].includes(shipmentType)){
             factory = serviceFactoryMap[ShipmentType.PALLET]
             shipmentType = ShipmentType.PALLET
-        }else{
+        }else{ 
             factory = serviceFactoryMap[shipmentType];
         } 
         console.log({factory})

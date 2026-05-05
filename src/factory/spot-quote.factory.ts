@@ -3,13 +3,16 @@ import { ShipmentType } from "src/common/enum/shipment-type.enum";
 import { NotFoundException } from "@nestjs/common";
 import { QuoteConstructorParams } from "src/types/quote";
 
-import { CreateSpotLTLQuote } from "./standard-ltl/create-spot-ltl";
+import { CreateSpotLTLQuote } from "./spot-ltl/create-spot-ltl";
+import { CreateSpotFTLQuote } from "./spot-ftl/create-spot-ftl";
 
 export class SpotQuoteFactory implements IQuoteFactory {
     create(params: QuoteConstructorParams) {
         switch(params.shipmentType){
             case ShipmentType.SPOT_LTL:
                 return new CreateSpotLTLQuote({data: params.data, em: params.em, session: params.session});
+             case ShipmentType.SPOT_FTL:
+                return new CreateSpotFTLQuote({data: params.data, em: params.em, session: params.session});
           
             default:
                 throw new NotFoundException(`Spot quote factory doesn't support ${params.shipmentType}`)

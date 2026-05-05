@@ -178,6 +178,10 @@ export class DangerousGoodsDTO {
   class!: DangerousGoodsClass;
 }
 export class CreateLineItemDto {
+  @IsOptional()
+  @IsBoolean()
+  hasStandardSize?: boolean;
+  
   @IsEnum(ShipmentType)
   type!: ShipmentType;
 
