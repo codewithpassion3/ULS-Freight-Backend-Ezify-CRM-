@@ -28,6 +28,7 @@ import { RedisModule } from './shared/redis/redis.module';
 import { ShipmentCarrierModule } from './modules/shipment-carrier/shipment-carrier.module';
 import { TrackingModule } from './modules/tracking/tracking.module';
 import { PostalCodeModule } from './modules/postal-code/postal-code.module';
+import { PaymentModule } from './modules/payment/payment.module';
 
 @Module({
   imports: [
@@ -59,7 +60,8 @@ import { PostalCodeModule } from './modules/postal-code/postal-code.module';
     ReminderModule,
     ShipmentCarrierModule,
     TrackingModule,
-    PostalCodeModule
+    PostalCodeModule,
+    PaymentModule
   ],
   controllers: [AppController],
   providers: [AppService],

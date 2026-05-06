@@ -15,13 +15,24 @@ import { OtpPurpose } from "src/common/enum/otp-purpose.enum";
 import { OtpService } from "src/modules/otp/service/otp.service";
 import { ForgotPasswordDTO } from "../dto/forgot-password.dto";
 import { ResetPasswordDTO } from "../dto/reset-password.dto";
+import { Wallet } from "src/entities/wallet.entity";
+import { Stripe } from "node_modules/stripe/cjs/stripe.core";
+import { ENV } from "src/common/constants/env";
+import { getEnv } from "src/utils/getEnv";
 
 @Injectable()
 export class AuthService{
+    private stripe: any;
+    
     constructor(
         private readonly em: EntityManager,
         private readonly otpService: OtpService
-    ){}
+    ){
+        const secretKey = getEnv(ENV.STRIPE_SECRET_KEY);
+            this.stripe = new Stripe(secretKey, {
+                apiVersion: '2026-04-22.dahlia',
+            });
+    }
 
     async signup(dto: SignupDTO) {
        const userEntity =  await this.em.transactional(async(em) => {
@@ -89,31 +100,48 @@ export class AuthService{
             }
            })
 
-           //10) Persist all changes
-           await em.persist([
+           // 10) Create wallet for user (inside same transaction)
+            const wallet = em.create(Wallet, {
+                user: userEntity,
+                balance: 0,
+                totalDeposited: 0,
+            });
+
+            const stripeCustomer = await this.stripe.customers.create({
+                email: user.email,
+                name: `${user.firstName} ${user.lastName}`.trim(),
+            });
+
+            userEntity.stripeCustomerId = stripeCustomer.id;
+
+            // 11) Persist all changes
+            await em.persist([
             addressEntity,
             companyEntity,
             ...companyPreference,
-            userEntity
-           ]).flush();
+            userEntity,
+            wallet,
+            ]).flush();
 
-           await this.em.populate(userEntity, [
+            //12) Populate relations
+            await em.populate(userEntity, [
             'company',
             'role',
-            'permissions'
+            'permissions',
+            'wallet',
             ]);
 
-           //11) Return created user
+           //13) Return created user
            return userEntity
         })
 
-        //12) Send out otp email to user
+        //14) Send out otp email to user
         this.otpService.generate({
             email: userEntity.email,
             purpose: OtpPurpose.EMAIL_VERIFICATION
         });
         
-        //13) Return user
+        //15) Return user
         return userEntity;
     }
 
@@ -122,7 +150,7 @@ export class AuthService{
         const { email, password } = dto;
 
         //2) Check user exists and throw error for invalid credentials
-        const user = await this.em.findOne(User, { email }, { populate: ["role", "permissions"] });
+        const user = await this.em.findOne(User, { email }, { populate: ["role", "permissions", "wallet"] });
         
         if(!user){
             throw new UnauthorizedException("Invalid credentials or user not found");

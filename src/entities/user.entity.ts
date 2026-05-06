@@ -1,4 +1,4 @@
-import { Collection, Entity, ManyToMany, ManyToOne, OneToMany, PrimaryKey, Property } from "@mikro-orm/core";
+import { Collection, Entity, ManyToMany, ManyToOne, OneToMany, OneToOne, PrimaryKey, Property } from "@mikro-orm/core";
 import { Company } from "./company.entity";
 import { Role } from "./role.entity";
 import { Permission } from "./permission.entity";
@@ -6,6 +6,8 @@ import { Quote } from "./quote.entity";
 import { QuoteUserMeta } from "./quote-user-meta.entity";
 import { LineItemUnit } from "./line-item-unit.entity";
 import { Reminder } from "./reminder.entity";
+import { Wallet } from "./wallet.entity";
+import { SavedCard } from "./saved-card.entity";
 
 @Entity()
 export class User{
@@ -69,11 +71,17 @@ export class User{
     @Property({ nullable: false, default: false })
     isMasterAccount?: Boolean;
 
+    @Property({ nullable: true })
+    stripeCustomerId?: string;
+
     @ManyToOne(() => Company)
     company!: Company;
 
     @ManyToOne(() => Role)
     role!: Role
+
+    @OneToOne(() => Wallet, (wallet) => wallet.user, { nullable: true })
+    wallet?: Wallet;
 
     @ManyToMany(() => Permission, permission => permission.user,{ owner: true})
     permissions = new Collection<Permission>(this)
@@ -81,6 +89,9 @@ export class User{
     @OneToMany(() => Quote, quote => quote.createdBy)
     quotes = new Collection<Quote>(this)
 
+    @OneToMany(() => SavedCard, card => card.user)
+    savedCards = new Collection<SavedCard>(this);
+    
     @OneToMany(() => QuoteUserMeta, meta => meta.user)
     quoteMeta = new Collection<QuoteUserMeta>(this);
 
