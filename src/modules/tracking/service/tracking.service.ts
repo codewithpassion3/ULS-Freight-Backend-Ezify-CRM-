@@ -166,6 +166,7 @@ export class TrackingService {
                 "signature",
                 "spotDetails",
                 "shipment",
+                "shipment.trackingEvents",
                 "shipment.billingReferences"
             ]
         }

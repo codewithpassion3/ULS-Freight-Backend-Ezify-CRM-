@@ -28,6 +28,7 @@ import { RedisModule } from './shared/redis/redis.module';
 import { ShipmentCarrierModule } from './modules/shipment-carrier/shipment-carrier.module';
 import { TrackingModule } from './modules/tracking/tracking.module';
 import { PostalCodeModule } from './modules/postal-code/postal-code.module';
+import { MockCarrierTrackingModule } from './modules/mock-carrier-tracking/mock-carrier-tracking.module';
 
 @Module({
   imports: [
@@ -59,7 +60,8 @@ import { PostalCodeModule } from './modules/postal-code/postal-code.module';
     ReminderModule,
     ShipmentCarrierModule,
     TrackingModule,
-    PostalCodeModule
+    PostalCodeModule,
+    MockCarrierTrackingModule,
   ],
   controllers: [AppController],
   providers: [AppService],
