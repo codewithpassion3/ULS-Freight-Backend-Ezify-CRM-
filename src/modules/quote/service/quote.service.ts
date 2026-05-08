@@ -722,7 +722,7 @@ export class QuoteService {
         },{
             populate: ["addresses", "addresses.addressBookEntry", "addresses.addressBookEntry.address", "addresses.address","lineItems", "lineItems.units",
                         "palletServices", "spotFtlServices", "spotLtlServices", "standardFTLService", 
-                        "signature", "insurance","spotDetails", "spotDetails.spotContact", "spotDetails.spotEquipment","shipment"]
+                        "signature", "insurance","spotDetails", "spotDetails.spotContact", "spotDetails.spotEquipment","shipment", "shipment.trackingEvents"]
         });
 
         //2) Throw error for invalid quote
@@ -737,98 +737,126 @@ export class QuoteService {
         }
     }
 
-    async getAllAgainstCurrentUserCompany(session: SessionData, params: PaginationParams) {
-        //1) Define fields allowed for search and filter by oder
-       const allowedFields = {
+
+    async getAllAgainstCurrentUserCompany(
+        session: SessionData,
+        params: PaginationParams,
+        ) {
+        // 1) Fields allowed for sorting / searching
+        const allowedFields = {
             quoteNumber: "quoteNumber",
             shipmentType: "shipmentType",
             status: "status",
             createdAt: "createdAt",
         };
-
-        //2) Pass query params and allowed field to build query pagination params
+        
+        // 2) Derive pagination params from raw query-string params
         const { search, page, limit, orderBy } = buildQuery(params, allowedFields);
         
-        //3) Build filter for query
-        const filter: any = { company: this.em.getReference(Company, session.companyId as number) };
-
-        //4) Handle status filter
+        // 3) Base filter — always scope to the caller's company
+        const filter: any = {
+            company: this.em.getReference(Company, session.companyId as number),
+        };
+        
+        // 4) Optional status filter
         if (params?.status) {
             const normalized = params.status.toUpperCase();
             const validStatuses = Object.values(QuoteStatus);
-            
+        
             if (!validStatuses.includes(normalized as QuoteStatus)) {
-                throw new BadRequestException(
-                    `Invalid status '${params.status}'. Allowed: ${validStatuses.join(', ')}`
-                );
+            throw new BadRequestException(
+                `Invalid status '${params.status}'. Allowed: ${validStatuses.join(", ")}`,
+            );
             }
-            
+        
             filter.status = normalized;
         }
-
-        //5) Handle search
+        
+        // 5) Optional search (prefix match on quoteNumber)
         if (search) {
             filter.quoteNumber = { $ilike: `${search}%` };
         }
-
-        //6) Handle shipment type filter
+        
+        // 6) Optional shipment-type filter
         if (params.shipmentType) {
             filter.shipmentType = params.shipmentType;
         }
-
-        //7) Handle Date range filter
+        
+        // 7) Optional date-range filter
         if (params.dateFrom || params.dateTo) {
             filter.createdAt = {};
             if (params.dateFrom) filter.createdAt.$gte = new Date(params.dateFrom);
-            if (params.dateTo) filter.createdAt.$lte = new Date(params.dateTo);
+            if (params.dateTo)   filter.createdAt.$lte = new Date(params.dateTo);
         }
-
-        //8) Count total quotes and pages
-        const total = await this.em.count(Quote, filter);
-        const totalPages = Math.ceil(total / limit) || 1;
-
-        //9) Clamp page based on total page and default page limit
+         
+        const orderByClause = Object.entries(orderBy).map(([field, direction]) => ({
+            [field]: direction,
+        }));
+        
+        const [idRows, total] = await this.em.findAndCount(Quote, filter, {
+            fields: ["id"],           // SELECT id only — minimises data transfer
+            limit,
+            offset: (page - 1) * limit,
+            orderBy: orderByClause,
+        });
+        
+        // 8) Derive page metadata
+        const totalPages  = Math.ceil(total / limit) || 1;
         const clampedPage = Math.min(page, totalPages);
-        const offset = (page - 1) * limit;
-
-        //10) Fetch data with all requested relations
-        const quotes = await this.em.find(
-            Quote,
-            filter,
-            {
-                limit,
-                offset,
-                orderBy: Object.entries(orderBy).map(([field, direction]) => ({ [field]: direction })),
-                populate: [
-                    "addresses",
-                    "addresses.addressBookEntry",
-                    "addresses.address",
-                    "lineItems",
-                    "lineItems.units",
-                    "palletServices",
-                    "spotFtlServices",
-                    "spotLtlServices",
-                    "standardFTLService",
-                    "signature",
-                    "spotDetails",
-                    "shipment"
-                ]
-            }
-        );
-
-        //11) Return success response
-        return {
+        const ids         = idRows.map((q) => q.id);
+        
+        if (ids.length === 0) {
+            return {
             message: "Quotes retrieved successfully",
-            data: quotes,
+            data: [],
             meta: {
                 total,
                 page,
                 limit,
                 totalPages,
-                hasNextPage: clampedPage < totalPages,
+                hasNextPage: false,
                 hasPrevPage: clampedPage > 1,
-                sort: orderBy
-            }
+                sort: orderBy,
+            },
+            };
+        }
+        
+        const quotes = await this.em.find(
+            Quote,
+            { id: { $in: ids } },
+            {
+            populate: [
+                "addresses",
+                "addresses.addressBookEntry",
+                "addresses.addressBookEntry.address",
+                "addresses.address",
+                "shipment",
+                "lineItems",
+                "lineItems.units",
+                // "palletServices",
+                // "spotFtlServices",
+                // "spotLtlServices",
+                // "standardFTLService",
+                // "signature",
+                // "spotDetails",
+            ],
+            orderBy: orderByClause,
+            },
+        );
+        
+        // 9) Return paginated response
+        return {
+            message: "Quotes retrieved successfully",
+            data: quotes,
+            meta: {
+            total,
+            page,
+            limit,
+            totalPages,
+            hasNextPage: clampedPage < totalPages,
+            hasPrevPage: clampedPage > 1,
+            sort: orderBy,
+            },
         };
     }
 

@@ -1,30 +1,60 @@
 import { Module } from "@nestjs/common";
 import { ShipmentCarrierController } from "./controller/shipment-carrier.controller";
 import { ShipmentCarrierService } from "./service/shipment-carrier.service";
-import { FedExAdapter } from "./adapter/fedex.adaptar";
-import { TSTCFExpressAdapter } from "./adapter/tst-cf-express.adaptar";
+import { FedExAdapter } from "./adapter/fedex.adapter";
+import { TSTCFExpressAdapter } from "./adapter/tst-cf-express.adapter";
+import { TForceAdapter } from "./adapter/tforce.adapter";
+import { getEnv } from "src/utils/getEnv";
+import { ENV } from "src/common/constants/env";
+import { XPOAdapter } from "./adapter/xpo.adapter";
+import { MockCarrierTrackingService } from "../mock-carrier-tracking/service/mock-carrier-tracking.service";
+import { BullModule } from "@nestjs/bullmq";
 
 @Module({
-    imports: [],
+    imports: [
+        BullModule.registerQueue({
+            name: 'mock-tracking',
+        }),
+    ],
     controllers: [ShipmentCarrierController],
-     providers: [
+    providers: [
         ShipmentCarrierService,
+        MockCarrierTrackingService,
         {
             provide: FedExAdapter,
             useFactory: () => new FedExAdapter({
                 name: 'fedex',
-                clientId: process.env.FEDEX_CLIENT_ID!,
-                clientSecret: process.env.FEDEX_CLIENT_SECRET!,
+                clientId: getEnv(ENV.FEDEX_CLIENT_ID)!,
+                clientSecret: getEnv(ENV.FEDEX_CLIENT_SECRET)!,
                 accountNumber: "740561073",
             }),
         },
         {
             provide: TSTCFExpressAdapter,
             useFactory: () => new TSTCFExpressAdapter({
-                baseUrl: process.env.TST_CF_BASE_URL,
+                baseUrl: getEnv(ENV.TST_CF_BASE_URL)
+            })
+        },
+        {
+            provide: TForceAdapter,
+            useFactory: () => new TForceAdapter({
+                name: 'tforce',
+                clientId: getEnv(ENV.TFORCE_CLIENT_ID)!,
+                clientSecret: getEnv(ENV.TFORCE_CLIENT_SECRET)!,
+                accountNumber: "",
+                tokenUrl: getEnv(ENV.TFORCE_TOKEN_URL)!,
+                apiVersion: 'cie-v1'
+            }),
+        },
+        {
+            provide: XPOAdapter,
+            useFactory: () => new XPOAdapter({
+                name: 'xpo',
+                consumerKey: process.env.XPO_CONSUMER_KEY!,
+                consumerSecret: process.env.XPO_CONSUMER_SECRET!,
+                accountNumber: process.env.XPO_ACCOUNT_NUMBER!,
             }),
         },
     ],
 })
-
 export class ShipmentCarrierModule {}
