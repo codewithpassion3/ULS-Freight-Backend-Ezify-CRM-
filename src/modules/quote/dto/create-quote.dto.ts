@@ -323,6 +323,9 @@ export class EstimatedAmountDTO {
 
 export class CreateQuoteDTO {
   @IsOptional()
+  id?: number
+      
+  @IsOptional()
   @ValidateNested()
   @Type(() => EstimatedAmountDTO)
   estimatedAmount?: EstimatedAmountDTO;

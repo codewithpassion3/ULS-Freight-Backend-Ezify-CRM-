@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, Enum, Property, OneToMany, Collection, OneToOne, ManyToOne, BeforeCreate, Cascade } from "@mikro-orm/core";
+import { Entity, PrimaryKey, Enum, Property, OneToMany, Collection, OneToOne, ManyToOne, BeforeCreate, Cascade, Index } from "@mikro-orm/core";
 import { Currency } from "src/common/enum/currency.enum";
 import { QuoteType } from "src/common/enum/quote-type.enum";
 import { ShipmentType } from "src/common/enum/shipment-type.enum";
@@ -20,6 +20,22 @@ import { Company } from "./company.entity";
 import { Shipment } from "./shipment.entity";
 
 @Entity()
+
+// Covers: WHERE company_id = ? ORDER BY created_at DESC  (default list view)
+@Index({ name: "idx_quote_company_created_at", properties: ["company", "createdAt"] })
+ 
+// Covers: WHERE company_id = ? AND status = ?
+@Index({ name: "idx_quote_company_status", properties: ["company", "status"] })
+ 
+// Covers: WHERE company_id = ? AND shipment_type = ?
+@Index({ name: "idx_quote_company_shipment_type", properties: ["company", "shipmentType"] })
+ 
+// Covers: WHERE company_id = ? AND status = ? AND shipment_type = ?  (combined filter)
+@Index({ name: "idx_quote_company_status_shipment_type", properties: ["company", "status", "shipmentType"] })
+ 
+// Covers: WHERE company_id = ? AND created_at BETWEEN ? AND ?
+@Index({ name: "idx_quote_company_created_at_range", properties: ["company", "createdAt"] })
+
 export class Quote {
   @PrimaryKey()
   id!: number;

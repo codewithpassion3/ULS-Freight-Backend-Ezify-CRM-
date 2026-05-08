@@ -74,8 +74,13 @@ export class ShipmentService {
 
   async create(createShipmentDto: CreateShipmentDTO, session: SessionData) {
         //1) Validate and build the quote based on shipment type
-        const quote = await this.buildQuote(createShipmentDto, session);
-            
+        let quote;
+        if(!createShipmentDto?.quote?.id) {
+          quote = await this.buildQuote(createShipmentDto, session);
+        } else {
+          quote = this.em.getReference(Quote, createShipmentDto?.quote?.id);
+        }  
+
         //2) Create shipment with the built quote
         const shipment = new Shipment();
         shipment.shipDate = new Date(createShipmentDto.shipDate);
