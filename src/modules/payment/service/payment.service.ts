@@ -7,8 +7,9 @@ import { getEnv } from 'src/utils/getEnv';
 import { RequestContextService } from 'src/utils/request-context-service';
 import { SavedCard } from 'src/entities/saved-card.entity';
 import { Wallet } from 'src/entities/wallet.entity';
-import { WalletTransaction, TransactionType, TransactionStatus } from 'src/entities/wallet-transaction.entity';
+import { WalletTransaction } from 'src/entities/wallet-transaction.entity';
 import Stripe from 'stripe';
+import { TransactionStatus, TransactionType } from 'src/common/enum/wallet';
 
 @Injectable()
 export class PaymentService {
@@ -88,7 +89,7 @@ export class PaymentService {
 
     const exists = await this.em.findOne(SavedCard, {
       stripePaymentMethodId: paymentMethodId,
-      user: ctx.user,
+      company: ctx.company,
     });
 
     if (exists) {
@@ -127,7 +128,7 @@ export class PaymentService {
   async listSavedCards(session: SessionData): Promise<any[]> {
     const ctx = await this.requestContextService.resolve({ session, em: this.em });
 
-    const cards = await this.em.find(SavedCard, { user: ctx.user });
+    const cards = await this.em.find(SavedCard, { company: ctx.company });
 
     return cards.map((card) => ({
       id: card.id,
@@ -152,7 +153,7 @@ export class PaymentService {
       throw new BadRequestException('No Stripe customer found for user');
     }
 
-    const card = ctx.user.savedCards.find((card) => card.id === payload.cardId)
+    const card = ctx.company.savedCards.find((card) => card.id === payload.cardId)
     console.log({card})
     if(!card){
       throw new BadRequestException('Invalid cardId')
@@ -173,7 +174,7 @@ export class PaymentService {
     // Verify payment method belongs to user (security check)
     const savedCard = await this.em.findOne(SavedCard, {
       stripePaymentMethodId: card.stripePaymentMethodId,
-      user: ctx.user,
+      company: ctx.company,
     });
 
     if (!savedCard) {
@@ -270,12 +271,12 @@ export class PaymentService {
   }
 
   // ── Get or Create Wallet ────────────────────────────────────────
-  private async getOrCreateWallet(user: any): Promise<Wallet> {
-    let wallet = await this.em.findOne(Wallet, { user });
+  private async getOrCreateWallet(company: any): Promise<Wallet> {
+    let wallet = await this.em.findOne(Wallet, { company });
 
     if (!wallet) {
       wallet = this.em.create(Wallet, {
-        user,
+        company,
         balance: 0,
         totalDeposited: 0,
       } as any);

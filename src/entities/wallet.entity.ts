@@ -1,13 +1,13 @@
-import { Entity, PrimaryKey, Property, ManyToOne, Index, Unique, OneToOne } from '@mikro-orm/core';
-import { User } from './user.entity';
+import { Entity, PrimaryKey, Property, OneToOne } from '@mikro-orm/core';
+import { Company } from './company.entity';
 
 @Entity()
 export class Wallet {
   @PrimaryKey()
   id!: number;
 
-  @OneToOne(() => User, { hidden: true, owner: true, unique: true })
-  user!: User;
+  @OneToOne(() => Company, { hidden: true, owner: true, unique: true })
+  company!: Company;
 
   @Property({ type: 'decimal', precision: 12, scale: 2, default: 0 })
   balance?: number = 0;

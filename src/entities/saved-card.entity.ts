@@ -1,14 +1,14 @@
 import { Entity, PrimaryKey, Property, ManyToOne, Index } from '@mikro-orm/core';
-import { User } from './user.entity';
 import { v4 } from 'uuid';
+import { Company } from './company.entity';
 
-@Entity({ tableName: 'saved_cards' })
+@Entity()
 export class SavedCard {
   @PrimaryKey({ type: 'uuid' })
   id: string = v4();
 
-  @ManyToOne(() => User, { index: true })
-  user!: User;
+  @ManyToOne(() => Company, { index: true })
+  company!: Company;
 
   @Property()
   @Index()
