@@ -16,6 +16,7 @@ import { Currency } from 'src/common/enum/currency.enum';
 import { PalletServices } from 'src/entities/pallet-services.entity';
 import { DangerousGoodsClass, PackagingGroup, QuantityType } from 'src/common/enum/line-item.enum';
 import { LimitedAccessType, BondType, ContactKey } from 'src/common/enum/services.enum';
+import { Address } from 'src/entities/address.entity';
 
 export interface UpdateAddressData extends ShippingAddress {
     addressBook?: {
@@ -101,7 +102,6 @@ export class UpdatePalletQuote extends StandardQuote {
 
     protected async validateAddresses(): Promise<void> {
         const addresses = this.data.quote.addresses;
-        
         if(!this.hasValidAddressPayload(addresses)) return;
 
         await this.validateAddressRules(addresses);
@@ -297,9 +297,94 @@ export class UpdatePalletQuote extends StandardQuote {
             const shippingAddress = this.existingQuote.addresses
                 .getItems()
                 .find(a => a.type === address.type);
-
             if (!shippingAddress) {
                 this.errors.push(`Address type '${address.type}' not found in existing quote`);
+                continue;
+            }
+
+            // ADD: support flat addressBookId from DTO
+            const addressBookId = address.addressBookId ?? address.addressBook?.id;
+
+            /**
+             * 1. SWITCH TO DIFFERENT ADDRESS BOOK (by ID)
+             */
+            if (addressBookId) {
+                const newBook = await this.em.findOne(AddressBook, {
+                    id: addressBookId
+                });
+
+                if (!newBook) {
+                    this.errors.push(
+                        `Address '${address.type}': AddressBook ${addressBookId} not found`
+                    );
+                    continue;
+                }
+
+                shippingAddress.addressBookEntry = newBook;
+                shippingAddress.address = null;
+                
+                continue;
+            }
+
+            // handle manual address
+            const manualAddressFields = {
+            address1: address.address1,
+            address2: address.address2,
+            unit: address.unit,
+            postalCode: address.postalCode,
+            city: address.city,
+            state: address.state,
+            country: address.country,
+            };
+            const hasManualFields = Object.values(manualAddressFields).some(v => v !== undefined);
+
+            if (hasManualFields) {
+                // NEW: if email + contactName are present, create a new AddressBook instead of raw manual
+                if (address.email && address.contactName) {
+                    const newAddress = new Address();
+                    wrap(newAddress).assign(manualAddressFields);
+
+                    const newBook = new AddressBook();
+                    wrap(newBook).assign({
+                        email: address.email,
+                        contactName: address.contactName,
+                        companyName: address.companyName,
+                        phoneNumber: address.phoneNumber,
+                        address: newAddress,
+                        palletShippingCloseTime: address.palletShippingCloseTime,
+                        palletShippingReadyTime: address.palletShippingReadyTime,
+                        createdBy: this.session.userId,
+                        company: this.session.companyId,
+                        signature: 1,
+                        locationType: address.locationType ?? 1,
+                    }, { em: this.em });
+
+                    this.em.persist(newAddress);
+                    this.em.persist(newBook);
+
+                    shippingAddress.addressBookEntry = newBook;
+                    shippingAddress.address = null;
+
+                    if (address.locationType !== undefined) shippingAddress.locationType = address.locationType;
+                    if (address.isResidential !== undefined) shippingAddress.isResidential = address.isResidential;
+                    if (address.additionalNotes !== undefined) shippingAddress.additionalNotes = address.additionalNotes;
+
+                    continue;
+                }
+
+                // Otherwise patch as pure manual address (no address book)
+                shippingAddress.addressBookEntry = null;
+
+                if (!shippingAddress.address) {
+                    shippingAddress.address = new Address();
+                }
+
+                wrap(shippingAddress.address).assign(manualAddressFields);
+
+                if (address.locationType !== undefined) shippingAddress.locationType = address.locationType;
+                if (address.isResidential !== undefined) shippingAddress.isResidential = address.isResidential;
+                if (address.additionalNotes !== undefined) shippingAddress.additionalNotes = address.additionalNotes;
+
                 continue;
             }
 
@@ -324,10 +409,8 @@ export class UpdatePalletQuote extends StandardQuote {
                     continue;
                 }
 
-                // Replace the relationship, not a property on the entry
                 shippingAddress.addressBookEntry = newBook;
                 
-                // If switching to a different address book, we typically don't patch it in the same request
                 continue;
             }
 
@@ -335,9 +418,7 @@ export class UpdatePalletQuote extends StandardQuote {
              * 2. PATCH ADDRESS BOOK FIELDS (companyName, phoneNumber, etc.)
              */
             const { address: addressFields, ...bookFields } = address.addressBook || {};
-
             if (Object.keys(bookFields).length > 0) {
-                // Update the AddressBook entity directly, not entry.addressBook
                 wrap(entry).assign(bookFields);
             }
 
@@ -349,7 +430,6 @@ export class UpdatePalletQuote extends StandardQuote {
             }
         }
     }
-
     protected async updateLineItem(): Promise<void> {
         const lineItemData = this.validatedData.lineItems as any;
         

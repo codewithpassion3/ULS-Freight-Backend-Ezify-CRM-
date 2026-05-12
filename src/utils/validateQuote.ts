@@ -563,7 +563,12 @@ export const validateAndFilterServicesForUpdate = (
 
     const requiredFields = requiredServiceFields[shipmentType] || [];
 
-    if (!dtoServices || typeof dtoServices !== "object" || Array.isArray(dtoServices)) {
+    if(!dtoServices)  return {
+        errors,
+        validServices: {},
+    };
+
+    if (dtoServices && (typeof dtoServices !== "object" || Array.isArray(dtoServices))) {
         return {
             errors: ["services must be an object"],
             validServices: {},
@@ -747,12 +752,21 @@ export const validateAndFilterServicesForUpdate = (
         }
       }
 
-        if (typeof value !== "boolean") {
-            errors.push(`services.${field} must be boolean`);
-            continue;
-        }
+      const WEIGHT_BASED_FIELDS = new Set([
+        multiOptionFields.LOOSE_FREIGHT.key,
+        multiOptionFields.PALLET.key
+      ]);
 
-        validServices[field] = value;
+      if (WEIGHT_BASED_FIELDS.has(field)) {
+        validateWeightBasedField({localErrors: errors, data: value, fieldName: field});
+      }
+
+      if (typeof value !== "boolean") {
+          errors.push(`services.${field} must be boolean`);
+          continue;
+      }
+
+      validServices[field] = value;
     }
 
     return {

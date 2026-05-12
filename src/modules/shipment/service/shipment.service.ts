@@ -78,7 +78,8 @@ export class ShipmentService {
         if(!createShipmentDto?.quote?.id) {
           quote = await this.buildQuote(createShipmentDto, session);
         } else {
-          quote = this.em.getReference(Quote, createShipmentDto?.quote?.id);
+          const quoteDoc: any = await this.em.findOne(Quote, { id: createShipmentDto.quote.id }, { populate: ["addresses", "addresses.addressBookEntry", "addresses.address", "addresses.addressBookEntry.address", "lineItems", "lineItems.units" ]})
+          quote = await this.updateQuote(quoteDoc, createShipmentDto, session);
         }  
 
         //2) Create shipment with the built quote
@@ -106,7 +107,7 @@ export class ShipmentService {
 
         await this.em.flush()
 
-        //5) Send out notification to all memebers of company
+        // 5) Send out notification to all memebers of company
         this.eventEmitter.emit(NotificationType.QUOTE_FOR_SHIPMENT, {
           entity: shipment,
           actorId: session.userId,
@@ -119,7 +120,8 @@ export class ShipmentService {
 
         //6) Return populated response
         return {
-          message: "Quote for shipment created successfully"
+          message: "Quote for shipment created successfully",
+          quote
         }
     }
 

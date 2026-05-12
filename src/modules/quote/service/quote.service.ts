@@ -143,7 +143,7 @@ export class QuoteService {
         })
 
         //11) Return back success response
-        return { message: "Quote created successfully" }
+        return { message: "Quote created successfully", quote: { id: quote.id } }
     }
 
 
@@ -863,9 +863,9 @@ export class QuoteService {
     async deleteSingleAgainstCurrentUserCompany(quoteId: number, session: SessionData){
         //1) Get the user reference
         const company = this.em.getReference(Company, session.companyId as number);
-
+        console.log({quoteId, company})
         //2) Check for valid quote
-        const quote = await this.em.findOne(Quote, { id: quoteId, company: company },
+        const quote = await this.em.findOne(Quote, { id: quoteId, company: company.id },
             {
                 populate: [
                     'lineItems',
