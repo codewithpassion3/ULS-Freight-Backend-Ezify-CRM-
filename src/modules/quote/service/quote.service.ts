@@ -49,6 +49,8 @@ import { EmailService } from "src/email/service/email.service";
 import { getEmailTemplate } from "src/utils/get-email-template";
 import { ShipmentTypeLabel } from "src/utils/shipment-type-label-mapping";
 import { RequestContextService } from "src/utils/request-context-service";
+import { plainToInstance } from "class-transformer";
+import { AddressBookResponseDto } from "src/modules/address-book/dto/address-book.dto";
 
 @Injectable()
 export class QuoteService {
@@ -714,7 +716,7 @@ export class QuoteService {
         return { message: "Quote updated successfully" };
     }
 
-    async getSingleAgainstCurrentUserCompany(quoteId: number, session: SessionData){
+    async getSingleAgainstCurrentUserCompany(quoteId: number, session: SessionData):Promise<any>{
         //1) Get the quote against current user
         const quote = await this.em.findOne(Quote, {
             id: quoteId,
@@ -730,11 +732,23 @@ export class QuoteService {
             throw new BadRequestException("Invalid quote id or you are not allowed to access this resource")
         }
 
-        //3) Return back success response
+        //3) Map from addressBookEntry, not the QuoteAddress wrapper
+        const mappedAddresses = quote.addresses.map(item => 
+            plainToInstance(
+                AddressBookResponseDto, 
+                item.addressBookEntry,  // <-- changed from `item`
+                { excludeExtraneousValues: true }
+            )
+        );
+
+        //4) Return the mapped addresses in the response
         return {
             message: "Successfully retrieved quote",
-            quote
-        }
+            quote: {
+                ...quote,
+                addresses: mappedAddresses
+            }
+        };
     }
 
 
