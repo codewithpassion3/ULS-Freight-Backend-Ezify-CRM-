@@ -119,7 +119,10 @@ export class ShipmentCarrierService {
     }
 
     async getShipmentCarriersRates(dto: any) {
-        const [tstResult, fedexResult, tforceResult, xpoResult] = await Promise.all([
+        console.log({dto})
+        const [tforceResult, fedexResult, tstResult, 
+            // xpoResult
+        ] = await Promise.all([
             this.getTSTRates(dto)
                 .then(r => ({ success: true as const, data: r }))
                 .catch(e => ({ success: false as const, error: e.message })),
@@ -128,12 +131,12 @@ export class ShipmentCarrierService {
                 .catch(e => ({ success: false as const, error: e.message })),
             this.getTForceRates(dto)
                 .then(r => ({ success: true as const, data: r }))
-                .catch(e => ({ success: false as const, error: e.message })),
-            this.getXPORates(dto)
-                .then(r => ({ success: true as const, data: r }))
-                .catch(e => ({ success: false as const, error: e.message })),
+                .catch(e => ({ success: false as const, error: e.message }))
+            // this.getXPORates(dto)
+            //     .then(r => ({ success: true as const, data: r }))
+            //     .catch(e => ({ success: false as const, error: e.message })),
         ]);
- 
+        console.log({tforceResult})
         return {
             message: "Rates fetched",
             fedexQuotes: fedexResult.success ? fedexResult.data : null,
@@ -142,18 +145,18 @@ export class ShipmentCarrierService {
             tstError: tstResult.success ? null : tstResult.error,
             tforceQuotes: tforceResult.success ? tforceResult.data : null,
             tforceError: tforceResult.success ? null : tforceResult.error,
-            xpoQuotes: xpoResult.success ? xpoResult.data : null,
-            xpoError: xpoResult.success ? null : xpoResult.error,
+            // xpoQuotes: xpoResult.success ? xpoResult.data : null,
+            // xpoError: xpoResult.success ? null : xpoResult.error,
         };
     }
 
     // SSE stream — emits each carrier as it completes
     getShipmentCarriersRatesStream(dto: any): Observable<MessageEvent> {
         const carriers = [
-            { name: 'fedex',   fetch: () => this.getFedExRates(dto) },
-            { name: 'tst',     fetch: () => this.getTSTRates(dto) },
-            // { name: 'tforce',  fetch: () => this.getTForceRates(dto) },
-            { name: 'xpo',    fetch: () => this.getXPORates(dto) },
+            { name: Carrier.FEDEX,   fetch: () => this.getFedExRates(dto) },
+            { name: Carrier.TST,     fetch: () => this.getTSTRates(dto) },
+            { name: Carrier.TFORCE,  fetch: () => this.getTForceRates(dto) },
+            { name: Carrier.XPO,    fetch: () => this.getXPORates(dto) },
         ];
 
         const streams = carriers.map(c =>
@@ -195,11 +198,15 @@ export class ShipmentCarrierService {
             from: dto.tforce?.from,
             to: dto.tforce?.to,
             pallets: dto.pallets || [],
-            dangerousGoods: false,
+            dangerousGoods: dto.dangerousGoods || false,
         };
 
         const rates = await this.tforceAdapter.getRates(tforceDto);
+        
         const normalizedRates = this.tforceAdapter.mapTForceToCarrierRate(rates);
+        
+        if(Array.isArray(normalizedRates)) return normalizedRates[0]
+        
         return normalizedRates;
     }
 

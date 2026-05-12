@@ -1,4 +1,5 @@
 import { CarrierAdapter } from 'src/types/shipment-carriers';
+import { Carrier } from '../dto/create-carrier-shipment.dto';
 
 // ============================================================================
 // XPO API TYPES
@@ -481,7 +482,7 @@ export class XPOAdapter implements CarrierAdapter {
 
     return [
       {
-        carrier: 'XPO',
+        carrier: Carrier.XPO,
         serviceType: 'LTL',
         serviceName: 'XPO LTL Freight',
         totalPrice: rate.totalChargeAmt?.amt ?? null,

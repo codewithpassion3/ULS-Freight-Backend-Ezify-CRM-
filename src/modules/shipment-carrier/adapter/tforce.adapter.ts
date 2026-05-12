@@ -9,6 +9,7 @@ interface TForceCredentials {
   clientId: string;
   clientSecret: string;
   tokenUrl: string;
+  apiScope: string;
 }
 
 interface TForceTokenResponse {
@@ -38,6 +39,7 @@ export interface Address {
   street: string;
   stateOrProvinceCode: string;
   streetLines?: string;
+  isResidential?: boolean;
 }
 
 export interface PalletLineItem {
@@ -137,7 +139,51 @@ interface CarrierPayloadMapper {
 // LTL / PALLET MAPPER  (maps to TForce /getRate)
 // ============================================================================
 
+function mapWeightUnit(unit?: string): string {
+    const map: Record<string, string> = {
+      LB: 'LBS',
+      LBS: 'LBS',
+      KG: 'KGS',
+      KGS: 'KGS',
+    };
+    return map[unit?.toUpperCase() || ''] || 'LBS';
+  }
+
+  function mapDimensionUnit(unit?: string): string {
+    const map: Record<string, string> = {
+      IN: 'IN',
+      INCHES: 'IN',
+      CM: 'CM',
+      CENTIMETERS: 'CM',
+      FT: 'FT',
+      FEET: 'FT',
+      M: 'M',
+      METERS: 'M',
+    };
+    return map[unit?.toUpperCase() || ''] || 'inches';
+  }
+
+  function mapPackagingType(type?: string): string {
+  const map: Record<string, string> = {
+    // LineItemUnitType enum → TForce packaging code
+    PALLET: 'PLT',
+    DRUM: 'DRM',
+    BOXES: 'BOX',
+    ROLLS: 'ROL',
+    PIPES_OR_TUBES: 'TBE',
+    BALES: 'BAL',
+    BAGS: 'BAG',
+    CYLINDER: 'CYL',
+    PAILS: 'PAIL',
+    REELS: 'REEL',
+    CRATE: 'CRT',
+    LOOSE: 'LOOSE',
+    PIECES: 'PCS',
+  };
+  return map[type?.toUpperCase() || ''] || 'PLT';
+}
 class TForceLTLMapper implements CarrierPayloadMapper {
+  
   supports(type: ShipmentType): boolean {
     return (
       type === ShipmentType.PALLET ||
@@ -147,35 +193,34 @@ class TForceLTLMapper implements CarrierPayloadMapper {
   }
 
   map(req: ShipmentRateRequest, accountNumber: string): unknown {
-    const pickupDate = req.shipDate
-      ? new Date(req.shipDate).toISOString().split('T')[0]
-      : new Date().toISOString().split('T')[0];
+    const units = req.packages ?? req.pallets ?? [];
+    const pickupDate = req.shipDate ? new Date(req.shipDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
 
-    const commodities = (req.pallets || []).map((pallet) => {
+    const commodities = units?.map((unit: any) => {
       const commodity: Record<string, unknown> = {
-        class: pallet.freightClass,
-        pieces: pallet.unitsOnPallet,
+        class: unit.freightClass ?? '50',      // nullish coalescing
+        pieces: unit.unitsOnPallet ?? unit.handlingUnits ?? 1,
         weight: {
-          weight: pallet.weight,
-          weightUnit: 'LBS',
+          weight: unit.weight,
+          weightUnit: mapWeightUnit(unit.dimensionsUnit),
         },
-        packagingType: this.mapPackagingType(pallet.palletUnitType),
-        dangerousGoods: pallet.dangerousGoods ?? req.dangerousGoods ?? false,
+        packagingType: mapPackagingType(unit.palletUnitType),
+        dangerousGoods: unit.dangerousGoods ?? req.dangerousGoods ?? false,
       };
 
-      if (pallet.nmfc) {
+      if (unit.nmfc) {
         commodity.nmfc = {
-          prime: pallet.nmfc,
-          ...(pallet.nmfcSub ? { sub: pallet.nmfcSub } : {}),
+          prime: unit.nmfc,
+          ...(unit.nmfcSub ? { sub: unit.nmfcSub } : {}),
         };
       }
 
-      if (pallet.length && pallet.width && pallet.height) {
+      if (unit.length && unit.width && unit.height) {
         commodity.dimensions = {
-          length: pallet.length,
-          width: pallet.width,
-          height: pallet.height,
-          unit: 'inches',
+          length: unit.length,
+          width: unit.width,
+          height: unit.height,
+          unit: mapDimensionUnit(unit.dimensionsUnit),
         };
       }
 
@@ -198,7 +243,7 @@ class TForceLTLMapper implements CarrierPayloadMapper {
           postalCode: req.from.postalCode,
           country: req.from.countryCode,
         },
-        isResidential: false,
+        isResidential: req.from?.isResidential || false,
       },
       shipTo: {
         address: {
@@ -207,7 +252,7 @@ class TForceLTLMapper implements CarrierPayloadMapper {
           postalCode: req.to.postalCode,
           country: req.to.countryCode,
         },
-        isResidential: false,
+        isResidential: req.to?.isResidential || false,
       },
       payment: {
         payer: {
@@ -221,39 +266,33 @@ class TForceLTLMapper implements CarrierPayloadMapper {
         billingCode: '10', // Prepaid (shipper pays)
       },
       serviceOptions: {
-        pickup: [],
-        delivery: [],
+        pickup: [
+          // ...(req.services?.insidePickup ? ['INPU'] : []),
+          // ...(req.services?.liftgatePickup ? ['LIFO'] : []),
+          // ...(req.services?.limitedAccess ? ['LAPU'] : []),
+          // ...(req.services?.residentialPickup ? ['RESP'] : []),
+          // ...(req.services?.tradeShowDelivery ? ['TRPU'] : []),
+        ],
+        delivery: [
+          // ...(req.services?.insideDelivery ? ['INDE'] : []),
+          // ...(req.services?.liftgateDelivery ? ['LIFO'] : []),
+          // ...(req.services?.limitedAccess ? ['LADE'] : []),
+          // ...(req.services?.residentialDelivery ? ['RESD'] : []),
+        ],
         shipment: {
-          ...(req.services?.freezableProtection
-            ? { freezableProtection: true }
-            : {}),
-          ...(req.services?.excessValue
-            ? {
-                excessValue: {
-                  value: String(req.services.excessValue),
-                  currency: 'USD',
-                },
-              }
-            : {}),
-        },
+          ...(req.services?.protectFromFreeze ? { freezableProtection: true } : {}),
+          ...(req.services?.excessValue ? { excessValue: { value: String(req.services.excessValue), currency: 'USD' } } : {}),
+  
+        }
+        
+        // {
+        //   ...(req.services?.protectFromFreeze ? { freezableProtection: true } : {}),
+        //   // ...(req.services?.excessValue ? { excessValue: { value: String(req.services.excessValue), currency: 'USD' } } : {}),
+        //   // ...(req.services?.extremeLength ? { extremeLength: { value: String(req.services.extremeLength), unit: 'FEET' } } : {}),
+        // },
       },
       commodities,
     };
-  }
-
-  private mapPackagingType(palletUnitType: string): string {
-    const map: Record<string, string> = {
-      PALLET: 'PLT',
-      SKID: 'SKD',
-      BOX: 'BOX',
-      CRATE: 'CRT',
-      DRUM: 'DRM',
-      ROLL: 'ROL',
-      BUNDLE: 'BDL',
-      BAG: 'BAG',
-      CARTON: 'CTN',
-    };
-    return map[palletUnitType?.toUpperCase()] ?? 'PLT';
   }
 }
 
@@ -280,6 +319,7 @@ class TForceVolumeMapper implements CarrierPayloadMapper {
       0,
     );
 
+    const units = req.packages ?? req.pallets ?? [];
     return {
       requestOptions: {
         serviceCode: '308',
@@ -313,7 +353,7 @@ class TForceVolumeMapper implements CarrierPayloadMapper {
       },
       commodity: [
         {
-          linearfeet: this.estimateLinearFeet(req.pallets || []),
+          linearfeet: this.estimateLinearFeet(units as any),
           pieces: totalPieces,
           weight: {
             weight: totalWeight,
@@ -351,6 +391,7 @@ export class TForceAdapter implements CarrierAdapter {
     clientId: string;
     clientSecret: string;
     accountNumber: string;
+    apiScope: string;
     tokenUrl?: string;
     apiVersion?: string;
   }) {
@@ -358,13 +399,11 @@ export class TForceAdapter implements CarrierAdapter {
       clientId: params.clientId,
       clientSecret: params.clientSecret,
       // TForce uses Microsoft CIAM / Azure AD B2C for OAuth
-      tokenUrl:
-        params.tokenUrl ??
-        'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+      tokenUrl: params.tokenUrl || '',
+      apiScope: params.apiScope || ''
     };
     this.accountNumber = params.accountNumber;
     this.apiVersion = params.apiVersion ?? 'v1';
-
     // FTL uses volumeRating endpoint, everything else uses getRate
     this.mappers = [new TForceVolumeMapper(), new TForceLTLMapper()];
   }
@@ -382,7 +421,7 @@ export class TForceAdapter implements CarrierAdapter {
       grant_type: 'client_credentials',
       client_id: this.credentials.clientId,
       client_secret: this.credentials.clientSecret,
-      scope: 'https://api.tforcefreight.com/.default',
+      scope: this.credentials.apiScope,
     });
 
     const response = await fetch(this.credentials.tokenUrl, {
@@ -397,7 +436,6 @@ export class TForceAdapter implements CarrierAdapter {
     }
 
     const data: TForceTokenResponse = await response.json();
-
     this.tokenCache = {
       token: data.access_token,
       expiresAt: Date.now() + data.expires_in * 1000,
@@ -453,8 +491,8 @@ export class TForceAdapter implements CarrierAdapter {
       const errorText = await response.text();
       throw new Error(`TForce API error: ${response.status} - ${errorText}`);
     }
-
-    return response.json();
+    const responseInJson = await response.json();
+    return responseInJson;
   }
 
   // --------------------------------------------------------------------------
@@ -506,41 +544,51 @@ export class TForceAdapter implements CarrierAdapter {
   // --------------------------------------------------------------------------
 
   mapTForceToCarrierRate(tforceResponse: any): any[] {
-    const rate = tforceResponse?.rateResponse;
-    if (!rate) return [];
+    const detailArray = tforceResponse?.detail;
+    if (!Array.isArray(detailArray) || detailArray.length === 0) return [];
 
-    const detail = rate;
+    return detailArray.map((detail: any) => {
+      const rateLines = detail.rate || [];
+      const excludedBaseCodes = new Set(['DSCNT', 'DSCNT_RATE', 'LND_GROSS', 'AFTR_DSCNT']);
 
-    return [
-      {
-        carrier: 'TFORCE',
-        serviceType: detail.serviceCode ?? 'LTL',
-        serviceName: detail.serviceName ?? 'TForce Freight LTL',
-        totalPrice:
-          detail.totalChargesWithAccessorials?.monetaryValue ??
-          detail.totalCharges?.monetaryValue ??
-          null,
-        totalDiscount: 0,
-        currency: detail.totalCharges?.currencyCode ?? 'USD',
-        shipDate: tforceResponse.requestOptions?.pickupDate ?? null,
-        estimatedDeliveryDays: this.getTForceTransitTime(
-          detail.serviceCode,
-          detail.timeInTransit?.daysInTransit,
-        ),
-        billingWeight: detail.billedWeight?.weight ?? null,
-        fuelSurcharge:
-          detail.accessorialCharges?.find(
-            (a: any) => a.code === 'FUEL' || a.name?.toLowerCase().includes('fuel'),
-          )?.charge?.monetaryValue ?? 0,
-        totalSurcharges:
-          detail.accessorialCharges?.reduce(
-            (sum: number, a: any) => sum + (a.charge?.monetaryValue ?? 0),
-            0,
-          ) ?? 0,
-        quoteNumber: detail.quoteNumber ?? null,
-        transactionId: tforceResponse.transactionId ?? null,
-      },
-    ];
+      // Fuel surcharge
+      const fuelLine = rateLines.find(
+        (r: any) => r.code === 'FUEL_SUR' || r.description?.toLowerCase().includes('fuel')
+      );
+      const fuelSurcharge = parseFloat(fuelLine?.value ?? 0);
+
+      // Total surcharges = everything except base freight and discount lines
+      const totalSurcharges = rateLines.reduce((sum: number, r: any) => {
+        if (!excludedBaseCodes.has(r.code)) {
+          return sum + (parseFloat(r.value) || 0);
+        }
+        return sum;
+      }, 0);
+
+      // Discount amount
+      const discountLine = rateLines.find((r: any) => r.code === 'DSCNT');
+      const totalDiscount = discountLine ? parseFloat(discountLine.value) : 0;
+
+      return {
+        carrier: Carrier.TFORCE,
+        serviceType: detail.service?.code ?? 'LTL',
+        serviceName: detail.service?.description ?? 'TForce Freight LTL',
+        totalPrice: parseFloat(detail.shipmentCharges?.total?.value ?? 0),
+        totalDiscount,
+        currency: detail.shipmentCharges?.total?.currency ?? 'USD',
+        shipDate: null, // Not returned in response; set from request context if needed
+        estimatedDeliveryDays: detail.timeInTransit?.timeInTransit ?? null,
+        billingWeight: detail.shipmentWeights?.billable?.value ?? null,
+        fuelSurcharge,
+        totalSurcharges,
+        quoteNumber: tforceResponse.summary?.quoteNumber ?? null,
+        transactionId: tforceResponse.summary?.transactionReference?.transactionId ?? null,
+        // Optional debug fields (remove if not needed):
+        grossCharges: parseFloat(rateLines.find((r: any) => r.code === 'LND_GROSS')?.value ?? 0),
+        afterDiscount: parseFloat(rateLines.find((r: any) => r.code === 'AFTR_DSCNT')?.value ?? 0),
+        alerts: detail.alerts ?? null,
+      };
+    });
   }
 
   // --------------------------------------------------------------------------

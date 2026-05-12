@@ -38,11 +38,12 @@ import { BullModule } from "@nestjs/bullmq";
         {
             provide: TForceAdapter,
             useFactory: () => new TForceAdapter({
-                name: 'tforce',
+                name: "tforce",
                 clientId: getEnv(ENV.TFORCE_CLIENT_ID)!,
                 clientSecret: getEnv(ENV.TFORCE_CLIENT_SECRET)!,
-                accountNumber: "",
-                tokenUrl: getEnv(ENV.TFORCE_TOKEN_URL)!,
+                accountNumber: getEnv(ENV.TFORCE_ACCOUNT_NUMBER)!,
+                tokenUrl: getEnv(ENV.TFORCE_TOKEN_URL),
+                apiScope: getEnv(ENV.TFORCE_API_SCOPE)!,
                 apiVersion: 'cie-v1'
             }),
         },

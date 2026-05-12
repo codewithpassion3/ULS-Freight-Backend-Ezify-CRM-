@@ -503,9 +503,8 @@ export class FedExAdapter implements CarrierAdapter {
         rate.ratedShipmentDetails?.find((r: any) => r.rateType === 'LIST');
       
       const detail = selectedRate?.shipmentRateDetail;
-
       return {
-        carrier: 'FEDEX',
+        carrier: Carrier.FEDEX,
         serviceType: rate.serviceType,
         serviceName: rate.serviceName,
         packagingType: rate.packagingType,
