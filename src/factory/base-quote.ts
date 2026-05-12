@@ -163,11 +163,11 @@ export abstract class BaseQuote {
             ? await this.em.find(AddressBook, { id: { $in: bookIds } }, { populate: ['address'] })
             : [];
 
-        if (existingBooks.length !== bookIds.length) {
-            const foundIds = new Set(existingBooks.map(b => b.id));
-            const missing = bookIds.filter(id => !foundIds.has(id));
-            throw new BadRequestException(`AddressBook IDs not found: ${missing.join(', ')}`);
-        }
+        // if (existingBooks.length !== bookIds.length) {
+        //     const foundIds = new Set(existingBooks.map(b => b.id));
+        //     const missing = bookIds.filter(id => !foundIds.has(id));
+        //     throw new BadRequestException(`AddressBook IDs not found: ${missing.join(', ')}`);
+        // }
 
         const bookMap = new Map(existingBooks.map(b => [b.id, b]));
 
