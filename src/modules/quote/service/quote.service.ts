@@ -724,7 +724,7 @@ export class QuoteService {
         },{
             populate: ["addresses", "addresses.addressBookEntry", "addresses.addressBookEntry.address", "addresses.address","lineItems", "lineItems.units",
                         "palletServices", "spotFtlServices", "spotLtlServices", "standardFTLService", 
-                        "signature", "insurance","spotDetails", "spotDetails.spotContact", "spotDetails.spotEquipment","shipment", "shipment.trackingEvents"]
+                        "signature", "insurance","spotDetails", "spotDetails.spotContact", "spotDetails.spotEquipment","shipment", "shipment.trackingEvents", "shipment.surcharges"]
         });
 
         //2) Throw error for invalid quote

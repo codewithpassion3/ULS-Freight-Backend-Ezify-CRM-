@@ -328,8 +328,8 @@ export abstract class BaseQuote {
             isTemporary: data.saveToAddressBook === false,
             company: this.em.getReference(Company, data.companyId!),
             createdBy: this.em.getReference(User, data.userId!),
-            signature: this.em.getReference(Signature, data.signatureId!),
-            locationType: this.em.getReference(PalletShippingLocationType, data.locationType!)
+            signature: this.em.getReference(Signature, data.signatureId! || 1),
+            locationType: this.em.getReference(PalletShippingLocationType, data.locationType! || 1)
         });
 
         const addr = new Address();
@@ -372,7 +372,7 @@ export abstract class BaseQuote {
                 const required = [
                     'companyName', 'contactName', 'phoneNumber', 
                     'palletShippingReadyTime', 'palletShippingCloseTime',
-                    'signatureId', 'locationType', 'address1', 'city', 'state', 'postalCode', 'country'
+                    'address1', 'city', 'state', 'postalCode', 'country'
                 ];
 
                 const missing = required.filter(field => !(address as any)[field]);
