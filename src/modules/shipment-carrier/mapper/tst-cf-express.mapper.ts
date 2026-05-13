@@ -233,16 +233,17 @@ private formatCountry(country: string | undefined): string {
 
  mapShipment(quote: Quote, selectedRate: any): any {
     const addresses = quote.addresses.getItems();
+    console.log({addresses})
     const origin = addresses.find(a => a.type === AddressType.FROM);
     const dest = addresses.find(a => a.type === AddressType.TO);
     
     const originEntry = origin?.addressBookEntry;
     const destEntry = dest?.addressBookEntry;
     
-    const originAddr: any = originEntry ? originEntry.address : origin?.address;
-    const destAddr: any =  destEntry ? destEntry.address : dest?.address;
+    const originAddr: any = originEntry;
+    const destAddr: any =  destEntry;
     const shipDate = this.formatDateInt(quote?.shipment?.shipDate || new Date());
-
+   
     const lines = (quote.lineItems?.units as any)?.map((unit: any) => ({
       description1: unit.description || 'General Freight',
       description2: '',
@@ -276,28 +277,28 @@ private formatCountry(country: string | undefined): string {
       assignpro: 'Y',
       
       shipper: {
-        country: this.formatCountry(originAddr?.country),
+        country: this.formatCountry(originAddr?.address?.country),
         company: originAddr?.companyName || originAddr?.contactName || '',
-        address1: originAddr?.address1 || '',
-        unit: originAddr?.unit || '',
-        address2: originAddr?.address2 || '',
-        city: originAddr?.city || '',
-        state: this.formatState(originAddr?.state),
-        zip: originAddr?.postalCode || '',
+        address1: originAddr?.address?.address1 || '',
+        unit: originAddr?.address?.unit || '',
+        address2: originAddr?.address?.address2 || '',
+        city: originAddr?.address?.city || '',
+        state: this.formatState(originAddr?.address?.state),
+        zip: originAddr?.address?.postalCode || '',
         contact: originAddr?.contactName || '',
         phone: this.formatPhone(originAddr?.phoneNumber),
         phoneext: this.formatPhoneExt(originAddr?.phoneNumber) || '',
       },
       
       consignee: {
-        country: this.formatCountry(destAddr?.country),
+        country: this.formatCountry(destAddr?.address?.country),
         company: destAddr?.companyName || destAddr?.contactName || '',
-        address1: destAddr?.address1 || '',
-        unit: destAddr?.unit || '',
-        address2: destAddr?.address2 || '',
-        city: destAddr?.city || '',
-        state: this.formatState(destAddr?.state),
-        zip: destAddr?.postalCode || '',
+        address1: destAddr?.address?.address1 || '',
+        unit: destAddr?.address?.unit || '',
+        address2: destAddr?.address?.address2 || '',
+        city: destAddr?.address?.city || '',
+        state: this.formatState(destAddr?.address?.state),
+        zip: destAddr?.address?.postalCode || '',
         contact: destAddr?.contactName || '',
         phone: this.formatPhone(destAddr?.phoneNumber),
         phoneext: this.formatPhoneExt(destAddr?.phoneNumber) || '',
@@ -305,6 +306,8 @@ private formatCountry(country: string | undefined): string {
       brokername: 'Test Broker',
       ptype: 'S',
       pickupdate: shipDate,
+      // readytime: getTimeIn24HourFormat(originAddr.palletShippingReadyTime) ?? "0800",
+      // closetime: getTimeIn24HourFormat(originAddr.palletShippingCloseTime) ?? "1700",
       readytime: "0800",
       closetime: "1700",
       service: this.serviceMap[selectedRate?.serviceType] || 'ST',

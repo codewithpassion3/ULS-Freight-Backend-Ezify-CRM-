@@ -55,7 +55,7 @@ export class ShipmentCarrierService {
 
         if (dto.carrier === Carrier.FEDEX) {
             carrierResponse = await this.fedexAdapter.createShipment(dto, quote);
-            console.dir(carrierResponse, { depth: null })
+        
             const tx = carrierResponse?.output?.transactionShipments?.[0];
             const shipmentRating = tx?.completedShipmentDetail?.shipmentRating?.shipmentRateDetails[0];
             shipment.trackingNumber = tx?.masterTrackingNumber;

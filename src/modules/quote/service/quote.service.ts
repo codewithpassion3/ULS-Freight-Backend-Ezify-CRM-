@@ -1,4 +1,4 @@
-import { EntityManager } from "@mikro-orm/postgresql";
+import { EntityManager, wrap } from "@mikro-orm/postgresql";
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { CreateQuoteDTO } from "../dto/create-quote.dto";
 import { Quote } from "src/entities/quote.entity";
@@ -8,7 +8,6 @@ import { LineItemUnit } from "src/entities/line-item-unit.entity";
 import { LineItem } from "src/entities/line-item.entity";
 import { SpotDetails } from "src/entities/spot-details.entity";
 import { Signature } from "src/entities/signature.entity";
-import { multiOptionFields, validateQuote } from "src/utils/validateQuote";
 import { AddressBook } from "src/entities/address-book.entity";
 import { Address } from "src/entities/address.entity";
 import { ShippingAddressMeta } from "src/entities/shipping-address-meta.entity";
@@ -19,7 +18,6 @@ import { PaginationParams } from "src/types/pagination";
 import { buildQuery } from "src/utils/api-query";
 import { PalletServices } from "src/entities/pallet-services.entity";
 import { StandardFtlServices } from "src/entities/standard-ftl-services.entity";
-import { SpotLtlServices } from "src/entities/spot-ltl-services.entity";
 import { SpotFtlServices } from "src/entities/spot-ftl-services.entity";
 import { QuoteType } from "src/common/enum/quote-type.enum";
 import { UpdateQuoteDTO } from "../dto/update-quote.dto";
@@ -49,9 +47,6 @@ import { EmailService } from "src/email/service/email.service";
 import { getEmailTemplate } from "src/utils/get-email-template";
 import { ShipmentTypeLabel } from "src/utils/shipment-type-label-mapping";
 import { RequestContextService } from "src/utils/request-context-service";
-import { plainToInstance } from "class-transformer";
-import { AddressBookResponseDto } from "src/modules/address-book/dto/address-book.dto";
-
 @Injectable()
 export class QuoteService {
     constructor(
@@ -733,13 +728,27 @@ export class QuoteService {
         }
 
         //3) Map from addressBookEntry, not the QuoteAddress wrapper
-        const mappedAddresses = quote.addresses.map(item => 
-            plainToInstance(
-                AddressBookResponseDto, 
-                item.addressBookEntry,  // <-- changed from `item`
-                { excludeExtraneousValues: true }
-            )
-        );
+        const mappedAddresses = quote.addresses.map(addr => {
+            // 1. Pick whichever source exists
+            const source = addr.addressBookEntry ?? addr.address;
+            
+            // 2. Convert to plain object (breaks out of MikroORM proxies)
+            const address: any = wrap(source as any).toObject() ;
+            let mappedAddress = {type: addr.type ,...address};
+           
+            // 3. Add the transformed fields directly INTO the address object
+            if(address.signature) {
+                mappedAddress = {...mappedAddress, signatureId: address.signature}
+                delete mappedAddress.signature;
+            }
+            
+            if(address.locationType) {
+                mappedAddress = {...mappedAddress, locationTypeId: address.locationType}
+                delete mappedAddress.locationType;
+            }
+            
+            return mappedAddress;
+        });
 
         //4) Return the mapped addresses in the response
         return {

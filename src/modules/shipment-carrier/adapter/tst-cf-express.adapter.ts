@@ -212,7 +212,6 @@ export class TSTCFExpressAdapter implements CarrierAdapter {
   async createShipment(quote: any, selectedRate: any): Promise<any> {
     try {
       const payload = this.mapper.mapShipment(quote, selectedRate);
-
       const builder = new Builder({
         xmldec: { version: '1.0', encoding: 'ISO-8859-1' },
         renderOpts: { pretty: false },
