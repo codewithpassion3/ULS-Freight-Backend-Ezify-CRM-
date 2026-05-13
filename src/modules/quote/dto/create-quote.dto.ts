@@ -343,10 +343,11 @@ export class CreateQuoteDTO {
   @IsNumber()
   signature?: number;
 
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateAddressDto)
-  addresses!: CreateAddressDto[];
+  addresses?: CreateAddressDto[];
 
   @ValidateNested()
   @Type(() => CreateLineItemDto)

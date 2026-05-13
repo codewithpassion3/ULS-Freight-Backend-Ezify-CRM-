@@ -1,3 +1,4 @@
+import { AddressType } from "src/common/enum/address-type.enum";
 import { Quote } from "src/entities/quote.entity";
 import { TSTCFRateRequest, TSTCFAddress, TSTCFShipLine, TSTCFAccessorials } from "src/types/tst-cf-express";
 
@@ -232,15 +233,14 @@ private formatCountry(country: string | undefined): string {
 
  mapShipment(quote: Quote, selectedRate: any): any {
     const addresses = quote.addresses.getItems();
-    const origin = addresses.find(a => a.type === 'FROM') || addresses[0];
-    const dest = addresses.find(a => a.type === 'TO') || addresses[1];
+    const origin = addresses.find(a => a.type === AddressType.FROM);
+    const dest = addresses.find(a => a.type === AddressType.TO);
     
     const originEntry = origin?.addressBookEntry;
     const destEntry = dest?.addressBookEntry;
     
-    const originAddr = originEntry?.address;
-    const destAddr = destEntry?.address;
-    
+    const originAddr: any = originEntry ? originEntry.address : origin?.address;
+    const destAddr: any =  destEntry ? destEntry.address : dest?.address;
     const shipDate = this.formatDateInt(quote?.shipment?.shipDate || new Date());
 
     const lines = (quote.lineItems?.units as any)?.map((unit: any) => ({
@@ -277,30 +277,30 @@ private formatCountry(country: string | undefined): string {
       
       shipper: {
         country: this.formatCountry(originAddr?.country),
-        company: originEntry?.companyName || originEntry?.contactName || '',
+        company: originAddr?.companyName || originAddr?.contactName || '',
         address1: originAddr?.address1 || '',
         unit: originAddr?.unit || '',
         address2: originAddr?.address2 || '',
         city: originAddr?.city || '',
         state: this.formatState(originAddr?.state),
         zip: originAddr?.postalCode || '',
-        contact: originEntry?.contactName || '',
-        phone: this.formatPhone(originEntry?.phoneNumber),
-        phoneext: this.formatPhoneExt(originEntry?.phoneNumber) || '',
+        contact: originAddr?.contactName || '',
+        phone: this.formatPhone(originAddr?.phoneNumber),
+        phoneext: this.formatPhoneExt(originAddr?.phoneNumber) || '',
       },
       
       consignee: {
         country: this.formatCountry(destAddr?.country),
-        company: destEntry?.companyName || destEntry?.contactName || '',
+        company: destAddr?.companyName || destAddr?.contactName || '',
         address1: destAddr?.address1 || '',
         unit: destAddr?.unit || '',
         address2: destAddr?.address2 || '',
         city: destAddr?.city || '',
         state: this.formatState(destAddr?.state),
         zip: destAddr?.postalCode || '',
-        contact: destEntry?.contactName || '',
-        phone: this.formatPhone(destEntry?.phoneNumber),
-        phoneext: this.formatPhoneExt(destEntry?.phoneNumber) || '',
+        contact: destAddr?.contactName || '',
+        phone: this.formatPhone(destAddr?.phoneNumber),
+        phoneext: this.formatPhoneExt(destAddr?.phoneNumber) || '',
       },
       brokername: 'Test Broker',
       ptype: 'S',
@@ -311,9 +311,9 @@ private formatCountry(country: string | undefined): string {
       pff: '',
       
       rqby: {
-        email: originEntry?.email || process.env.TST_DEFAULT_EMAIL || '',
-        phone: this.formatPhone(originEntry?.phoneNumber),
-        name: originEntry?.contactName || '',
+        email: originAddr?.email || '',
+        phone: this.formatPhone(originAddr?.phoneNumber),
+        name: originAddr?.contactName || '',
       },
       
       kg: '',

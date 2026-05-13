@@ -408,6 +408,14 @@ export class TForceAdapter implements CarrierAdapter {
     this.mappers = [new TForceVolumeMapper(), new TForceLTLMapper()];
   }
 
+  private readonly TFORCE_SURCHARGE_MAP: Record<string, string> = {
+    PFFF: 'Protect from Freezing',
+    RESP: 'Residential Pickup',
+    RESD: 'Residential Delivery',
+    FUEL_SUR: 'Fuel Surcharge',
+    HICST: 'High Cost Service Area',
+    // Add new known codes here as they appear
+  };
   // --------------------------------------------------------------------------
   // AUTH
   // --------------------------------------------------------------------------
@@ -551,13 +559,13 @@ export class TForceAdapter implements CarrierAdapter {
       const rateLines = detail.rate || [];
       const excludedBaseCodes = new Set(['DSCNT', 'DSCNT_RATE', 'LND_GROSS', 'AFTR_DSCNT']);
 
-      // Fuel surcharge
+      // Fuel surcharge (top-level convenience)
       const fuelLine = rateLines.find(
         (r: any) => r.code === 'FUEL_SUR' || r.description?.toLowerCase().includes('fuel')
       );
       const fuelSurcharge = parseFloat(fuelLine?.value ?? 0);
 
-      // Total surcharges = everything except base freight and discount lines
+      // Total surcharges
       const totalSurcharges = rateLines.reduce((sum: number, r: any) => {
         if (!excludedBaseCodes.has(r.code)) {
           return sum + (parseFloat(r.value) || 0);
@@ -569,6 +577,17 @@ export class TForceAdapter implements CarrierAdapter {
       const discountLine = rateLines.find((r: any) => r.code === 'DSCNT');
       const totalDiscount = discountLine ? parseFloat(discountLine.value) : 0;
 
+      // Mapped surcharges array — known codes get clean names, unknowns fall back to "Freight charge"
+      const surcharges = rateLines
+        .filter((r: any) => !excludedBaseCodes.has(r.code))
+        .map((r: any) => ({
+          code: r.code,
+          name: this.TFORCE_SURCHARGE_MAP[r.code] || 'Freight charge',
+          rawDescription: r.description || null, // keep original if you ever need it
+          value: parseFloat(r.value) || 0,
+          currency: detail.shipmentCharges?.total?.currency ?? 'USD',
+        }));
+
       return {
         carrier: Carrier.TFORCE,
         serviceType: detail.service?.code ?? 'LTL',
@@ -576,14 +595,14 @@ export class TForceAdapter implements CarrierAdapter {
         totalPrice: parseFloat(detail.shipmentCharges?.total?.value ?? 0),
         totalDiscount,
         currency: detail.shipmentCharges?.total?.currency ?? 'USD',
-        shipDate: null, // Not returned in response; set from request context if needed
-        estimatedDeliveryDays: detail.timeInTransit?.timeInTransit ?? null,
+        shipDate: null,
+        estimatedDeliveryDays: detail.timeInTransit?.timeInTransit ? `${parseInt(detail.timeInTransit?.timeInTransit)} business days` : null,
         billingWeight: detail.shipmentWeights?.billable?.value ?? null,
         fuelSurcharge,
         totalSurcharges,
+        surcharges,
         quoteNumber: tforceResponse.summary?.quoteNumber ?? null,
         transactionId: tforceResponse.summary?.transactionReference?.transactionId ?? null,
-        // Optional debug fields (remove if not needed):
         grossCharges: parseFloat(rateLines.find((r: any) => r.code === 'LND_GROSS')?.value ?? 0),
         afterDiscount: parseFloat(rateLines.find((r: any) => r.code === 'AFTR_DSCNT')?.value ?? 0),
         alerts: detail.alerts ?? null,

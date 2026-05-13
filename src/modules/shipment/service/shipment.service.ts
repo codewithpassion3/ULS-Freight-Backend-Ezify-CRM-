@@ -10,6 +10,7 @@ import { UpdateShipmentDTO } from "../dto/update-shipment.dto";
 import { Quote } from "src/entities/quote.entity";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { NotificationType } from "src/common/enum/notification-type.enum";
+import { QuoteStatus } from "src/common/enum/quote-status";
 
 @Injectable()
 export class ShipmentService {
@@ -102,6 +103,7 @@ export class ShipmentService {
         }
 
         //4) Persist everything in one transaction
+        quote.status = QuoteStatus.CONVERTED_TO_SHIPMENT;
         this.em.persist(quote);
         this.em.persist(shipment);
 

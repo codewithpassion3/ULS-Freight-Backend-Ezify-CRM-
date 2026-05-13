@@ -120,7 +120,7 @@ export class ShipmentCarrierService {
 
     async getShipmentCarriersRates(dto: any) {
         console.log({dto})
-        const [tforceResult, fedexResult, tstResult, 
+        const [tstResult, fedexResult, tforceResult 
             // xpoResult
         ] = await Promise.all([
             this.getTSTRates(dto)
