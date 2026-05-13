@@ -10,6 +10,7 @@ import { Quote } from "src/entities/quote.entity";
 import { Currency } from "src/common/enum/currency.enum";
 import { XPOAdapter } from "../adapter/xpo.adapter";
 import { MockCarrierTrackingService } from "src/modules/mock-carrier-tracking/service/mock-carrier-tracking.service";
+import { Surcharge } from "src/entities/surcharge";
 
 @Injectable()
 export class ShipmentCarrierService {
@@ -67,6 +68,19 @@ export class ShipmentCarrierService {
             shipment.totalFreightDiscounts = shipmentRating.totalFreightDiscounts;
             shipment.totalNetCharge = shipmentRating.totalNetChargeWithDutiesAndTaxes;
             shipment.totalTax = shipmentRating.totalTaxes;
+
+            const surchargeEntities = shipmentRating.surcharges.map((surcharge) =>
+                this.em.create(Surcharge, {
+                    shipment,
+                    carrier: Carrier.FEDEX,
+                    name: this.fedexAdapter.getSurchargeName(surcharge.surchargeType),
+                    amount: surcharge.amount,
+                    currency: shipmentRating.currency,
+                    createdAt: new Date()
+                })
+            );
+
+            shipment.surcharges.add(surchargeEntities);
         }
         
         if (dto.carrier === Carrier.TST) {

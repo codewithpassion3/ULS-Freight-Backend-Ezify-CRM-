@@ -493,9 +493,14 @@ export class FedExAdapter implements CarrierAdapter {
     return response.json();
   }
 
+  getSurchargeName(val: string) {
+    return this.SURCHARGE_NAME_MAP[val] ? this.SURCHARGE_NAME_MAP[val] : "Freight fee"
+  }
+
   // Standardized surcharge name mapping — shared across all carriers
   private readonly SURCHARGE_NAME_MAP: Record<string, string> = {
     // FedEx types
+    DEMAND: 'Demand Surcharge',
     FUEL: 'Fuel Surcharge',
     ADDITIONAL_HANDLING: 'Additional Handling',
     LIFTGATE: 'Liftgate',

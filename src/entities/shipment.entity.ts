@@ -1,7 +1,9 @@
-import { Cascade, Collection, Entity, OneToMany, OneToOne, PrimaryKey, Property } from "@mikro-orm/core";
+import { Cascade, Collection, Entity, ManyToOne, OneToMany, OneToOne, PrimaryKey, Property } from "@mikro-orm/core";
 import { Quote } from "./quote.entity";
 import { BillingReference } from "./BillingReference.entity";
 import { TrackingEvent } from "./mock-carrier-tracking.entity";
+import { Invoice } from "./invoice.entity";
+import { Surcharge } from "./surcharge";
 
 @Entity()
 export class Shipment {
@@ -80,4 +82,12 @@ export class Shipment {
 
     @OneToMany(() => TrackingEvent, trackingEvent => trackingEvent.shipment, { cascade: [Cascade.PERSIST, Cascade.REMOVE]})
     trackingEvents = new Collection<TrackingEvent>(this);
+
+    @OneToMany(() => Surcharge, (s) => s.shipment, {
+        cascade: [Cascade.PERSIST, Cascade.REMOVE],
+    })
+    surcharges = new Collection<Surcharge>(this);
+
+    @ManyToOne(() => Invoice, { nullable: true })
+    invoices?: Invoice
 }
