@@ -717,7 +717,7 @@ export class QuoteService {
             id: quoteId,
             company: this.em.getReference(Company, session.companyId as number)
         },{
-            populate: ["addresses", "addresses.addressBookEntry", "addresses.addressBookEntry.address", "addresses.address","lineItems", "lineItems.units",
+            populate: ["createdBy","createdBy.firstName", "createdBy.lastName","addresses", "addresses.addressBookEntry", "addresses.addressBookEntry.address", "addresses.address","lineItems", "lineItems.units",
                         "palletServices", "spotFtlServices", "spotLtlServices", "standardFTLService", 
                         "signature", "insurance","spotDetails", "spotDetails.spotContact", "spotDetails.spotEquipment","shipment", "shipment.trackingEvents", "shipment.surcharges"]
         });
@@ -750,12 +750,19 @@ export class QuoteService {
             return mappedAddress;
         });
 
+        const createdBy = quote.createdBy ? {
+            firstName: quote.createdBy.firstName,
+            lastName: quote.createdBy.lastName
+        } : null;
+
+
         //4) Return the mapped addresses in the response
         return {
             message: "Successfully retrieved quote",
             quote: {
                 ...quote,
-                addresses: mappedAddresses
+                addresses: mappedAddresses,
+                createdBy
             }
         };
     }
