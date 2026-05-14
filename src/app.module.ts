@@ -31,6 +31,7 @@ import { PostalCodeModule } from './modules/postal-code/postal-code.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { MockCarrierTrackingModule } from './modules/mock-carrier-tracking/mock-carrier-tracking.module';
 import { SurchargeModule } from './modules/surcharge/surcharge.module';
+import { InvoiceModule } from './modules/invoice/invoice.module';
 
 @Module({
   imports: [
@@ -65,7 +66,8 @@ import { SurchargeModule } from './modules/surcharge/surcharge.module';
     PostalCodeModule,
     PaymentModule,
     MockCarrierTrackingModule,
-    SurchargeModule
+    SurchargeModule,
+    InvoiceModule
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -8,6 +8,7 @@ import { LineItemUnit } from "./line-item-unit.entity";
 import { Reminder } from "./reminder.entity";
 import { Wallet } from "./wallet.entity";
 import { SavedCard } from "./saved-card.entity";
+import { Invoice } from "./invoice.entity";
 
 @Entity()
 export class User{
@@ -94,4 +95,7 @@ export class User{
 
     @OneToMany(() => Reminder, reminder => reminder.sendTo)
     reminder = new Collection<Reminder>(this);
+
+    @OneToMany(() => Invoice, invoice => invoice.paidBy)
+    paidInvoices = new Collection<Invoice>(this);
 }

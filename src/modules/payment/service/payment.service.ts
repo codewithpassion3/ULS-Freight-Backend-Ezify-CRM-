@@ -286,6 +286,45 @@ export class PaymentService {
     return wallet;
   }
 
+  async deductFromWallet(
+    session: SessionData,
+    payload: {
+      amount: number;
+      description: string;
+    }
+  ): Promise<WalletTransaction> {
+    const ctx = await this.requestContextService.resolve({ session, em: this.em });
+
+    // Use company (not user) for wallet lookup
+    const wallet = await this.getOrCreateWallet(ctx.company);
+
+    const currentBalance = Number(wallet.balance || 0);
+
+    if (currentBalance < payload.amount) {
+      throw new BadRequestException(
+        `Insufficient wallet balance. Required: ${payload.amount.toFixed(2)}, Available: ${currentBalance.toFixed(2)}`
+      );
+    }
+
+    const transaction = this.em.create(WalletTransaction, {
+      user: ctx.user,
+      wallet: wallet,
+      type: TransactionType.PAYMENT, // add to your enum if missing
+      status: TransactionStatus.COMPLETED,
+      amount: -payload.amount,
+      balanceBefore: currentBalance,
+      balanceAfter: parseFloat((currentBalance - payload.amount).toFixed(2)),
+      description: payload.description,
+    });
+
+    wallet.balance = transaction.balanceAfter;
+    wallet.updatedAt = new Date();
+
+    await this.em.persist([transaction, wallet]).flush();
+
+    return transaction;
+  }
+
   // ── Retrieve PaymentIntent status ───────────────────────────────
   async getPaymentIntent(paymentIntentId: string): Promise<any> {
     return this.stripe.paymentIntents.retrieve(paymentIntentId);
