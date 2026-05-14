@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, OneToOne, Property, OneToMany, Collection, BeforeCreate } from "@mikro-orm/core";
+import { Entity, PrimaryKey, OneToOne, Property, OneToMany, Collection, BeforeCreate, ManyToOne } from "@mikro-orm/core";
 import { Quote } from "./quote.entity";
 import { Shipment } from "./shipment.entity";
 import { randomBytes } from "crypto";
@@ -17,9 +17,21 @@ export class Invoice {
     this.invoiceNumber = `ULS${randomBytes(4).toString('hex').toUpperCase()}`;
   }
 
-  @Property({ onCreate: () => new Date(), onUpdate: () => new Date() })
-  invoiceDate?: Date;
+  @Property({ onCreate: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) })
+  dueDate?: Date;
 
-  @OneToMany(() => Shipment, shipment => shipment.invoices)
-  shipment = new Collection<Shipment>(this);
+  @Property({ default: false })
+  paid?: Boolean;
+
+  @Property({ default: false })
+  urgent?: Boolean;
+  
+  @Property({ onCreate: () => new Date()})
+  createdAt?: Date;
+
+  @Property({ onCreate:() => new Date(), onUpdate: () => new Date()})
+  updatedAt?: Date;
+
+  @ManyToOne(() => Shipment, { nullable: true })
+  shipment?: Shipment;
 }

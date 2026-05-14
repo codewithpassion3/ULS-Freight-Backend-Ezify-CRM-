@@ -6,6 +6,14 @@ export interface EmailTemplate {
     text?: string;
     template?: string;
     context: {
+        invoiceNumber?: string;
+        paymentDate?: Date;
+        invoiceDate?: string;
+        dueDate?: string;
+        billTo?: Record<string, any>;
+        surcharges?: Record<string, any>[];
+        subtotal?: number;
+        total?: number;
         email?: string;
         password?: string;
         loginUrl?: string;

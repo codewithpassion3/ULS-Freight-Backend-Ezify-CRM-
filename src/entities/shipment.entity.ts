@@ -4,6 +4,7 @@ import { BillingReference } from "./BillingReference.entity";
 import { TrackingEvent } from "./mock-carrier-tracking.entity";
 import { Invoice } from "./invoice.entity";
 import { Surcharge } from "./surcharge";
+import { Company } from "./company.entity";
 
 @Entity()
 export class Shipment {
@@ -76,6 +77,9 @@ export class Shipment {
     @OneToOne(() => Quote, { nullable: false, owner: true, hidden: true })
     quote!: Quote;
 
+    @OneToOne(() => Company, { nullable: false, owner: true })
+    company!: Company;
+    
     @OneToMany(() => BillingReference, billingReference => billingReference.shipment, { cascade: [Cascade.PERSIST, Cascade.REMOVE]})
     billingReferences = new Collection<BillingReference>(this); 
     shipmentType: any;
@@ -88,6 +92,6 @@ export class Shipment {
     })
     surcharges = new Collection<Surcharge>(this);
 
-    @ManyToOne(() => Invoice, { nullable: true })
-    invoices?: Invoice
+    @OneToMany(() => Invoice, invoice => invoice.shipment, { hidden: true, cascade: [Cascade.PERSIST, Cascade.REMOVE]})
+    invoices = new Collection<Invoice>(this);
 }

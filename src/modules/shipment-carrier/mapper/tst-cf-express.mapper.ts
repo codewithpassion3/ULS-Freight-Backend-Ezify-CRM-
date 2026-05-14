@@ -266,7 +266,6 @@ private formatCountry(country: string | undefined): string {
       hgt: unit.height || 0,
     })) || [];
 
-  
     return {
       requestor: process.env.TST_CF_REQUESTOR || '',
       authorization: process.env.TST_CF_AUTHORIZATION || '',

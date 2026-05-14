@@ -1,5 +1,5 @@
 import { EntityManager } from "@mikro-orm/postgresql";
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { FedExAdapter } from "../adapter/fedex.adapter";
 import { TSTCFExpressAdapter } from "../adapter/tst-cf-express.adapter";
 import { TForceAdapter } from "../adapter/tforce.adapter";
@@ -47,7 +47,11 @@ export class ShipmentCarrierService {
             }
         ) as Quote;
 
-        if(!quote.shipment) {
+        if(!quote) {
+            throw new NotFoundException("Invalid quote id or you don't have the required permissions")
+        }
+
+        if(!quote?.shipment) {
             throw new BadRequestException("Convert quote into shipment to proceed further")
         }
 
