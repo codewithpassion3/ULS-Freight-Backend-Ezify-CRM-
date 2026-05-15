@@ -23,4 +23,13 @@ export class InvoiceController {
   ) {
     return this.invoiceService.getAllInvoicesAgainstCurrentUserCompany(session, query);
   }
+
+  @UseGuards(SessionAuthGuard)
+  @Get('/:id')
+  async GetSingleInvoiceAgainstCurrentUserCompany(
+    @Param('id') invoiceId: number,
+    @Session() session: SessionData,
+  ) {
+    return this.invoiceService.getSingleInvoiceAgainstCurrentUserCompany(invoiceId, session);
+  }
 }

@@ -204,4 +204,41 @@ export class InvoiceService {
       },
     };
   }
+
+  async getSingleInvoiceAgainstCurrentUserCompany(invoiceId: number, session: SessionData) {
+    const ctx = await this.requestContextService.resolve({ session, em: this.em });
+
+    const invoice = await this.em.findOne(
+      Invoice,
+      {
+        id: invoiceId,
+        company: ctx.company,
+      },
+      {
+        populate: [
+          'company',
+          'paidBy',
+          'shipment',
+          'shipment.bookedBy',
+          'shipment.quote',
+          'shipment.quote.addresses',
+          'shipment.quote.addresses.addressBookEntry',
+          'shipment.quote.addresses.addressBookEntry.address',
+          'shipment.quote.addresses.address',
+          'shipment.quote.lineItems',
+          'shipment.quote.lineItems.units',
+          'surcharges',
+        ],
+      }
+    );
+
+    if (!invoice) {
+      throw new NotFoundException('Invoice not found or you do not have access to this resource');
+    }
+
+    return {
+      message: 'Invoice retrieved successfully',
+      invoice,
+    };
+  }
 }

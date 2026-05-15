@@ -101,6 +101,6 @@ export class Shipment {
     @OneToMany(() => Invoice, invoice => invoice.shipment, { hidden: true, cascade: [Cascade.PERSIST, Cascade.REMOVE]})
     invoices = new Collection<Invoice>(this);
 
-    @ManyToOne(() => User, { nullable: false })
+    @ManyToOne(() => User, { nullable: true })
     bookedBy?: User;
 }
