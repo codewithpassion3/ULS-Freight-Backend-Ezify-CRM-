@@ -10,6 +10,8 @@ import { UpdateShipmentDTO } from "../dto/update-shipment.dto";
 import { Quote } from "src/entities/quote.entity";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { NotificationType } from "src/common/enum/notification-type.enum";
+import { QuoteStatus } from "src/common/enum/quote-status";
+import { Company } from "src/entities/company.entity";
 
 @Injectable()
 export class ShipmentService {
@@ -74,14 +76,21 @@ export class ShipmentService {
 
   async create(createShipmentDto: CreateShipmentDTO, session: SessionData) {
         //1) Validate and build the quote based on shipment type
-        const quote = await this.buildQuote(createShipmentDto, session);
-            
+        let quote;
+        if(!createShipmentDto?.quote?.id) {
+          quote = await this.buildQuote(createShipmentDto, session);
+        } else {
+          const quoteDoc: any = await this.em.findOne(Quote, { id: createShipmentDto.quote.id }, { populate: ["addresses", "addresses.addressBookEntry", "addresses.address", "addresses.addressBookEntry.address", "lineItems", "lineItems.units" ]})
+          quote = await this.updateQuote(quoteDoc, createShipmentDto, session);
+        }  
+
         //2) Create shipment with the built quote
         const shipment = new Shipment();
         shipment.shipDate = new Date(createShipmentDto.shipDate);
         shipment.quote = quote;
         shipment.tailgateRequiredInToAddress = createShipmentDto.tailgateRequiredInToAddress ?? false;
         shipment.tailgateRequiredInFromAddress = createShipmentDto.tailgateRequiredInFromAddress ?? false;
+        shipment.company = this.em.getReference(Company, session.companyId as number);
 
         //3) Build and attach billing references
         if (createShipmentDto.billingReferences && createShipmentDto.billingReferences?.length > 0) {
@@ -96,12 +105,13 @@ export class ShipmentService {
         }
 
         //4) Persist everything in one transaction
+        quote.status = QuoteStatus.CONVERTED_TO_SHIPMENT;
         this.em.persist(quote);
         this.em.persist(shipment);
 
         await this.em.flush()
 
-        //5) Send out notification to all memebers of company
+        // 5) Send out notification to all memebers of company
         this.eventEmitter.emit(NotificationType.QUOTE_FOR_SHIPMENT, {
           entity: shipment,
           actorId: session.userId,
@@ -114,7 +124,8 @@ export class ShipmentService {
 
         //6) Return populated response
         return {
-          message: "Quote for shipment created successfully"
+          message: "Quote for shipment created successfully",
+          quote
         }
     }
 

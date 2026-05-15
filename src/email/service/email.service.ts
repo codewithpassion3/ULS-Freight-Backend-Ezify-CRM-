@@ -17,4 +17,8 @@ export class EmailService {
     sendSpotQuoteEmail(payload: EmailTemplate){
         this.eventEmitter.emit("spotQuote.created", payload)
     }
+
+    sendInvoiceEmail(payload: EmailTemplate) {
+    this.eventEmitter.emit('surcharge-invoice.created', payload);
+}
 }

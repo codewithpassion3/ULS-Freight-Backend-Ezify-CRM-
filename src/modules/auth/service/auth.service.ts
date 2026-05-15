@@ -34,115 +34,120 @@ export class AuthService{
             });
     }
 
-    async signup(dto: SignupDTO) {
-       const userEntity =  await this.em.transactional(async(em) => {
-            //1) Extract fields from dto
-            const { user, company, address, shippingPreference } = dto;
+        async signup(dto: SignupDTO) {
+        const { user, company, address, shippingPreference } = dto;
 
-            //2) Check exisiting user againts email
-            const existingUser = await em.findOne(User, { email: user.email});
+        // 1) Fast fail BEFORE starting transaction or Stripe
+        const existingUser = await this.em.findOne(User, { email: user.email });
+        if (existingUser) {
+            throw new ConflictException("User already exists with this email address");
+        }
 
-            //3) Throw error for existing user
-            if(existingUser) {
-                throw new ConflictException("User already exists with this email address");
-            }
+        // 2) Start Stripe in parallel immediately (all data comes from DTO)
+        const stripePromise = this.stripe.customers.create({
+            email: user.email,
+            name: `${user.firstName} ${user.lastName}`.trim(),
+        });
 
-           //4) Create address
-           const addressEntity = em.create(Address, {...address});
+        let stripeCustomer: any = null;
 
-           //5) Create company
-           const companyEntity = em.create(Company, {...company, address: addressEntity});
-           
-            //6) Create company preferences
-            const companyPreference = shippingPreference.map((pref) => {
-                const { shippingType, shippingVolume } = pref;
+        try {
+            const userEntity = await this.em.transactional(async (em) => {
+                // 3) Create address
+                const addressEntity = em.create(Address, { ...address });
 
-                if (shippingVolume) {
+                // 4) Create company
+                const companyEntity = em.create(Company, { ...company, address: addressEntity });
 
-                    const palletVolumes = Object.values(PalletShipmentVolume);
-                    const packageVolumes = Object.values(PackageShipmentVolume);
+                // 5) Create company preferences
+                const companyPreference = shippingPreference.map((pref) => {
+                    const { shippingType, shippingVolume } = pref;
 
-                    if (shippingType === ShippingType.PALLET && !palletVolumes.includes(shippingVolume as PalletShipmentVolume))
-                    throw new BadRequestException( "Invalid pallet shipment volume, volume should be one of: 1-5, 6-10, 11-20, 21-50, >50");
+                    if (shippingVolume) {
+                        const palletVolumes = Object.values(PalletShipmentVolume);
+                        const packageVolumes = Object.values(PackageShipmentVolume);
 
-                    if (shippingType === ShippingType.PACKAGE && !packageVolumes.includes(shippingVolume as PackageShipmentVolume))
-                    throw new BadRequestException("Invalid package shipment volume, volume should be one of: <25, 26-50, 50-100, 101-300, >300");
+                        if (shippingType === ShippingType.PALLET && !palletVolumes.includes(shippingVolume as PalletShipmentVolume))
+                            throw new BadRequestException("Invalid pallet shipment volume, volume should be one of: 1-5, 6-10, 11-20, 21-50, >50");
 
-                }
+                        if (shippingType === ShippingType.PACKAGE && !packageVolumes.includes(shippingVolume as PackageShipmentVolume))
+                            throw new BadRequestException("Invalid package shipment volume, volume should be one of: <25, 26-50, 50-100, 101-300, >300");
+                    }
 
-                return em.create(CompanyShippingPreference, {
-                    shippingType: shippingType as ShippingType,
-                    shippingVolume: shippingType === ShippingType.PTLORFTL ? null : (shippingVolume as PalletShipmentVolume | PackageShipmentVolume) ?? null,
-                    company: companyEntity
+                    return em.create(CompanyShippingPreference, {
+                        shippingType: shippingType as ShippingType,
+                        shippingVolume: shippingType === ShippingType.PTLORFTL ? null : (shippingVolume as PalletShipmentVolume | PackageShipmentVolume) ?? null,
+                        company: companyEntity
+                    });
                 });
 
+                // 6) Hash password + fetch role IN PARALLEL
+                const [hashedPassword, role] = await Promise.all([
+                    bcrypt.hash(user.password, 10),
+                    em.findOneOrFail(Role, { name: ROLES.ADMIN }),
+                ]);
+
+                // 7) Create user
+                const userEntity = em.create(User, {
+                    ...user,
+                    role,
+                    password: hashedPassword,
+                    company: companyEntity,
+                    emailIsVerified: false,
+                    isMasterAccount: true,
+                    settings: {
+                        default_landing_page: "dashboard",
+                        home_quick_button: "create_order",
+                        language: "en",
+                        dark_mode: "dark"
+                    }
+                });
+
+                // 8) Create wallet
+                const wallet = em.create(Wallet, {
+                    company: companyEntity,
+                    balance: 0,
+                    totalDeposited: 0,
+                });
+                companyEntity.wallet = wallet;
+
+                // 9) Persist all changes
+                await em.persist([
+                    addressEntity,
+                    companyEntity,
+                    ...companyPreference,
+                    userEntity,
+                    wallet,
+                ]).flush();
+
+                return userEntity;
             });
 
-           //7) Hash user password
-           const hashedPassword = await bcrypt.hash(user.password, 10);
-        
-           //8) Fetch admin role and attach it to user
-           const role = await em.findOneOrFail(Role, { name: ROLES.ADMIN});
+            // 10) Stripe already ran in parallel — just await the result
+            stripeCustomer = await stripePromise;
 
-           //9) Create user
-           const userEntity = em.create(User, {
-            ...user,
-            role: role,
-            password: hashedPassword,
-            company: companyEntity,
-            emailIsVerified: false,
-            isMasterAccount: true,
-            settings: {
-                "default_landing_page": "dashboard", 
-                "home_quick_button": "create_order", 
-                "language": "en", 
-                "dark_mode": "dark"
-            }
-           })
-
-           // 10) Create wallet for user (inside same transaction)
-            const wallet = em.create(Wallet, {
-                user: userEntity,
-                balance: 0,
-                totalDeposited: 0,
-            });
-
-            const stripeCustomer = await this.stripe.customers.create({
-                email: user.email,
-                name: `${user.firstName} ${user.lastName}`.trim(),
-            });
-
+            // 11) Save stripeCustomerId
             userEntity.stripeCustomerId = stripeCustomer.id;
+            await this.em.persist(userEntity).flush();
 
-            // 11) Persist all changes
-            await em.persist([
-            addressEntity,
-            companyEntity,
-            ...companyPreference,
-            userEntity,
-            wallet,
-            ]).flush();
+            // 12) Send OTP (fire and forget)
+            this.otpService.generate({
+                email: userEntity.email,
+                purpose: OtpPurpose.EMAIL_VERIFICATION
+            });
 
-            //12) Populate relations
-            await em.populate(userEntity, [
-            'company',
-            'role',
-            'permissions',
-            'wallet',
-            ]);
+            return userEntity;
 
-           //13) Return created user
-           return userEntity
-        })
-
-        //14) Send out otp email to user
-        this.otpService.generate({
-            email: userEntity.email,
-            purpose: OtpPurpose.EMAIL_VERIFICATION
-        });
-        
-        //15) Return user
-        return userEntity;
+        } catch (error) {
+            // Cleanup: if DB failed but Stripe succeeded, delete orphan Stripe customer
+            if (!stripeCustomer) {
+                stripeCustomer = await stripePromise.catch(() => null);
+            }
+            if (stripeCustomer) {
+                await this.stripe.customers.del(stripeCustomer.id).catch(() => {});
+            }
+            throw error;
+        }
     }
 
     async signin(dto: SigninDTO) {
@@ -150,7 +155,7 @@ export class AuthService{
         const { email, password } = dto;
 
         //2) Check user exists and throw error for invalid credentials
-        const user = await this.em.findOne(User, { email }, { populate: ["role", "permissions", "wallet"] });
+        const user = await this.em.findOne(User, { email }, { populate: ["role", "permissions", "company.wallet"]});
         
         if(!user){
             throw new UnauthorizedException("Invalid credentials or user not found");

@@ -35,8 +35,8 @@ export class UserService {
                 'company.shippingPreferences',
                 'role',
                 'permissions',
-                'wallet',
-                'savedCards'
+                'company.wallet',
+                'company.savedCards'
             ]
         });
 

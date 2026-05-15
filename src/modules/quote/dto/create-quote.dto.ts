@@ -323,12 +323,16 @@ export class EstimatedAmountDTO {
 
 export class CreateQuoteDTO {
   @IsOptional()
+  id?: number
+      
+  @IsOptional()
   @ValidateNested()
   @Type(() => EstimatedAmountDTO)
   estimatedAmount?: EstimatedAmountDTO;
 
+  @IsOptional()
   @IsEnum(QuoteStatus)
-  status!: QuoteStatus;
+  status?: QuoteStatus;
   
   @IsEnum(QuoteType)
   quoteType!: QuoteType;
@@ -340,10 +344,11 @@ export class CreateQuoteDTO {
   @IsNumber()
   signature?: number;
 
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateAddressDto)
-  addresses!: CreateAddressDto[];
+  addresses?: CreateAddressDto[];
 
   @ValidateNested()
   @Type(() => CreateLineItemDto)

@@ -1,9 +1,12 @@
 import { IsString, IsDateString, IsBoolean, IsOptional, IsNumber, IsArray, ValidateNested, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
+import { IsFutureDateTime } from 'src/utils/isFutureDateTime';
 
 export enum Carrier {
   FEDEX = 'FEDEX',
   TST = 'TST',
+  TFORCE = 'TFORCE',
+  XPO = 'XPO'
 }
 
 class SelectedRateDto {
@@ -41,8 +44,10 @@ export class CreateCarrierShipmentDTO {
   selectedRate!: SelectedRateDto;
 
   @IsDateString()
-  @IsOptional()
-  shipDate?: string;
+  @IsFutureDateTime({
+    message: 'shipDate must be greater than current datetime',
+  })
+  shipDate!: string;
 
   @IsBoolean()
   @IsOptional()

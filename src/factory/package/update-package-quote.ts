@@ -203,6 +203,93 @@ export class UpdatePackageQuote extends StandardQuote {
                 continue;
             }
 
+            
+            // ADD: support flat addressBookId from DTO
+            const addressBookId = address.addressBookId ?? address.addressBook?.id;
+
+            /**
+             * 1. SWITCH TO DIFFERENT ADDRESS BOOK (by ID)
+             */
+            if (addressBookId) {
+                const newBook = await this.em.findOne(AddressBook, {
+                    id: addressBookId
+                });
+
+                if (!newBook) {
+                    this.errors.push(
+                        `Address '${address.type}': AddressBook ${addressBookId} not found`
+                    );
+                    continue;
+                }
+
+                shippingAddress.addressBookEntry = newBook;
+                shippingAddress.address = null;
+                
+                continue;
+            }
+
+            // handle manual address
+            const manualAddressFields = {
+            address1: address.address1,
+            address2: address.address2,
+            unit: address.unit,
+            postalCode: address.postalCode,
+            city: address.city,
+            state: address.state,
+            country: address.country,
+            };
+            const hasManualFields = Object.values(manualAddressFields).some(v => v !== undefined);
+
+            if (hasManualFields) {
+                // NEW: if email + contactName are present, create a new AddressBook instead of raw manual
+                if (address.email && address.contactName) {
+                    const newAddress = new Address();
+                    wrap(newAddress).assign(manualAddressFields);
+
+                    const newBook = new AddressBook();
+                    wrap(newBook).assign({
+                        email: address.email,
+                        contactName: address.contactName,
+                        companyName: address.companyName,
+                        phoneNumber: address.phoneNumber,
+                        address: newAddress,
+                        palletShippingCloseTime: address.palletShippingCloseTime,
+                        palletShippingReadyTime: address.palletShippingReadyTime,
+                        createdBy: this.session.userId,
+                        company: this.session.companyId,
+                        signature: 1,
+                        locationType: address.locationType ?? 1,
+                    }, { em: this.em });
+
+                    this.em.persist(newAddress);
+                    this.em.persist(newBook);
+
+                    shippingAddress.addressBookEntry = newBook;
+                    shippingAddress.address = null;
+
+                    if (address.locationType !== undefined) shippingAddress.locationType = address.locationType;
+                    if (address.isResidential !== undefined) shippingAddress.isResidential = address.isResidential;
+                    if (address.additionalNotes !== undefined) shippingAddress.additionalNotes = address.additionalNotes;
+
+                    continue;
+                }
+
+                // Otherwise patch as pure manual address (no address book)
+                shippingAddress.addressBookEntry = null;
+
+                if (!shippingAddress.address) {
+                    shippingAddress.address = new Address();
+                }
+
+                wrap(shippingAddress.address).assign(manualAddressFields);
+
+                if (address.locationType !== undefined) shippingAddress.locationType = address.locationType;
+                if (address.isResidential !== undefined) shippingAddress.isResidential = address.isResidential;
+                if (address.additionalNotes !== undefined) shippingAddress.additionalNotes = address.additionalNotes;
+
+                continue;
+            }
+            
             const entry = shippingAddress.addressBookEntry;
             if (!entry) {
                 this.errors.push(`Address '${address.type}' has no address book entry`);

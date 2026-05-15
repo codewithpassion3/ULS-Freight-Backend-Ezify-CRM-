@@ -1,4 +1,4 @@
-import { EntityManager } from "@mikro-orm/postgresql";
+import { EntityManager, wrap } from "@mikro-orm/postgresql";
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { CreateQuoteDTO } from "../dto/create-quote.dto";
 import { Quote } from "src/entities/quote.entity";
@@ -8,7 +8,6 @@ import { LineItemUnit } from "src/entities/line-item-unit.entity";
 import { LineItem } from "src/entities/line-item.entity";
 import { SpotDetails } from "src/entities/spot-details.entity";
 import { Signature } from "src/entities/signature.entity";
-import { multiOptionFields, validateQuote } from "src/utils/validateQuote";
 import { AddressBook } from "src/entities/address-book.entity";
 import { Address } from "src/entities/address.entity";
 import { ShippingAddressMeta } from "src/entities/shipping-address-meta.entity";
@@ -19,7 +18,6 @@ import { PaginationParams } from "src/types/pagination";
 import { buildQuery } from "src/utils/api-query";
 import { PalletServices } from "src/entities/pallet-services.entity";
 import { StandardFtlServices } from "src/entities/standard-ftl-services.entity";
-import { SpotLtlServices } from "src/entities/spot-ltl-services.entity";
 import { SpotFtlServices } from "src/entities/spot-ftl-services.entity";
 import { QuoteType } from "src/common/enum/quote-type.enum";
 import { UpdateQuoteDTO } from "../dto/update-quote.dto";
@@ -49,7 +47,6 @@ import { EmailService } from "src/email/service/email.service";
 import { getEmailTemplate } from "src/utils/get-email-template";
 import { ShipmentTypeLabel } from "src/utils/shipment-type-label-mapping";
 import { RequestContextService } from "src/utils/request-context-service";
-
 @Injectable()
 export class QuoteService {
     constructor(
@@ -93,6 +90,7 @@ export class QuoteService {
         quote = await quote.build();
         quote.company = session.companyId;
         quote.user = session.userId;
+        quote.status = dto.status ? dto.status : QuoteStatus.DRAFT;
 
         //6) Persist and save quote
         this.em.persist(quote);
@@ -143,7 +141,7 @@ export class QuoteService {
         })
 
         //11) Return back success response
-        return { message: "Quote created successfully" }
+        return { message: "Quote created successfully", quote: { id: quote.id } }
     }
 
 
@@ -714,15 +712,15 @@ export class QuoteService {
         return { message: "Quote updated successfully" };
     }
 
-    async getSingleAgainstCurrentUserCompany(quoteId: number, session: SessionData){
+    async getSingleAgainstCurrentUserCompany(quoteId: number, session: SessionData):Promise<any>{
         //1) Get the quote against current user
         const quote = await this.em.findOne(Quote, {
             id: quoteId,
             company: this.em.getReference(Company, session.companyId as number)
         },{
-            populate: ["addresses", "addresses.addressBookEntry", "addresses.addressBookEntry.address", "addresses.address","lineItems", "lineItems.units",
+            populate: ["createdBy","createdBy.firstName", "createdBy.lastName","addresses", "addresses.addressBookEntry", "addresses.addressBookEntry.address", "addresses.address","lineItems", "lineItems.units",
                         "palletServices", "spotFtlServices", "spotLtlServices", "standardFTLService", 
-                        "signature", "insurance","spotDetails", "spotDetails.spotContact", "spotDetails.spotEquipment","shipment"]
+                        "signature", "insurance","spotDetails", "spotDetails.spotContact", "spotDetails.spotEquipment","shipment", "shipment.trackingEvents", "shipment.surcharges"]
         });
 
         //2) Throw error for invalid quote
@@ -730,114 +728,175 @@ export class QuoteService {
             throw new BadRequestException("Invalid quote id or you are not allowed to access this resource")
         }
 
-        //3) Return back success response
+        //3) Map from addressBookEntry, not the QuoteAddress wrapper
+        const mappedAddresses = quote.addresses.map(addr => {
+            // 1. Pick whichever source exists
+            const source = addr.addressBookEntry ?? addr.address;
+            
+            // 2. Convert to plain object (breaks out of MikroORM proxies)
+            const address: any = wrap(source as any).toObject() ;
+            let mappedAddress = {type: addr.type ,...address};
+           
+            // 3. Add the transformed fields directly INTO the address object
+            if(address.signature) {
+                mappedAddress = {...mappedAddress, signatureId: address.signature}
+                delete mappedAddress.signature;
+            }
+            
+            if(address.locationType) {
+                mappedAddress = {...mappedAddress, locationTypeId: address.locationType}
+                delete mappedAddress.locationType;
+            }
+            
+            return mappedAddress;
+        });
+
+        const createdBy = quote.createdBy ? {
+            firstName: quote.createdBy.firstName,
+            lastName: quote.createdBy.lastName
+        } : null;
+
+
+        //4) Return the mapped addresses in the response
         return {
             message: "Successfully retrieved quote",
-            quote
-        }
+            quote: {
+                ...quote,
+                addresses: mappedAddresses,
+                createdBy
+            }
+        };
     }
 
-    async getAllAgainstCurrentUserCompany(session: SessionData, params: PaginationParams) {
-        //1) Define fields allowed for search and filter by oder
-       const allowedFields = {
+
+    async getAllAgainstCurrentUserCompany(
+        session: SessionData,
+        params: PaginationParams,
+        ) {
+        // 1) Fields allowed for sorting / searching
+        const allowedFields = {
             quoteNumber: "quoteNumber",
             shipmentType: "shipmentType",
             status: "status",
             createdAt: "createdAt",
         };
-
-        //2) Pass query params and allowed field to build query pagination params
+        
+        // 2) Derive pagination params from raw query-string params
         const { search, page, limit, orderBy } = buildQuery(params, allowedFields);
         
-        //3) Build filter for query
-        const filter: any = { company: this.em.getReference(Company, session.companyId as number) };
-
-        //4) Handle status filter
+        // 3) Base filter — always scope to the caller's company
+        const filter: any = {
+            company: this.em.getReference(Company, session.companyId as number),
+        };
+        
+        // 4) Optional status filter
         if (params?.status) {
             const normalized = params.status.toUpperCase();
             const validStatuses = Object.values(QuoteStatus);
-            
+        
             if (!validStatuses.includes(normalized as QuoteStatus)) {
-                throw new BadRequestException(
-                    `Invalid status '${params.status}'. Allowed: ${validStatuses.join(', ')}`
-                );
+            throw new BadRequestException(
+                `Invalid status '${params.status}'. Allowed: ${validStatuses.join(", ")}`,
+            );
             }
-            
+        
             filter.status = normalized;
         }
-
-        //5) Handle search
+        
+        // 5) Optional search (prefix match on quoteNumber)
         if (search) {
             filter.quoteNumber = { $ilike: `${search}%` };
         }
-
-        //6) Handle shipment type filter
+        
+        // 6) Optional shipment-type filter
         if (params.shipmentType) {
             filter.shipmentType = params.shipmentType;
         }
-
-        //7) Handle Date range filter
+        
+        // 7) Optional date-range filter
         if (params.dateFrom || params.dateTo) {
             filter.createdAt = {};
             if (params.dateFrom) filter.createdAt.$gte = new Date(params.dateFrom);
-            if (params.dateTo) filter.createdAt.$lte = new Date(params.dateTo);
+            if (params.dateTo)   filter.createdAt.$lte = new Date(params.dateTo);
         }
-
-        //8) Count total quotes and pages
-        const total = await this.em.count(Quote, filter);
-        const totalPages = Math.ceil(total / limit) || 1;
-
-        //9) Clamp page based on total page and default page limit
+         
+        const orderByClause = Object.entries(orderBy).map(([field, direction]) => ({
+            [field]: direction,
+        }));
+        
+        const [idRows, total] = await this.em.findAndCount(Quote, filter, {
+            fields: ["id"],           // SELECT id only — minimises data transfer
+            limit,
+            offset: (page - 1) * limit,
+            orderBy: orderByClause,
+        });
+        
+        // 8) Derive page metadata
+        const totalPages  = Math.ceil(total / limit) || 1;
         const clampedPage = Math.min(page, totalPages);
-        const offset = (page - 1) * limit;
-
-        //10) Fetch data with all requested relations
-        const quotes = await this.em.find(
-            Quote,
-            filter,
-            {
-                limit,
-                offset,
-                orderBy: Object.entries(orderBy).map(([field, direction]) => ({ [field]: direction })),
-                populate: [
-                    "addresses",
-                    "addresses.addressBookEntry",
-                    "addresses.address",
-                    "lineItems",
-                    "lineItems.units",
-                    "palletServices",
-                    "spotFtlServices",
-                    "spotLtlServices",
-                    "standardFTLService",
-                    "signature",
-                    "spotDetails",
-                    "shipment"
-                ]
-            }
-        );
-
-        //11) Return success response
-        return {
+        const ids         = idRows.map((q) => q.id);
+        
+        if (ids.length === 0) {
+            return {
             message: "Quotes retrieved successfully",
-            data: quotes,
+            data: [],
             meta: {
                 total,
                 page,
                 limit,
                 totalPages,
-                hasNextPage: clampedPage < totalPages,
+                hasNextPage: false,
                 hasPrevPage: clampedPage > 1,
-                sort: orderBy
-            }
+                sort: orderBy,
+            },
+            };
+        }
+        
+        const quotes = await this.em.find(
+            Quote,
+            { id: { $in: ids } },
+            {
+            populate: [
+                "addresses",
+                "addresses.addressBookEntry",
+                "addresses.addressBookEntry.address",
+                "addresses.address",
+                "shipment",
+                "lineItems",
+                "lineItems.units",
+                // "palletServices",
+                // "spotFtlServices",
+                // "spotLtlServices",
+                // "standardFTLService",
+                // "signature",
+                // "spotDetails",
+            ],
+            orderBy: orderByClause,
+            },
+        );
+        
+        // 9) Return paginated response
+        return {
+            message: "Quotes retrieved successfully",
+            data: quotes,
+            meta: {
+            total,
+            page,
+            limit,
+            totalPages,
+            hasNextPage: clampedPage < totalPages,
+            hasPrevPage: clampedPage > 1,
+            sort: orderBy,
+            },
         };
     }
 
     async deleteSingleAgainstCurrentUserCompany(quoteId: number, session: SessionData){
         //1) Get the user reference
         const company = this.em.getReference(Company, session.companyId as number);
-
+        console.log({quoteId, company})
         //2) Check for valid quote
-        const quote = await this.em.findOne(Quote, { id: quoteId, company: company },
+        const quote = await this.em.findOne(Quote, { id: quoteId, company: company.id },
             {
                 populate: [
                     'lineItems',

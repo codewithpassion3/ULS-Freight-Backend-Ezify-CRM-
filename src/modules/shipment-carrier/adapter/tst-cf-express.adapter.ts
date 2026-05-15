@@ -66,32 +66,93 @@ export class TSTCFExpressAdapter implements CarrierAdapter {
     return parsed.rqresults as TSTCFRateResponse;
   }
 
+  private readonly TST_SURCHARGE_MAP: Record<string, string> = {
+    SCHOLP: 'School Pickup',
+    TGPU: 'Liftgate at Pickup',
+    TGDL: 'Liftgate at Delivery',
+    HCOSTP: 'High Cost Delivery/Pickup Charge',
+    HCOSTD: 'High Cost Delivery Charge',
+    BPSC: 'Border Processing Service Charge',
+    FS: 'Fuel Surcharge',
+    FSC: 'Fuel Surcharge',
+    FUEL: 'Fuel Surcharge',
+    SC: 'Currency Exchange',
+    RESPU: 'Residential Pickup',
+    RESDL: 'Residential Delivery',
+    RES: 'Residential Delivery',
+    REP: 'Residential Pickup',
+    LIFT: 'Liftgate Service',
+    LIFTG: 'Liftgate Service',
+    INSIDE: 'Inside Delivery',
+    APPT: 'Appointment / Notify Delivery',
+  };
+
   parseResponse(carrierResponse: unknown): any[] {
-    const tstResponse = carrierResponse as TSTCFRateResponse;
-    const totalCAD = parseFloat(tstResponse.totalamt) || 0;
+    // Defensive unwrap — handle if parser wraps the payload
+    const raw = carrierResponse as any;
+    const tstResponse = raw?.quote ?? raw?.rateResponse ?? raw;
+
+    const totalCAD = parseFloat(tstResponse?.totalamt ?? tstResponse?.TotalAmt) || 0;
     const exchangeRate = 0.73;
-    const totalUSD = +(totalCAD * exchangeRate).toFixed(2);
-    const shipDate = tstResponse.transitresults?.shipdate;
-    const totalDiscount = tstResponse.discountamt;
-    const billingWeight = tstResponse.totalweight;
-    const transactionId = tstResponse.quoteid;
-    const arrivalDate = tstResponse.transitresults?.arrivaldate;
+    const totalUSD = totalCAD ? +(totalCAD * exchangeRate).toFixed(2) : 0;
+
+    const shipDate = tstResponse?.transitresults?.shipdate ?? tstResponse?.ShipDate;
+    const arrivalDate = tstResponse?.transitresults?.arrivaldate ?? tstResponse?.ArrivalDate;
+    const totalDiscount = parseFloat(tstResponse?.discountamt ?? tstResponse?.DiscountAmt) || 0;
+    const billingWeight = tstResponse?.totalweight ?? tstResponse?.TotalWeight;
+    const transactionId = tstResponse?.quoteid ?? tstResponse?.QuoteId;
+    const grossCharges = parseFloat(tstResponse?.freightamt ?? tstResponse?.FreightAmt) || 0;
+
+    // Normalize accitems — handle both { item: [...] } and direct array
+    let accItems = tstResponse?.accitems?.item ?? tstResponse?.AccItems?.Item ?? tstResponse?.accitems ?? [];
+    if (!Array.isArray(accItems)) accItems = accItems ? [accItems] : [];
+
+    const chargedItems = accItems.filter((item: any) => 
+      (item?.itemstatus ?? item?.ItemStatus) === 'OK'
+    );
+
+    const surcharges = chargedItems.map((item: any) => {
+      const code = (item?.itemcode ?? item?.ItemCode ?? '').toString();
+      const rawDesc = (item?.itemdesc ?? item?.ItemDesc ?? '').toString();
+      const amount = parseFloat(item?.itemamount ?? item?.ItemAmount) || 0;
+      const isFuel = /fuel/i.test(code) || /fuel/i.test(rawDesc);
+
+      return {
+        code,
+        name: this.TST_SURCHARGE_MAP[code] || (isFuel ? 'Fuel Surcharge' : 'Freight charge'),
+        rawDescription: rawDesc,
+        value: amount,
+        currency: 'CAD',
+      };
+    });
+
+    const totalSurcharges = Math.round(surcharges.reduce((sum, s) => sum + s.value, 0) * 100) / 100;
+    
+    const fuelSurcharge = surcharges.find((s) => /fuel/i.test(s.code) || /fuel/i.test(s.rawDescription || ''))?.value || 0;
+
+    const afterDiscount = Math.round((grossCharges - totalDiscount) * 100) / 100;
 
     return [{
       carrier: Carrier.TST,
       serviceType: 'ST',
+      serviceName: 'TST-CF Express LTL',
       totalPrice: totalUSD,
       totalPriceCAD: totalCAD,
-      shipDate,
-      totalDiscount,
-      billingWeight,
-      transactionId,
-      arrivalDate,
       currency: 'USD',
       originalCurrency: 'CAD',
-      estimatedDeliveryDays: tstResponse.transitresults?.servicedays 
+      shipDate,
+      arrivalDate,
+      estimatedDeliveryDays: tstResponse?.transitresults?.servicedays 
         ? `${parseInt(tstResponse.transitresults.servicedays)} business days` 
         : undefined,
+      billingWeight,
+      transactionId,
+      totalDiscount,
+      grossCharges,
+      afterDiscount,
+      fuelSurcharge,
+      totalSurcharges,
+      surcharges,
     }];
   }
 
@@ -151,7 +212,6 @@ export class TSTCFExpressAdapter implements CarrierAdapter {
   async createShipment(quote: any, selectedRate: any): Promise<any> {
     try {
       const payload = this.mapper.mapShipment(quote, selectedRate);
-
       const builder = new Builder({
         xmldec: { version: '1.0', encoding: 'ISO-8859-1' },
         renderOpts: { pretty: false },

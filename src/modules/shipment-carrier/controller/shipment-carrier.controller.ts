@@ -67,4 +67,9 @@ export class ShipmentCarrierController {
     async CreateShipment(@Body() dto: CreateCarrierShipmentDTO){
         return this.shipmentCarrierService.createShipment(dto);
     }
+
+    @Post('/webhook-events')
+    async ManageWebhookEvents(@Body() dto: any) {
+        return dto;
+    }
 }

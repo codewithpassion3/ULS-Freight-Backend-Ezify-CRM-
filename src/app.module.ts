@@ -29,6 +29,9 @@ import { ShipmentCarrierModule } from './modules/shipment-carrier/shipment-carri
 import { TrackingModule } from './modules/tracking/tracking.module';
 import { PostalCodeModule } from './modules/postal-code/postal-code.module';
 import { PaymentModule } from './modules/payment/payment.module';
+import { MockCarrierTrackingModule } from './modules/mock-carrier-tracking/mock-carrier-tracking.module';
+import { SurchargeModule } from './modules/surcharge/surcharge.module';
+import { InvoiceModule } from './modules/invoice/invoice.module';
 
 @Module({
   imports: [
@@ -61,7 +64,10 @@ import { PaymentModule } from './modules/payment/payment.module';
     ShipmentCarrierModule,
     TrackingModule,
     PostalCodeModule,
-    PaymentModule
+    PaymentModule,
+    MockCarrierTrackingModule,
+    SurchargeModule,
+    InvoiceModule
   ],
   controllers: [AppController],
   providers: [AppService],

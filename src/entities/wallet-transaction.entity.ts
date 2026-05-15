@@ -2,22 +2,9 @@ import { Entity, PrimaryKey, Property, ManyToOne, Index, Enum } from '@mikro-orm
 import { User } from './user.entity';
 import { Wallet } from './wallet.entity';
 import { v4 } from 'uuid';
+import { TransactionType, TransactionStatus } from 'src/common/enum/wallet';
 
-export enum TransactionType {
-  DEPOSIT = 'DEPOSIT',
-  WITHDRAWAL = 'WITHDRAWAL',
-  PAYMENT = 'PAYMENT',
-  REFUND = 'REFUND',
-}
-
-export enum TransactionStatus {
-  PENDING = 'PENDING',
-  COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-}
-
-@Entity({ tableName: 'wallet_transactions' })
+@Entity()
 export class WalletTransaction {
   @PrimaryKey({ type: 'uuid' })
   id: string = v4();

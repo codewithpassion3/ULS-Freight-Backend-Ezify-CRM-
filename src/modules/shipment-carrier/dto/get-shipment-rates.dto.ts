@@ -11,7 +11,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { WeightUnit, DimensionsUnit, PickupType, RateRequestType, FedExServiceType } from 'src/common/enum/shipment-carriers';
-import { ShipmentType } from '../adapter/fedex.adaptar';
+import { ShipmentType } from '../adapter/fedex.adapter';
 
 
 class AccountNumberDTO {

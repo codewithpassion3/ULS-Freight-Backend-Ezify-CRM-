@@ -493,34 +493,134 @@ export class FedExAdapter implements CarrierAdapter {
     return response.json();
   }
 
-  mapFedExToCarrierRate(fedexQuotes: any): any[] {
+  getSurchargeName(val: string) {
+    return this.SURCHARGE_NAME_MAP[val] ? this.SURCHARGE_NAME_MAP[val] : "Freight fee"
+  }
+
+  // Standardized surcharge name mapping — shared across all carriers
+  private readonly SURCHARGE_NAME_MAP: Record<string, string> = {
+    // FedEx types
+    DEMAND: 'Demand Surcharge',
+    FUEL: 'Fuel Surcharge',
+    ADDITIONAL_HANDLING: 'Additional Handling',
+    LIFTGATE: 'Liftgate',
+    INSIDE_DELIVERY: 'Inside Delivery',
+    INSIDE_PICKUP: 'Inside Pickup',
+    LIMITED_ACCESS_DELIVERY: 'Limited Access Delivery',
+    LIMITED_ACCESS_PICKUP: 'Limited Access Pickup',
+    OVER_LENGTH: 'Over Length',
+    DELIVERY_AREA: 'Delivery Area Surcharge',
+    RESIDENTIAL: 'Residential Delivery',
+    COD: 'Collect on Delivery',
+    DANGEROUS_GOODS: 'Dangerous Goods',
+    DRY_ICE: 'Dry Ice',
+    // Add more as you encounter them
+  };
+
+  mapFedExToCarrierRate(
+    fedexQuotes: any, 
+    originCountryCode?: string
+  ): any[] {
     if (!fedexQuotes?.output?.rateReplyDetails) return [];
 
+    // Try multiple locations where FedEx puts the account number
+    const accountNumber = 
+      fedexQuotes?.output?.accountNumber?.value || 
+      fedexQuotes?.input?.freightAccountNumber?.value ||
+      fedexQuotes?.input?.requestedShipment?.shipper?.accountNumber?.value ||
+      'unknown';
+
     return fedexQuotes.output.rateReplyDetails.map((rate: any) => {
-      // Prefer ACCOUNT rate, fall back to LIST
       const selectedRate = 
         rate.ratedShipmentDetails?.find((r: any) => r.rateType === 'ACCOUNT') ||
-        rate.ratedShipmentDetails?.find((r: any) => r.rateType === 'LIST');
-      
+        rate.ratedShipmentDetails?.find((r: any) => r.rateType === 'LIST') ||
+        rate.ratedShipmentDetails?.[0];
+
       const detail = selectedRate?.shipmentRateDetail;
+      const freightDetail = rate.freightShipmentDetail;
+
+      // Standardized surcharge array: { name, value, currency }
+      const surcharges = this.buildStandardSurcharges(
+        detail?.surCharges, 
+        selectedRate?.currency
+      );
 
       return {
-        carrier: 'FEDEX',
+        carrier: Carrier.FEDEX,
+        accountNumber,
         serviceType: rate.serviceType,
         serviceName: rate.serviceName,
-        packagingType: rate.packagingType,
+        packagingType: rate.packagingType || 'YOUR_PACKAGING',
+        freightClass: freightDetail?.freightClass || null,
+        handlingUnitCount: freightDetail?.handlingUnits?.length || rate.totalPackageCount || null,
+        
         totalPrice: selectedRate?.totalNetCharge ?? null,
         totalDiscount: selectedRate?.totalDiscounts ?? 0,
         currency: selectedRate?.currency ?? 'USD',
         shipDate: fedexQuotes.output.quoteDate,
-        estimatedDeliveryDays: this.getFedExTransitTime(rate.serviceType),
+        
+        estimatedDeliveryDays: 
+          rate.operationalDetail?.transitTime ||
+          rate.operationalDetail?.deliveryDate ||
+          this.getFedExTransitTime(rate.serviceType),
+        transitDate: rate.operationalDetail?.deliveryDate || null,
+        
         billingWeight: detail?.totalBillingWeight ?? null,
-        fuelSurcharge: detail?.surCharges?.find((s: any) => s.type === 'FUEL')?.amount ?? 0,
-        additionalHandlingSurcharge: detail?.surCharges?.find((s: any) => s.type === 'ADDITIONAL_HANDLING')?.amount ?? 0,
+        billingWeightUnit: detail?.totalBillingWeight?.units || 'LB',
+        
+        // Standardized surcharge array
+        surcharges,
         totalSurcharges: detail?.totalSurcharges ?? 0,
+        
         transactionId: fedexQuotes.transactionId,
+        originCountry: originCountryCode || null,
       };
     });
+  }
+
+  /**
+   * Builds a carrier-agnostic surcharge array.
+   * Every carrier should return surcharges in this shape: { name, value, currency }
+   */
+  private buildStandardSurcharges(
+    surchargesRaw: any[] | undefined, 
+    currency: string = 'USD'
+  ): Array<{ name: string; value: number; currency: string }> {
+    if (!Array.isArray(surchargesRaw)) return [];
+
+    return surchargesRaw.map((s: any) => {
+      const rawType = s.type || 'UNKNOWN';
+      const mappedName = this.SURCHARGE_NAME_MAP[rawType] || 
+                        this.toTitleCase(rawType.replace(/_/g, ' '));
+
+      return {
+        name: mappedName,
+        value: s.amount ?? 0,
+        currency: currency ?? 'USD',
+      };
+    });
+  }
+
+  private toTitleCase(str: string): string {
+    return str.replace(/\w\S*/g, (txt) => 
+      txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+    );
+  }
+
+private buildSurchargesArray(surchargesRaw: any[] | undefined): Array<{ type: string; amount: number; description?: string }> {
+  if (!Array.isArray(surchargesRaw)) return [];
+  
+  return surchargesRaw.map((s: any) => ({
+    type: s.type || 'UNKNOWN',
+    amount: s.amount ?? 0,
+    description: s.description || undefined,
+  }));
+}
+
+  private extractSurcharge(surcharges: any[] | undefined, type: string): number {
+    if (!Array.isArray(surcharges)) return 0;
+    const match = surcharges.find((s: any) => s.type === type);
+    return match?.amount ?? 0;
   }
 
   private getFedExTransitTime(serviceType: string): string {

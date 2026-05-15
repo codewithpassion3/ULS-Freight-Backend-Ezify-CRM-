@@ -8,6 +8,7 @@ import { LineItemUnit } from "./line-item-unit.entity";
 import { Reminder } from "./reminder.entity";
 import { Wallet } from "./wallet.entity";
 import { SavedCard } from "./saved-card.entity";
+import { Invoice } from "./invoice.entity";
 
 @Entity()
 export class User{
@@ -80,18 +81,12 @@ export class User{
     @ManyToOne(() => Role)
     role!: Role
 
-    @OneToOne(() => Wallet, (wallet) => wallet.user, { nullable: true })
-    wallet?: Wallet;
-
     @ManyToMany(() => Permission, permission => permission.user,{ owner: true})
     permissions = new Collection<Permission>(this)
 
     @OneToMany(() => Quote, quote => quote.createdBy)
     quotes = new Collection<Quote>(this)
 
-    @OneToMany(() => SavedCard, card => card.user)
-    savedCards = new Collection<SavedCard>(this);
-    
     @OneToMany(() => QuoteUserMeta, meta => meta.user)
     quoteMeta = new Collection<QuoteUserMeta>(this);
 
@@ -100,4 +95,7 @@ export class User{
 
     @OneToMany(() => Reminder, reminder => reminder.sendTo)
     reminder = new Collection<Reminder>(this);
+
+    @OneToMany(() => Invoice, invoice => invoice.paidBy)
+    paidInvoices = new Collection<Invoice>(this);
 }

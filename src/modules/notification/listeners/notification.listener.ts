@@ -55,7 +55,7 @@ export class NotificationListener {
   }
 
   //Quote
-  @OnEvent(NotificationType.QUOTE_CREATED, { async: true })
+  @OnEvent(NotificationType.QUOTE_CREATED || NotificationType.SPOT_QUOTE_CREATED, { async: true })
   async handleQuoteCreated(payload: EntityEventPayload<Quote>) {
     await this.handleEntityEvent(
       payload,

@@ -1,0 +1,143 @@
+block title
+  | Invoice #{invoiceNumber}
+
+block content
+  style.
+    .fc-wrap { font-family: 'Helvetica Neue', Arial, sans-serif; color: #2b2b2b; font-size: 12px; line-height: 1.5; }
+    .fc-wrap h1, .fc-wrap h2, .fc-wrap h3, .fc-wrap p { margin: 0; }
+    .fc-divider { border: 0; border-top: 1px solid #e5e7eb; margin: 18px 0; }
+    .fc-label { color: #6b7280; font-weight: 400; }
+    .fc-strong { color: #111827; font-weight: 600; }
+    .fc-table { width: 100%; border-collapse: collapse; }
+    .fc-table thead th { background: #e8f1fa; color: #1f2937; font-weight: 600; font-size: 11px; text-align: left; padding: 14px 12px; vertical-align: top; }
+    .fc-table tbody td { padding: 16px 12px; font-size: 12px; color: #374151; border-bottom: 1px solid #e5e7eb; }
+    .fc-totals td { padding: 4px 0; font-size: 12px; }
+    .fc-totals .fc-total-line td { border-top: 1px solid #e5e7eb; padding-top: 10px; }
+    .fc-thanks { text-align: center; font-size: 16px; font-weight: 700; color: #111827; margin: 36px 0 6px; }
+    .fc-thanks-fr { text-align: center; font-size: 16px; font-weight: 700; color: #111827; margin-bottom: 28px; }
+    .fc-footer-grid td { vertical-align: top; font-size: 11px; color: #4b5563; padding-right: 18px; }
+    .fc-footer-grid .fc-footer-label { color: #6b7280; }
+    .fc-footer-grid .fc-footer-value { color: #111827; font-weight: 600; }
+    .fc-terms { font-size: 10px; color: #4b5563; line-height: 1.55; text-align: justify; }
+    .fc-terms-title { font-size: 11px; font-weight: 700; color: #111827; margin-bottom: 6px; }
+    .fc-page { font-size: 10px; color: #6b7280; text-align: center; margin-top: 30px; }
+
+  .fc-wrap
+    // ===== Header: Brand left | Invoice # right =====
+    table(width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 36px;")
+      tr
+        td(style="vertical-align: middle; width: 50%;")
+          div(style="display: inline-block;")
+            div(style="font-size: 30px; font-weight: 800; letter-spacing: 1px; color: #1f4e8a;") ULS
+              span(style="color: #111827;")  FREIGHT
+            div(style="font-size: 10px; color: #6b7280; letter-spacing: 2px; text-transform: uppercase; margin-top: 2px;") Freight & Logistics
+        td(style="vertical-align: middle; text-align: right; width: 50%;")
+          div(style="font-size: 26px; color: #111827; font-weight: 400;")
+            | Invoice #:
+            |  
+            span(style="font-weight: 700;") #{invoiceNumber}
+
+    // ===== Bill To  |  Dates =====
+    table(width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 26px;")
+      tr
+        td(style="vertical-align: top; width: 55%;")
+          p(style="font-size: 12px; color: #6b7280; margin-bottom: 10px;") Bill to:
+          p(style="font-size: 14px; color: #111827; font-weight: 600; margin-bottom: 2px;") #{billTo.name}
+          p(style="font-size: 13px; color: #374151;") #{billTo.address}
+          p(style="font-size: 13px; color: #374151;") #{billTo.city}#{billTo.city && billTo.province ? ', ' : ''}#{billTo.province} #{billTo.postalCode}
+          if billTo.phone
+            p(style="font-size: 13px; color: #374151;") #{billTo.phone}
+        td(style="vertical-align: top; width: 45%;")
+          table(align="right" cellpadding="0" cellspacing="0" style="font-size: 13px;")
+            tr
+              td(style="padding: 3px 14px 3px 0; text-align: right; color: #4b5563;") Invoice Date:
+              td(style="padding: 3px 0; text-align: right; color: #111827;") #{invoiceDate}
+            tr
+              td(style="padding: 3px 14px 3px 0; text-align: right; color: #4b5563;") Payment Due:
+              td(style="padding: 3px 0; text-align: right; color: #111827;") #{dueDate}
+            tr
+              td(style="padding: 3px 14px 3px 0; text-align: right; color: #4b5563;") Amount Due:
+              td(style="padding: 3px 0; text-align: right; color: #111827; font-weight: 700;") #{total.toFixed(2)} #{currency}
+
+    // ===== Charges Table =====
+    table.fc-table(style="margin-top: 10px;")
+      thead
+        tr
+          th Charge Description
+          th(style="text-align: right;") Amount
+          th(style="text-align: center; width: 100px;") Currency
+      tbody
+        each charge in surcharges
+          tr
+            td #{charge.name}
+            td(style="text-align: right;") $#{charge.amount.toFixed(2)}
+            td(style="text-align: center;") #{charge.currency}
+
+    // ===== Totals (right-aligned) =====
+    table(width="100%" cellpadding="0" cellspacing="0" style="margin-top: 14px;")
+      tr
+        td(style="width: 55%;")
+        td(style="width: 45%;")
+          table.fc-totals(align="right" cellpadding="0" cellspacing="0" style="min-width: 320px;")
+            tr
+              td(style="text-align: right; padding-right: 24px; color: #4b5563;") Invoice Subtotal
+              td(style="text-align: right; color: #111827; font-weight: 600; min-width: 90px;") $#{subtotal.toFixed(2)}
+            tr
+              td(style="text-align: right; padding-right: 24px; color: #4b5563;") Taxes
+              td(style="text-align: right; color: #111827; font-weight: 600;") $0.00
+            tr
+              td(style="text-align: right; padding-right: 24px; color: #4b5563;") Total Amount Paid
+              td(style="text-align: right; color: #111827; font-weight: 600;") $0.00
+            tr.fc-total-line
+              td(style="text-align: right; padding-right: 24px; color: #111827; font-weight: 700;") Invoice Total:
+              td(style="text-align: right; color: #111827; font-weight: 700;") $#{total.toFixed(2)}
+            tr
+              td(style="text-align: right; padding-right: 24px; color: #111827; font-weight: 700;") Total Amount Due:
+              td(style="text-align: right; color: #111827; font-weight: 700;") $#{total.toFixed(2)} #{currency}
+
+    // ===== Thank you =====
+    p.fc-thanks We appreciate your business. Thank you!
+
+    hr.fc-divider
+
+    // ===== Remit Payment =====
+    p(style="font-size: 12px; color: #6b7280; margin-bottom: 12px;") Remit Payment to:
+    table(width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 18px;")
+      tr
+        td(style="vertical-align: top; width: 50%; font-size: 12px; color: #374151; line-height: 1.6;")
+          div(style="color: #111827; font-weight: 600; margin-bottom: 4px;") ULS FREIGHT INC.
+          div Canadian Mailing Address
+          div 123 Logistics Boulevard, Suite 400
+          div Toronto, Ontario M5V 3A8
+        td(style="vertical-align: top; width: 50%; font-size: 12px; color: #374151; line-height: 1.6;")
+          div(style="color: #111827; font-weight: 600; margin-bottom: 4px;") &nbsp;
+          div American Mailing Address
+          div 3500 Alameda Avenue
+          div Los Angeles, CA 90058
+
+    hr.fc-divider
+
+    // ===== Contact grid =====
+    table.fc-footer-grid(width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 18px;")
+      tr
+        td
+          div.fc-footer-label Email for General Inquiries
+          div.fc-footer-value accounts@ulsfreight.com
+        td
+          div.fc-footer-label Canadian Phone Number
+          div.fc-footer-value (416) 555-0199
+        td
+          div.fc-footer-label Toll Free Phone Number
+          div.fc-footer-value (877) 000-0000
+        td
+          div.fc-footer-label American Phone Number
+          div.fc-footer-value (000) 000-0000
+
+    hr.fc-divider
+
+    // ===== Terms =====
+    p.fc-terms-title Terms & Conditions
+    p.fc-terms
+      | 1. You have thirty (30) days from the Invoice Date above to dispute charges on this invoice after which date you will be deemed to have waived your right to dispute these charges.
+      | 2. Please pay the Amount Due in full by the Payment Due date stated above before initiating any invoice dispute or any claim to avoid service interruptions. In the event your invoice dispute or claim is approved, such approved amounts will be credited or remitted to you.
+      | 3. For further details regarding payment terms, please refer to the Terms of Service on your account dashboard.
