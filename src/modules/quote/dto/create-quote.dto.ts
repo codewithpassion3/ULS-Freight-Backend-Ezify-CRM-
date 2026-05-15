@@ -330,6 +330,7 @@ export class CreateQuoteDTO {
   @Type(() => EstimatedAmountDTO)
   estimatedAmount?: EstimatedAmountDTO;
 
+  @IsOptional()
   @IsEnum(QuoteStatus)
   status?: QuoteStatus;
   

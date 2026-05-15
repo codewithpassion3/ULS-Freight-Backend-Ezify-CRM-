@@ -154,7 +154,7 @@ export class PaymentService {
     }
 
     const card = ctx.company.savedCards.find((card) => card.id === payload.cardId)
-    console.log({card})
+
     if(!card){
       throw new BadRequestException('Invalid cardId')
     }

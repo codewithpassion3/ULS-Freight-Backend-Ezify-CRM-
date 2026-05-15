@@ -90,6 +90,7 @@ export class QuoteService {
         quote = await quote.build();
         quote.company = session.companyId;
         quote.user = session.userId;
+        quote.status = dto.status ? dto.status : QuoteStatus.DRAFT;
 
         //6) Persist and save quote
         this.em.persist(quote);
