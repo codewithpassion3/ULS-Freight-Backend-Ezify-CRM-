@@ -1,9 +1,12 @@
-import { Entity, PrimaryKey, ManyToOne, Property } from "@mikro-orm/core";
+import { Entity, PrimaryKey, ManyToOne, Property, Index } from "@mikro-orm/core";
 import { Quote } from "./quote.entity";
 import { User } from "./user.entity";
 import { Company } from "./company.entity";
 
 @Entity()
+
+@Index({ properties: ['quote'] })
+
 export class QuoteFavorite {
   @PrimaryKey()
   id!: number;

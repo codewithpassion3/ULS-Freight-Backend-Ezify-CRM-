@@ -6,9 +6,8 @@ import { Quote } from "./quote.entity";
 import { QuoteUserMeta } from "./quote-user-meta.entity";
 import { LineItemUnit } from "./line-item-unit.entity";
 import { Reminder } from "./reminder.entity";
-import { Wallet } from "./wallet.entity";
-import { SavedCard } from "./saved-card.entity";
 import { Invoice } from "./invoice.entity";
+import { Shipment } from "./shipment.entity";
 
 @Entity()
 export class User{
@@ -98,4 +97,7 @@ export class User{
 
     @OneToMany(() => Invoice, invoice => invoice.paidBy)
     paidInvoices = new Collection<Invoice>(this);
+
+    @OneToMany(() => Shipment, shipment => shipment.bookedBy, { hidden: true })
+    shipments = new Collection<Shipment>(this);
 }

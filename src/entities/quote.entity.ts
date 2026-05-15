@@ -36,6 +36,10 @@ import { Shipment } from "./shipment.entity";
 // Covers: WHERE company_id = ? AND created_at BETWEEN ? AND ?
 @Index({ name: "idx_quote_company_created_at_range", properties: ["company", "createdAt"] })
 
+@Index({ properties: ['shipmentType'] })
+
+@Index({ properties: ['signature'] })
+
 export class Quote {
   @PrimaryKey()
   id!: number;

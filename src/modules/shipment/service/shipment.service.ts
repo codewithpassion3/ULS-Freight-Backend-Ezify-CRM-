@@ -12,6 +12,7 @@ import { EventEmitter2 } from "@nestjs/event-emitter";
 import { NotificationType } from "src/common/enum/notification-type.enum";
 import { QuoteStatus } from "src/common/enum/quote-status";
 import { Company } from "src/entities/company.entity";
+import { User } from "src/entities/user.entity";
 
 @Injectable()
 export class ShipmentService {
@@ -91,6 +92,7 @@ export class ShipmentService {
         shipment.tailgateRequiredInToAddress = createShipmentDto.tailgateRequiredInToAddress ?? false;
         shipment.tailgateRequiredInFromAddress = createShipmentDto.tailgateRequiredInFromAddress ?? false;
         shipment.company = this.em.getReference(Company, session.companyId as number);
+        shipment.bookedBy = this.em.getReference(User, session.userId as number);
 
         //3) Build and attach billing references
         if (createShipmentDto.billingReferences && createShipmentDto.billingReferences?.length > 0) {

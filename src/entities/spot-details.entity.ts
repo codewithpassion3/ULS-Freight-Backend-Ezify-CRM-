@@ -1,10 +1,13 @@
-import { Entity, PrimaryKey, OneToOne, Enum, OneToMany, Cascade } from "@mikro-orm/core";
+import { Entity, PrimaryKey, OneToOne, Enum, OneToMany, Cascade, Index } from "@mikro-orm/core";
 import { Quote } from "./quote.entity";
 import { SpotType } from "src/common/enum/spot-type.enum";
 import { SpotContact } from "./spot-contact.entity";
 import { SpotEquipment } from "./spot-equipment.entity";
 
 @Entity()
+
+@Index({ properties: ['quote'] })
+
 export class SpotDetails {
 
   @PrimaryKey()

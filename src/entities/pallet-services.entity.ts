@@ -1,9 +1,12 @@
-import { Entity, PrimaryKey, Property, OneToOne, Cascade } from "@mikro-orm/core";
+import { Entity, PrimaryKey, Property, OneToOne, Cascade, Index } from "@mikro-orm/core";
 import { Quote } from "./quote.entity";
 import { BondType, ContactKey } from "src/common/enum/services.enum";
 import { TRADE_SHOW_DELIVERY } from "src/common/enum/quote";
 
 @Entity()
+
+@Index({ properties: ['quote'] })
+
 export class PalletServices {
   @PrimaryKey()
   id!: number;

@@ -1,12 +1,18 @@
-import { Cascade, Collection, Entity, ManyToOne, OneToMany, OneToOne, PrimaryKey, Property } from "@mikro-orm/core";
+import { Cascade, Collection, Entity, Index, ManyToOne, OneToMany, OneToOne, PrimaryKey, Property } from "@mikro-orm/core";
 import { Quote } from "./quote.entity";
 import { BillingReference } from "./BillingReference.entity";
 import { TrackingEvent } from "./mock-carrier-tracking.entity";
 import { Invoice } from "./invoice.entity";
 import { Surcharge } from "./surcharge";
 import { Company } from "./company.entity";
+import { User } from "./user.entity";
 
 @Entity()
+
+@Index({ properties: ['trackingNumber'] })
+
+@Index({ properties: ['quote'] })
+
 export class Shipment {
     @PrimaryKey()
     id!: number
@@ -94,4 +100,7 @@ export class Shipment {
 
     @OneToMany(() => Invoice, invoice => invoice.shipment, { hidden: true, cascade: [Cascade.PERSIST, Cascade.REMOVE]})
     invoices = new Collection<Invoice>(this);
+
+    @ManyToOne(() => User, { nullable: false })
+    bookedBy?: User;
 }
