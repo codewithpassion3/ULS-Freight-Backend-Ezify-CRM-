@@ -26,7 +26,7 @@ import { BullModule } from "@nestjs/bullmq";
                 name: 'fedex',
                 clientId: getEnv(ENV.FEDEX_CLIENT_ID)!,
                 clientSecret: getEnv(ENV.FEDEX_CLIENT_SECRET)!,
-                accountNumber: "740561073",
+                accountNumber: getEnv(ENV.FEDEX_US_ACCOUNT_NUMBER),
             }),
         },
         {

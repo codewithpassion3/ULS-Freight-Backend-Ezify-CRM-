@@ -87,7 +87,7 @@ export class TSTCFExpressAdapter implements CarrierAdapter {
     APPT: 'Appointment / Notify Delivery',
   };
 
-  parseResponse(carrierResponse: unknown): any[] {
+  parseResponse(carrierResponse: unknown): any {
     // Defensive unwrap — handle if parser wraps the payload
     const raw = carrierResponse as any;
     const tstResponse = raw?.quote ?? raw?.rateResponse ?? raw;
@@ -132,7 +132,7 @@ export class TSTCFExpressAdapter implements CarrierAdapter {
 
     const afterDiscount = Math.round((grossCharges - totalDiscount) * 100) / 100;
 
-    return [{
+    return {
       carrier: Carrier.TST,
       serviceType: 'ST',
       serviceName: 'TST-CF Express LTL',
@@ -153,7 +153,7 @@ export class TSTCFExpressAdapter implements CarrierAdapter {
       fuelSurcharge,
       totalSurcharges,
       surcharges,
-    }];
+    };
   }
 
   // // ============================================================================
@@ -178,7 +178,6 @@ export class TSTCFExpressAdapter implements CarrierAdapter {
   //     },
   //     body: xmlPayload,
   //   });
-  //   console.log({response})
   //   if (!response.ok) {
   //     throw new BadRequestException(`TST CF Express quote API error: ${response.status}`);
   //   }

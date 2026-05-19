@@ -83,7 +83,7 @@ export class Shipment {
     @OneToOne(() => Quote, { nullable: false, owner: true, hidden: true })
     quote!: Quote;
 
-    @OneToOne(() => Company, { nullable: false, owner: true })
+    @ManyToOne(() => Company, { nullable: false })
     company!: Company;
     
     @OneToMany(() => BillingReference, billingReference => billingReference.shipment, { cascade: [Cascade.PERSIST, Cascade.REMOVE]})

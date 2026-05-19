@@ -11,6 +11,8 @@ import { Currency } from "src/common/enum/currency.enum";
 import { XPOAdapter } from "../adapter/xpo.adapter";
 import { MockCarrierTrackingService } from "src/modules/mock-carrier-tracking/service/mock-carrier-tracking.service";
 import { Surcharge } from "src/entities/surcharge";
+import { getEnv } from "src/utils/getEnv";
+import { ENV } from "src/common/constants/env";
 
 @Injectable()
 export class ShipmentCarrierService {
@@ -67,11 +69,11 @@ export class ShipmentCarrierService {
             shipment.serviceName = tx?.serviceName;
             shipment.serviceType = tx?.serviceType;
             shipment.shippingLabels = tx?.shipmentDocuments?.[0]?.url;
-            shipment.totalBaseCharge = shipmentRating.totalBaseCharge;
-            shipment.totalSurcharges = shipmentRating.totalSurcharges;
-            shipment.totalFreightDiscounts = shipmentRating.totalFreightDiscounts;
-            shipment.totalNetCharge = shipmentRating.totalNetChargeWithDutiesAndTaxes;
-            shipment.totalTax = shipmentRating.totalTaxes;
+            shipment.totalBaseCharge = shipmentRating?.totalBaseCharge || 0;
+            shipment.totalSurcharges = shipmentRating?.totalSurcharges || 0;
+            shipment.totalFreightDiscounts = shipmentRating?.totalFreightDiscounts || 0;
+            shipment.totalNetCharge = shipmentRating?.totalNetChargeWithDutiesAndTaxes || 0;
+            shipment.totalTax = shipmentRating?.totalTaxes || 0;
 
             const surchargeEntities = shipmentRating.surcharges.map((surcharge) =>
                 this.em.create(Surcharge, {
@@ -137,7 +139,6 @@ export class ShipmentCarrierService {
     }
 
     async getShipmentCarriersRates(dto: any) {
-        console.log({dto})
         const [tstResult, fedexResult, tforceResult 
             // xpoResult
         ] = await Promise.all([
@@ -154,7 +155,7 @@ export class ShipmentCarrierService {
             //     .then(r => ({ success: true as const, data: r }))
             //     .catch(e => ({ success: false as const, error: e.message })),
         ]);
-        console.log({tforceResult})
+        console.log({fedexResult})
         return {
             message: "Rates fetched",
             fedexQuotes: fedexResult.success ? fedexResult.data : null,
@@ -173,8 +174,7 @@ export class ShipmentCarrierService {
         const carriers = [
             { name: Carrier.FEDEX,   fetch: () => this.getFedExRates(dto) },
             { name: Carrier.TST,     fetch: () => this.getTSTRates(dto) },
-            { name: Carrier.TFORCE,  fetch: () => this.getTForceRates(dto) },
-            { name: Carrier.XPO,    fetch: () => this.getXPORates(dto) },
+            { name: Carrier.TFORCE,  fetch: () => this.getTForceRates(dto) }
         ];
 
         const streams = carriers.map(c =>
@@ -192,15 +192,23 @@ export class ShipmentCarrierService {
     }
 
     private async getFedExRates(fedexDto: any) {
-        const fedex = new FedExAdapter({
-            name: "FedEx",
-            clientId: process.env.FEDEX_CLIENT_ID!,
-            clientSecret: process.env.FEDEX_CLIENT_SECRET!,
-            accountNumber: process.env.FEDEX_ACCOUNT_NUMBER!
-        });
+        const countryCode = fedexDto?.fedex?.from?.countryCode ?? 'US';
+        const isUS = countryCode === 'US';
 
-        const rates = await fedex.getRates(fedexDto);
-        const normalizedRates = fedex.mapFedExToCarrierRate(rates);
+        const accountNumber = getEnv(
+            isUS ? ENV.FEDEX_US_ACCOUNT_NUMBER : ENV.FEDEX_CA_ACCOUNT_NUMBER
+        )!;
+
+        const fedex = new FedExAdapter({
+            name: 'FedEx',
+            clientId: getEnv(ENV.FEDEX_CLIENT_ID)!,
+            clientSecret: getEnv(ENV.FEDEX_CLIENT_SECRET)!,
+            accountNumber,
+        });
+        let rates = await fedex.getRates(fedexDto);
+        let normalizedRates = fedex.mapFedExToCarrierRate(rates);
+            normalizedRates = normalizedRates.find( rate => rate.serviceType === "FEDEX_GROUND")
+
         return normalizedRates;
     }
 

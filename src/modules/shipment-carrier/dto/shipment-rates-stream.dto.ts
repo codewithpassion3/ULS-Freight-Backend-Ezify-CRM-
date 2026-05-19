@@ -8,8 +8,10 @@ import {
   IsNumber,
   Min,
   ArrayMinSize,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ShipmentType } from '../adapter/fedex.adapter';
 
 export enum QuoteType {
   STANDARD = 'STANDARD',
@@ -55,7 +57,7 @@ export enum Packaging {
 
 // ─── Address ─────────────────────────────────────
 
-class AddressDto {
+class AddressDTO {
   @IsString()
   name!: string;
 
@@ -74,7 +76,7 @@ class AddressDto {
 
 // ─── FedEx Location ──────────────────────────────
 
-class FedExLocationDto {
+class FedExLocationDTO {
   @IsString()
   postalCode!: string;
 
@@ -82,33 +84,61 @@ class FedExLocationDto {
   countryCode!: string;
 }
 
+class TForceLocationDTO {
+  @IsString()
+  city!: string;
+
+  @IsString()
+  state!: string;
+
+  @IsString()
+  postalCode!: string;
+
+  @IsString()
+  countryCode!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isResidential?: boolean;
+}
+
 // ─── FedEx Section ─────────────────────────────────
 
-class FedExDto {
+class FedExDTO {
   @ValidateNested()
-  @Type(() => FedExLocationDto)
-  from!: FedExLocationDto;
+  @Type(() => FedExLocationDTO)
+  from!: FedExLocationDTO;
 
   @ValidateNested()
-  @Type(() => FedExLocationDto)
-  to!: FedExLocationDto;
+  @Type(() => FedExLocationDTO)
+  to!: FedExLocationDTO;
 }
 
 // ─── TST Section ───────────────────────────────────
 
-class TSTDto {
+class TSTDTO {
   @ValidateNested()
-  @Type(() => AddressDto)
-  from!: AddressDto;
+  @Type(() => AddressDTO)
+  from!: AddressDTO;
 
   @ValidateNested()
-  @Type(() => AddressDto)
-  to!: AddressDto;
+  @Type(() => AddressDTO)
+  to!: AddressDTO;
+}
+
+class TforceDTO {
+  @ValidateNested()
+  @Type(() => TForceLocationDTO)
+  from!: TForceLocationDTO;
+
+  @ValidateNested()
+  @Type(() => TForceLocationDTO)
+  to!: TForceLocationDTO;
 }
 
 // ─── Package ───────────────────────────────────────
 
-class PackageDto {
+class PackageDTO {
   @IsEnum(WeightUnit)
   weightUnit!: WeightUnit;
 
@@ -141,19 +171,27 @@ class PackageDto {
 
 // ─── Main DTO ──────────────────────────────────────
 
-export class ShipmentRatesStreamDto {
+export class ShipmentRatesStreamDTO {
   @IsEnum(QuoteType)
   quoteType!: QuoteType;
 
-  @IsObject()
-  @ValidateNested()
-  @Type(() => FedExDto)
-  fedex!: FedExDto;
+  @IsEnum(ShipmentType)
+  shipmentType!: ShipmentType;
 
   @IsObject()
   @ValidateNested()
-  @Type(() => TSTDto)
-  tst!: TSTDto;
+  @Type(() => FedExDTO)
+  fedex?: FedExDTO;
+
+  @IsObject()
+  @ValidateNested()
+  @Type(() => TSTDTO)
+  tst?: TSTDTO;
+
+  @IsObject()
+  @ValidateNested()
+  @Type(() => TforceDTO)
+  tforce?: TforceDTO;
 
   @IsEnum(PickupType)
   pickupType!: PickupType;
@@ -163,12 +201,9 @@ export class ShipmentRatesStreamDto {
   @ArrayMinSize(1)
   rateRequestType!: RateRequestType[];
 
-  @IsEnum(ServiceType)
-  serviceType!: ServiceType;
-
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => PackageDto)
+  @Type(() => PackageDTO)
   @ArrayMinSize(1)
-  packages!: PackageDto[];
+  packages!: PackageDTO[];
 }
