@@ -76,6 +76,7 @@ export class ShipmentCarrierService {
             shipment.totalFreightDiscounts = shipmentRating?.totalFreightDiscounts || 0;
             shipment.totalNetCharge = shipmentRating?.totalNetChargeWithDutiesAndTaxes || 0;
             shipment.totalTax = shipmentRating?.totalTaxes || 0;
+            shipment.carrier = Carrier.FEDEX;
 
             const surchargeEntities = shipmentRating.surcharges.map((surcharge) =>
                 this.em.create(Surcharge, {
@@ -115,6 +116,7 @@ export class ShipmentCarrierService {
             shipment.totalNetCharge = Number(carrierResponse?.totalnet || carrierResponse?.total || quotedTotal);
             shipment.totalTax = Number(carrierResponse?.taxes || 0);
             shipment.totalCharge = quotedTotal;
+            shipment.carrier = Carrier.TST;
         }
 
         // ✅ TForce
@@ -164,6 +166,7 @@ export class ShipmentCarrierService {
             shipment.totalNetCharge       = totalCharge;
             shipment.totalTax             = 0;                        // TForce doesn't return tax separately
             shipment.totalCharge          = totalCharge;
+            shipment.carrier = Carrier.TFORCE;
 
             // Persist individual surcharge line items (mirrors FedEx pattern)
             if (surchargeRates.length > 0) {
