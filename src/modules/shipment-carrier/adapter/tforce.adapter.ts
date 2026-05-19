@@ -1,5 +1,7 @@
 import { CarrierAdapter } from 'src/types/shipment-carriers';
 import { Carrier } from '../dto/create-carrier-shipment.dto';
+import { LineItemUnitType } from 'src/common/enum/line-item-unit-type';
+import { BadRequestException } from '@nestjs/common';
 
 // ============================================================================
 // TFORCE API TYPES
@@ -29,6 +31,7 @@ export enum ShipmentType {
   COURIER = 'COURIER',
   STANDARD_FTL = 'STANDARD_FTL',
   SPOT_LTL = 'SPOT_LTL',
+  COURIER_PAK = "COURIER_PAK",
 }
 
 export interface Address {
@@ -536,6 +539,336 @@ export class TForceAdapter implements CarrierAdapter {
     });
 
     return quotes;
+  }
+
+  // --------------------------------------------------------------------------
+  // CREATE SHIPMENT  (creates BOL + schedules pickup in a single API call)
+  // TForce Shipping API: POST https://api.tforcefreight.com/shipping/bol/create
+  // --------------------------------------------------------------------------
+  private toTForceCommodityPackagingType(unitType: LineItemUnitType): string {
+    switch (unitType) {
+      case LineItemUnitType.PALLET:         return 'PLT';
+      case LineItemUnitType.DRUM:           return 'DRM';
+      case LineItemUnitType.BOXES:          return 'BOX';
+      case LineItemUnitType.ROLLS:          return 'ROL';
+      case LineItemUnitType.PIPES_OR_TUBES: return 'TBE';
+      case LineItemUnitType.BALES:          return 'BAL';
+      case LineItemUnitType.BAGS:           return 'BAG';
+      case LineItemUnitType.Cylinder:       return 'CYL';
+      case LineItemUnitType.PAILS:          return 'PAL';
+      case LineItemUnitType.REELS:          return 'REL';
+      case LineItemUnitType.CRATE:          return 'CRT';
+      case LineItemUnitType.LOOSE:          return 'LOO';
+      case LineItemUnitType.PIECES:         return 'PCS';
+      default:                              return 'PLT';
+    }
+  }
+
+  private toTForceHandlingUnitTypeCode(shipmentType: ShipmentType): string {
+    switch (shipmentType) {
+      case ShipmentType.PALLET:      return 'PLT';
+      case ShipmentType.PACKAGE:     return 'SKD';
+
+      case ShipmentType.STANDARD_FTL:
+        // TForce supports FTL *rating* via volumeRating endpoint
+        // but has no API for FTL BOL creation — must go through TForce customer service
+        throw new Error(`TForce does not support BOL creation for FTL shipments via API`);
+
+      case ShipmentType.COURIER_PAK:
+        // TForce is an LTL/FTL freight carrier — courier paks are parcel level, wrong carrier
+        throw new Error(`TForce does not support COURIER_PAK shipments`);
+
+      default:
+        return 'SKD';
+    }
+  }
+
+  // ── Fix #2: state name → 2-char code helper ───────────────────────────────
+  private toTForceStateCode(state: string | undefined): string {
+    if (!state) return '';
+    if (state.length === 2) return state.toUpperCase(); // already a code
+
+    const map: Record<string, string> = {
+      'alabama': 'AL', 'alaska': 'AK', 'arizona': 'AZ', 'arkansas': 'AR',
+      'california': 'CA', 'colorado': 'CO', 'connecticut': 'CT', 'delaware': 'DE',
+      'florida': 'FL', 'georgia': 'GA', 'hawaii': 'HI', 'idaho': 'ID',
+      'illinois': 'IL', 'indiana': 'IN', 'iowa': 'IA', 'kansas': 'KS',
+      'kentucky': 'KY', 'louisiana': 'LA', 'maine': 'ME', 'maryland': 'MD',
+      'massachusetts': 'MA', 'michigan': 'MI', 'minnesota': 'MN', 'mississippi': 'MS',
+      'missouri': 'MO', 'montana': 'MT', 'nebraska': 'NE', 'nevada': 'NV',
+      'new hampshire': 'NH', 'new jersey': 'NJ', 'new mexico': 'NM', 'new york': 'NY',
+      'north carolina': 'NC', 'north dakota': 'ND', 'ohio': 'OH', 'oklahoma': 'OK',
+      'oregon': 'OR', 'pennsylvania': 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
+      'south dakota': 'SD', 'tennessee': 'TN', 'texas': 'TX', 'utah': 'UT',
+      'vermont': 'VT', 'virginia': 'VA', 'washington': 'WA', 'west virginia': 'WV',
+      'wisconsin': 'WI', 'wyoming': 'WY',
+      // Canadian provinces
+      'alberta': 'AB', 'british columbia': 'BC', 'manitoba': 'MB', 'new brunswick': 'NB',
+      'newfoundland and labrador': 'NL', 'northwest territories': 'NT', 'nova scotia': 'NS',
+      'nunavut': 'NU', 'ontario': 'ON', 'prince edward island': 'PE', 'quebec': 'QC',
+      'saskatchewan': 'SK', 'yukon': 'YT',
+    };
+    return map[state.toLowerCase()] ?? state.toUpperCase().slice(0, 2);
+  }
+
+  // ── Fix #3: strip CLASS_ prefix from freight class ────────────────────────
+  private normalizeFreightClass(freightClass: string | undefined): string {
+    if (!freightClass) return '50';
+    // handles 'CLASS_70' → '70', '100' → '100', 'class_85' → '85'
+    return String(freightClass).replace(/^class_/i, '');
+  }
+
+  // ── Fix #4: normalize time to HH:MM:SS ───────────────────────────────────
+  private normalizeTime(time: string | undefined, fallback: string): string {
+    if (!time) return fallback;
+    // strip AM/PM and ensure HH:MM:SS format
+    const cleaned = time.replace(/\s*(AM|PM)/i, '').trim();
+    // if HHMM format (4 digits) → convert to HH:MM:SS
+    if (/^\d{4}$/.test(cleaned)) {
+      return `${cleaned.slice(0, 2)}:${cleaned.slice(2)}:00`;
+    }
+    // if already HH:MM:SS or HH:MM → pad seconds
+    const parts = cleaned.split(':');
+    if (parts.length === 2) return `${parts[0]}:${parts[1]}:00`;
+    if (parts.length === 3) return cleaned;
+    return fallback;
+  }
+
+  // ── Fix #1: postal code normalizer ───────────────────────────────────────
+  private normalizePostalCode(postalCode: string | undefined): string {
+    if (!postalCode) return '';
+    // Canadian postal codes: 'M5H 3T4' → 'M5H3T4'
+    // US zip codes: '90210' or '90210-1234' → keep as-is (TForce accepts both)
+    return postalCode.replace(/\s+/g, '').toUpperCase();
+  }
+
+  async createShipment(req: any, quote: any): Promise<any> {
+    const token = await this.getAuthToken();
+
+    // ── Resolve addresses ────────────────────────────────────────────────────
+    const addresses = await quote.addresses.loadItems();
+    const originShippingAddress = addresses.find((a: any) => a.type === 'FROM') || addresses[0];
+    const destShippingAddress   = addresses.find((a: any) => a.type === 'TO')   || addresses[1];
+
+    const originAddrBook = originShippingAddress?.addressBookEntry;
+    const destAddrBook   = destShippingAddress?.addressBookEntry;
+
+    const origin = originAddrBook?.address || originShippingAddress?.address;
+    const dest   = destAddrBook?.address   || destShippingAddress?.address;
+
+    const TFORCE_SUPPORTED_COUNTRIES = new Set(['US', 'CA']);  // MX excluded per business decision
+    const originCountry = (origin?.country || origin?.countryCode || '').toUpperCase();
+    const destCountry   = (dest?.country   || dest?.countryCode   || '').toUpperCase();
+
+    // ── Fix #2: ensure closeTime is always after openTime ────────────────────
+    const openTime  = this.normalizeTime(originAddrBook?.palletShippingOpenTime,  '08:00:00');
+    const closeTime = this.normalizeTime(originAddrBook?.palletShippingCloseTime, '17:00:00');
+
+    // if closeTime <= openTime the value from DB is bad — fall back to default
+    const safeCloseTime = closeTime > openTime ? closeTime : '17:00:00';
+
+    if (!TFORCE_SUPPORTED_COUNTRIES.has(originCountry)) {
+      throw new BadRequestException(
+        `TForce does not support shipments originating from country: ${originCountry}. Supported: US, CA`
+      );
+    }
+
+    if (!TFORCE_SUPPORTED_COUNTRIES.has(destCountry)) {
+      throw new BadRequestException(
+        `TForce does not support shipments destined for country: ${destCountry}. Supported: US, CA`
+      );
+    }
+
+    // ── Contact info ─────────────────────────────────────────────────────────
+    const originContactName = originAddrBook?.contactName || originAddrBook?.companyName || 'Shipper';
+    const originCompany     = originAddrBook?.companyName || originContactName;
+    const originPhone       = (originAddrBook?.phoneNumber || '8005551212').replace(/\D/g, '').slice(0, 15);
+    const originEmail       = originAddrBook?.email || undefined;
+
+    const destContactName   = destAddrBook?.contactName || destAddrBook?.companyName || 'Consignee';
+    const destPhone         = (destAddrBook?.phoneNumber || '8005551212').replace(/\D/g, '').slice(0, 15);
+    const destEmail         = destAddrBook?.email || undefined;
+
+    // ── Line items / handling units ──────────────────────────────────────────
+    const lineItem = quote.lineItems;
+    const units    = lineItem?.units || [];
+
+
+    // TForce is LTL — map each unit to a commodity entry.
+    // Use handlingUnitOne (grouped pieces) for the pallet/skid count.
+    const totalPieces = units.reduce((sum: number, u: any) => sum + (u.quantity || 1), 0);
+
+    const commodities = units.map((unit: any, i: number) => ({
+      description:   unit.description || `Commodity ${i + 1}`,
+      class:         this.normalizeFreightClass(unit.freightClass),  // ✅ Fix #3
+      pieces:        unit.quantity || 1,
+      weight: {
+        weight:     unit.weight,
+        weightUnit: (unit.weightUnit || 'LBS').toUpperCase() === 'KG' ? 'KGS' : 'LBS',
+      },
+      packagingType:  this.toTForceCommodityPackagingType(unit.unitType as LineItemUnitType),
+      dangerousGoods: quote?.lineItem?.dangerousGoods ? true : false,
+      ...(unit.length && unit.width && unit.height ? {
+        dimensions: { length: unit.length, width: unit.width, height: unit.height, unit: 'IN' },
+      } : {}),
+      ...(unit.declaredValue ? {
+        commodityValue: { value: unit.declaredValue, currency: 'USD' },
+      } : {}),
+      commodityID: i + 1,
+    }));
+
+    // ── Pickup date ───────────────────────────────────────────────────────────
+    const pickupDate = req.shipDate ? new Date(req.shipDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+
+    // ── Service code ──────────────────────────────────────────────────────────
+    // 308 = TForce Freight LTL (US/CA), 349 = US/MX, 309 = Guaranteed
+    const serviceCode: string = req.selectedRate?.serviceCode || '308';
+
+    const handlingTypeCode = this.toTForceHandlingUnitTypeCode(quote.shipmentType);
+
+    // ── Build payload ─────────────────────────────────────────────────────────
+    const payload = {
+      requestOptions: {
+        serviceCode,
+        pickupDate,
+        previewRate:    true,
+        timeInTransit:  true,
+        bolPrintFormat: 'TFF',
+      },
+
+     shipFrom: {
+        name:    originCompany,
+        ...(originEmail ? { email: originEmail } : {}),
+        phone:   { number: originPhone },
+        contact: originContactName,
+        address: {
+          addressLine:       origin?.address1  || '',
+          city:              origin?.city      || '',
+          stateProvinceCode: this.toTForceStateCode(origin?.state),  // ✅ Fix #2
+          postalCode:        this.normalizePostalCode(origin?.postalCode) || '',
+          country:           origin?.country || origin?.countryCode || 'US',
+        },
+      },
+
+      shipTo: {
+        name:    destContactName,
+        ...(destEmail ? { email: destEmail } : {}),
+        phone:   { number: destPhone },
+        address: {
+          addressLine:       dest?.address1  || '',
+          city:              dest?.city      || '',
+          stateProvinceCode: this.toTForceStateCode(dest?.state),    // ✅ Fix #2
+          postalCode:        this.normalizePostalCode(dest?.postalCode) || '',
+          country:           dest?.country || dest?.countryCode || 'US',
+        },
+      },
+
+      // Billing: TForce only accepts billingCode '10' (prepaid/sender pays)
+      payment: {
+        payer: {
+          name:  originCompany,
+          phone: { number: originPhone },
+          address: {
+            addressLine:       origin?.address1  || '',
+            city:              origin?.city      || '',
+            stateProvinceCode: this.toTForceStateCode(origin?.state), // ✅ Fix #2
+            postalCode:        this.normalizePostalCode(origin?.postalCode) || '',
+            country:           origin?.country || origin?.countryCode || 'US',
+          },
+        },
+        billingCode: '10',
+      },
+
+      // handlingUnitOne = grouped/palletised pieces (skids, pallets, etc.)
+      handlingUnitOne: {
+        quantity: totalPieces,
+        typeCode: handlingTypeCode || 'SKD',
+      },
+
+      commodities,
+
+      // ── Optional: embed pickup scheduling (avoids a separate Pickup API call)
+      // ── Fix #1 + #4 in pickupRequest ─────────────────────────────────────────
+      pickupRequest: {
+        pickup: {
+          date:      pickupDate,
+            time: this.normalizeTime(req.pickupReadyTime, '10:00:00'),
+            openTime,
+            closeTime: safeCloseTime,
+        },
+        requester: {
+          companyName: originCompany,
+          contactName: originContactName,
+          email:       originEmail || 'noreply@shipment.com', // ✅ Fix #1 — required by API
+          phone:       { number: originPhone },
+          thirdParty:  req.isThirdParty ?? false,
+        },
+        pomIndicator: false,
+      },
+
+      // Request both the BOL document (type 20) and a shipping label (type 30)
+      documents: {
+        image: [
+          {
+            type:   '20',    // BOL document
+            format: '01',    // PDF
+          },
+          {
+            type:   '30',    // Shipping label
+            format: '01',
+            label: {
+              type:             '07',  // Thermal 4x6
+              startPosition:    1,
+              numberOfStickers: totalPieces,
+            },
+          },
+        ],
+      },
+    };
+    console.dir(payload, { depth: null })
+    // ── Call the Shipping API ─────────────────────────────────────────────────
+    // Note: shipping uses a different base URL than rating
+    const shippingBaseUrl = 'https://api.tforcefreight.com/shipping';
+    const endpoint        = `${shippingBaseUrl}/bol/create?api-version=${this.apiVersion}`;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'Accept':        'application/json',
+        'Cache-Control': 'no-cache',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`TForce Shipping API error: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+
+    // ── Normalise response to mirror FedEx shape ──────────────────────────────
+    const detail = result?.detail ?? {};
+    return {
+      raw: result,
+
+      // BOL / tracking identifiers
+      bolId:                detail.bolId,
+      proNumber:            detail.pro,           // ← This is your BOL/tracking number
+      originServiceCenter:  detail.originServiceCenter,
+
+      // Pickup confirmation (embedded — no separate call needed)
+      pickupConfirmationNumber: detail.pickup?.transactionReference?.confirmationNumber,
+      pickupStatus:             detail.pickup?.responseStatus?.description,
+
+      // Documents (base64-encoded PDFs)
+      documents: detail.documents?.image ?? [],
+
+      // Rate preview (present when previewRate: true)
+      rateDetail: detail.rateDetail ?? [],
+    };
   }
 
   // --------------------------------------------------------------------------

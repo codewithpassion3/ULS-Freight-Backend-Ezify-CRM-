@@ -30,6 +30,10 @@ class SelectedRateDto {
   @IsNumber()
   @IsOptional()
   transitDays?: number;
+
+  @IsString()
+  @IsOptional()
+  serviceCode?: string;
 }
 
 export class CreateCarrierShipmentDTO {

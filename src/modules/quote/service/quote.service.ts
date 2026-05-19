@@ -718,11 +718,10 @@ export class QuoteService {
             id: quoteId,
             company: this.em.getReference(Company, session.companyId as number)
         },{
-            populate: ["createdBy","createdBy.firstName", "createdBy.lastName","addresses", "addresses.addressBookEntry", "addresses.addressBookEntry.address", "addresses.address","lineItems", "lineItems.units",
+            populate: ["createdBy","createdBy.firstName", "createdBy.lastName","addresses", "addresses.locationType", "addresses.addressBookEntry", "addresses.addressBookEntry.address", "addresses.address","lineItems", "lineItems.units",
                         "palletServices", "spotFtlServices", "spotLtlServices", "standardFTLService", 
                         "signature", "insurance","spotDetails", "spotDetails.spotContact", "spotDetails.spotEquipment","shipment", "shipment.trackingEvents", "shipment.surcharges"]
         });
-
         //2) Throw error for invalid quote
         if(!quote){
             throw new BadRequestException("Invalid quote id or you are not allowed to access this resource")
@@ -734,17 +733,17 @@ export class QuoteService {
             const source = addr.addressBookEntry ?? addr.address;
             
             // 2. Convert to plain object (breaks out of MikroORM proxies)
-            const address: any = wrap(source as any).toObject() ;
+            const address: any = wrap(source as any).toObject();
             let mappedAddress = {type: addr.type ,...address};
-           
+            
             // 3. Add the transformed fields directly INTO the address object
             if(address.signature) {
                 mappedAddress = {...mappedAddress, signatureId: address.signature}
                 delete mappedAddress.signature;
             }
             
-            if(address.locationType) {
-                mappedAddress = {...mappedAddress, locationTypeId: address.locationType}
+            if(address.locationType || addr.locationType) {
+                mappedAddress = {...mappedAddress, locationTypeId: address.locationType || addr?.locationType?.id}
                 delete mappedAddress.locationType;
             }
             
@@ -894,7 +893,6 @@ export class QuoteService {
     async deleteSingleAgainstCurrentUserCompany(quoteId: number, session: SessionData){
         //1) Get the user reference
         const company = this.em.getReference(Company, session.companyId as number);
-        console.log({quoteId, company})
         //2) Check for valid quote
         const quote = await this.em.findOne(Quote, { id: quoteId, company: company.id },
             {

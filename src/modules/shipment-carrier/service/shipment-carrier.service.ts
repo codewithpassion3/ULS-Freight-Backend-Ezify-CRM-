@@ -25,11 +25,13 @@ export class ShipmentCarrierService {
         private readonly mockTracking: MockCarrierTrackingService
     ) {}
     
-   async createShipment(dto: CreateCarrierShipmentDTO) {
-       let carrierResponse: any;
-       if (![Carrier.FEDEX, Carrier.TST].includes(dto.carrier)) {
-           throw new BadRequestException("This carrier hasn't been implemented for shipment");
-       }
+    async createShipment(dto: CreateCarrierShipmentDTO) {
+        let carrierResponse: any;
+
+        // ✅ Add TFORCE to allowed carriers
+        if (![Carrier.FEDEX, Carrier.TST, Carrier.TFORCE].includes(dto.carrier)) {
+            throw new BadRequestException("This carrier hasn't been implemented for shipment");
+        }
 
         const quote = await this.em.findOne(
             Quote,
@@ -49,11 +51,11 @@ export class ShipmentCarrierService {
             }
         ) as Quote;
 
-        if(!quote) {
+        if (!quote) {
             throw new NotFoundException("Invalid quote id or you don't have the required permissions")
         }
 
-        if(!quote?.shipment) {
+        if (!quote?.shipment) {
             throw new BadRequestException("Convert quote into shipment to proceed further")
         }
 
@@ -114,14 +116,77 @@ export class ShipmentCarrierService {
             shipment.totalTax = Number(carrierResponse?.taxes || 0);
             shipment.totalCharge = quotedTotal;
         }
-    
-        shipment.tailgateRequiredInFromAddress = dto.tailgatePickup ?? false;
-        shipment.tailgateRequiredInToAddress = dto.tailgateDelivery ?? false;
-        shipment.carrier = dto.carrier;
-        shipment.currency = dto.selectedRate?.currency || Currency.USD;
-       
-        this.em.persist([shipment, quote])
 
+        // ✅ TForce
+        if (dto.carrier === Carrier.TFORCE) {
+            carrierResponse = await this.tforceAdapter.createShipment(dto, quote);
+            const detail = carrierResponse?.raw?.detail ?? {};
+            const rateDetail = carrierResponse?.rateDetail?.[0];
+
+            // Rate breakdown using TForce rate codes from docs:
+            // LND_GROSS = gross base charge before discount
+            // DSCNT     = discount amount
+            // FUEL_SUR  = fuel surcharge
+            // shipmentCharges.total = final total
+            const rates: Array<{ code: string; value: string }> = rateDetail?.rate ?? [];
+            const findRate = (code: string) =>
+                Number(rates.find((r) => r.code === code)?.value || 0);
+
+            const grossCharge   = findRate('LND_GROSS');
+            const discount      = findRate('DSCNT');
+            const fuelSurcharge = findRate('FUEL_SUR') || findRate('FUEL_SUR_FEE');
+            const totalCharge   = Number(rateDetail?.shipmentCharges?.total?.value || 0);
+            const currency      = rateDetail?.shipmentCharges?.total?.currency || 'USD';
+
+            // All non-base surcharges (everything except gross, discount, and after-discount lines)
+            const excludedRateCodes = new Set(['LND_GROSS', 'DSCNT', 'DSCNT_RATE', 'AFTR_DSCNT']);
+            const surchargeRates = rates.filter((r) => !excludedRateCodes.has(r.code));
+            const totalSurcharges = surchargeRates.reduce((sum, r) => sum + Number(r.value || 0), 0);
+
+            // PRO number is the TForce BOL/tracking number
+            shipment.trackingNumber  = carrierResponse.proNumber;
+            shipment.carrierQuoteId  = String(carrierResponse.bolId ?? '');
+
+            shipment.serviceName = rateDetail?.service?.description || 'TForce Freight LTL';
+            shipment.serviceType = rateDetail?.service?.code       || dto.selectedRate?.serviceCode || '308';
+            shipment.shipDate    = dto.shipDate ? new Date(dto.shipDate) : new Date();
+            shipment.currency    = currency as Currency;
+
+            // Label: documents array contains base64 PDFs — type '30' is the shipping label
+            const labelDoc = carrierResponse.documents?.find((d: any) => d.type === '30');
+            const bolDoc   = carrierResponse.documents?.find((d: any) => d.type === '20');
+            // Store base64 label data if available (adjust field name to match your entity)
+            shipment.shippingLabels = labelDoc?.data ?? bolDoc?.data ?? null;
+
+            shipment.totalBaseCharge      = grossCharge - discount;   // after-discount base
+            shipment.totalSurcharges      = totalSurcharges;
+            shipment.totalFreightDiscounts = discount;
+            shipment.totalNetCharge       = totalCharge;
+            shipment.totalTax             = 0;                        // TForce doesn't return tax separately
+            shipment.totalCharge          = totalCharge;
+
+            // Persist individual surcharge line items (mirrors FedEx pattern)
+            if (surchargeRates.length > 0) {
+                const surchargeEntities = surchargeRates.map((r) =>
+                    this.em.create(Surcharge, {
+                        shipment,
+                        carrier: Carrier.TFORCE,
+                        name:     r.code,
+                        amount:   Number(r.value),
+                        currency,
+                        createdAt: new Date(),
+                    })
+                );
+                shipment.surcharges.add(surchargeEntities);
+            }
+        }
+
+        shipment.tailgateRequiredInFromAddress = dto.tailgatePickup  ?? false;
+        shipment.tailgateRequiredInToAddress   = dto.tailgateDelivery ?? false;
+        shipment.carrier  = dto.carrier;
+        shipment.currency = dto.selectedRate?.currency || Currency.USD;
+    
+        this.em.persist([shipment, quote]);
         await this.em.flush();
 
         await this.mockTracking.scheduleTrackingTimeline(
@@ -129,12 +194,11 @@ export class ShipmentCarrierService {
             shipment.trackingNumber as string,
             'standard_delivery',
         );
-        
 
         return {
             message: 'Shipment created successfully',
             shipment,
-            trackingNumber: shipment.trackingNumber
+            trackingNumber: shipment.trackingNumber,
         };
     }
 
