@@ -4,7 +4,7 @@ import { SessionAuthGuard } from "src/guards/sessionAuth.guard";
 import { ShipmentCarrierService } from "../service/shipment-carrier.service";
 import type { Request, Response } from "express";
 import { CreateCarrierShipmentDTO } from "src/modules/shipment-carrier/dto/create-carrier-shipment.dto";
-import { ShipmentRatesStreamDto } from "../dto/shipment-rates-stream.dto";
+import { ShipmentRatesStreamDTO } from "../dto/shipment-rates-stream.dto";
 
 @Controller("shipment-carriers")
 export class ShipmentCarrierController {
@@ -14,14 +14,14 @@ export class ShipmentCarrierController {
 
     @UseGuards(SessionAuthGuard)
     @Post("/rates")
-    async GetShipmentCarriersRates(@Body() dto: any){
+    async GetShipmentCarriersRates(@Body() dto: ShipmentRatesStreamDTO){
         return this.shipmentCarrierService.getShipmentCarriersRates(dto);
     }
 
 
     @Post('/rates/stream')
     async StreamShipmentCarriersRates(
-        @Body() dto: ShipmentRatesStreamDto,
+        @Body() dto: ShipmentRatesStreamDTO,
         @Res() res: Response,
         @Req() req: Request,
     ) {

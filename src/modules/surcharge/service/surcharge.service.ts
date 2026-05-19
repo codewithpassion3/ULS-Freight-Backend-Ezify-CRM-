@@ -18,7 +18,7 @@ export class SurchargeService {
 
   async create(dto: CreateSurchargeDto, session: SessionData) {
      // 1) Resolve shipment (populate your company/user relations as needed)
-    const shipment = await this.em.findOne(Shipment, { id: dto.shipmentId, company: session.companyId }, { populate: ["company","quote", "quote.createdBy", "quote.addresses"]});
+    const shipment = await this.em.findOne(Shipment, { id: dto.shipmentId, company: session.companyId }, { populate: ["company", "quote", "quote.createdBy", "quote.addresses"]});
 
     if (!shipment) {
       throw new NotFoundException("Invalid shipmentId or you don't have required permissions");

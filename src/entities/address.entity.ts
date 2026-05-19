@@ -1,6 +1,13 @@
-import { Entity, PrimaryKey, Property } from "@mikro-orm/core";
+import { Entity, Index, PrimaryKey, Property } from "@mikro-orm/core";
 
 @Entity()
+
+@Index({ properties: ['city'] })
+
+@Index({ properties: ['state'] })
+
+@Index({ properties: ['postalCode'] })
+
 export class Address{
     @PrimaryKey()
     id!: number;

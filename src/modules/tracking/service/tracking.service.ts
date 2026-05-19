@@ -155,8 +155,9 @@ export class TrackingService {
             orderBy: Object.entries(orderBy).map(([field, direction]) => ({ [field]: direction })),
             populate: [
                 "addresses",
-                "addresses.addressBookEntry",
                 "addresses.address",
+                "addresses.addressBookEntry",
+                "addresses.addressBookEntry.address",
                 "lineItems",
                 "lineItems.units",
                 "palletServices",

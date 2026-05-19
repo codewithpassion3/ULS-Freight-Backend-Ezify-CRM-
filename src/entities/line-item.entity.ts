@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, ManyToOne, Enum, OneToMany, Collection, OneToOne, Property, Cascade } from "@mikro-orm/core";
+import { Entity, PrimaryKey, ManyToOne, Enum, OneToMany, Collection, OneToOne, Property, Cascade, Index } from "@mikro-orm/core";
 import { Quote } from "./quote.entity";
 import { ShipmentType } from "src/common/enum/shipment-type.enum";
 import { LineItemUnit } from "./line-item-unit.entity";
@@ -6,6 +6,9 @@ import { MeasurementUnits } from "src/common/enum/measurement-units.enum";
 import { DangerousGoodsClass, QuantityType, PackagingGroup } from "src/common/enum/line-item.enum";
 
 @Entity()
+
+@Index({ properties: ['quote'] })
+
 export class LineItem {
   @PrimaryKey()
   id!: number;

@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, OneToOne, Property, OneToMany, Collection, BeforeCreate, ManyToOne } from "@mikro-orm/core";
+import { Entity, PrimaryKey, OneToOne, Property, OneToMany, Collection, BeforeCreate, ManyToOne, Index } from "@mikro-orm/core";
 import { Quote } from "./quote.entity";
 import { Shipment } from "./shipment.entity";
 import { randomBytes } from "crypto";
@@ -7,6 +7,15 @@ import { User } from "./user.entity";
 import { Surcharge } from "./surcharge";
 
 @Entity()
+
+@Index({ properties: ['company', 'createdAt'] })
+
+@Index({ properties: ['company', 'paid'] })
+
+@Index({ properties: ['company', 'urgent'] })
+
+@Index({ properties: ['company', 'invoiceNumber'] })
+
 export class Invoice {
 
   @PrimaryKey()

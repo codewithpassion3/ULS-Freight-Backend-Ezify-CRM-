@@ -1,4 +1,4 @@
-import { Cascade, Entity, Enum, ManyToOne, OneToOne, PrimaryKey, Property } from "@mikro-orm/core";
+import { Cascade, Entity, Enum, Index, ManyToOne, OneToOne, PrimaryKey, Property } from "@mikro-orm/core";
 import { AddressType } from "src/common/enum/address-type.enum";
 import { AddressBook } from "./address-book.entity";
 import { Quote } from "./quote.entity";
@@ -7,6 +7,11 @@ import { Address } from "./address.entity";
 import { PalletShippingLocationType } from "./pallet-shipping-location-type.entity";
 
 @Entity()
+
+@Index({ properties: ['quote'] })
+
+@Index({ properties: ['addressBookEntry'] })
+
 export class ShippingAddress{
     @PrimaryKey()
     id!: number;

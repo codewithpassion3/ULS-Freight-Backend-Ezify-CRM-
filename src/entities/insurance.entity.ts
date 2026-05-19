@@ -1,8 +1,11 @@
-import { Entity, PrimaryKey, OneToOne, Property, Enum, Cascade } from "@mikro-orm/core";
+import { Entity, PrimaryKey, OneToOne, Property, Enum, Cascade, Index } from "@mikro-orm/core";
 import { Quote } from "./quote.entity";
 import { Currency } from "src/common/enum/currency.enum";
 
 @Entity()
+
+@Index({ properties: ['quote'] })
+
 export class Insurance {
 
   @PrimaryKey()

@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, ManyToOne, Property, Cascade, OneToOne, Enum } from "@mikro-orm/core";
+import { Entity, PrimaryKey, ManyToOne, Property, Cascade, OneToOne, Enum, Index } from "@mikro-orm/core";
 import { LineItem } from "./line-item.entity";
 import { User } from "./user.entity";
 import { LineItemUnitType } from "src/common/enum/line-item-unit-type";
@@ -7,6 +7,9 @@ import { MeasurementUnits } from "src/common/enum/measurement-units.enum";
 import { Company } from "./company.entity";
 
 @Entity()
+
+@Index({ properties: ['lineItem'] })
+
 export class LineItemUnit {
 
   @PrimaryKey()

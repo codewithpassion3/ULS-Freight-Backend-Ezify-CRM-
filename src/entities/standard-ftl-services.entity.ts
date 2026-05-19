@@ -1,8 +1,11 @@
-import { Entity, PrimaryKey, OneToOne, Property, Cascade } from "@mikro-orm/core";
+import { Entity, PrimaryKey, OneToOne, Property, Cascade, Index } from "@mikro-orm/core";
 import { Quote } from "./quote.entity";
 import { MeasurementUnits } from "src/common/enum/measurement-units.enum";
 
 @Entity()
+
+@Index({ properties: ['quote'] })
+
 export class StandardFtlServices {
   @PrimaryKey()
   id!: number;
