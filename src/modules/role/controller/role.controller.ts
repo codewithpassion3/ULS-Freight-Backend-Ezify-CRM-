@@ -10,7 +10,7 @@ export class RoleController{
     constructor(private readonly roleService: RoleService) {}
 
     @UseGuards(SessionAuthGuard, RolesGuard)
-    @Role([ROLES.ADMIN])
+    @Role([ROLES.ADMIN, ROLES.SUPER_ADMIN])
     @Get("/")
     async getAll(){
         return this.roleService.getAll();
