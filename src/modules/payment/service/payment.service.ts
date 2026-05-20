@@ -325,6 +325,12 @@ export class PaymentService {
     return transaction;
   }
 
+  async getWalletBalance(session: SessionData): Promise<number> {
+    const ctx = await this.requestContextService.resolve({ session, em: this.em });
+    const wallet = await this.getOrCreateWallet(ctx.company);
+    return Number(wallet.balance || 0);
+  }
+
   // ── Retrieve PaymentIntent status ───────────────────────────────
   async getPaymentIntent(paymentIntentId: string): Promise<any> {
     return this.stripe.paymentIntents.retrieve(paymentIntentId);

@@ -9,12 +9,14 @@ import { ENV } from "src/common/constants/env";
 import { XPOAdapter } from "./adapter/xpo.adapter";
 import { MockCarrierTrackingService } from "../mock-carrier-tracking/service/mock-carrier-tracking.service";
 import { BullModule } from "@nestjs/bullmq";
+import { PaymentModule } from "../payment/payment.module";
 
 @Module({
     imports: [
         BullModule.registerQueue({
             name: 'mock-tracking',
         }),
+        PaymentModule
     ],
     controllers: [ShipmentCarrierController],
     providers: [

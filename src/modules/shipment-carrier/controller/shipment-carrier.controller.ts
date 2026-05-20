@@ -1,10 +1,11 @@
 import { EntityManager } from "@mikro-orm/postgresql";
-import { Body, Controller, Post, Req, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Post, Req, Res, Session, UseGuards } from "@nestjs/common";
 import { SessionAuthGuard } from "src/guards/sessionAuth.guard";
 import { ShipmentCarrierService } from "../service/shipment-carrier.service";
 import type { Request, Response } from "express";
 import { CreateCarrierShipmentDTO } from "src/modules/shipment-carrier/dto/create-carrier-shipment.dto";
 import { ShipmentRatesStreamDTO } from "../dto/shipment-rates-stream.dto";
+import type { SessionData } from "express-session";
 
 @Controller("shipment-carriers")
 export class ShipmentCarrierController {
@@ -64,8 +65,8 @@ export class ShipmentCarrierController {
 
     @UseGuards(SessionAuthGuard)
     @Post('/shipments')
-    async CreateShipment(@Body() dto: CreateCarrierShipmentDTO){
-        return this.shipmentCarrierService.createShipment(dto);
+    async CreateShipment(@Body() dto: CreateCarrierShipmentDTO, @Session() session: SessionData){
+        return this.shipmentCarrierService.createShipment(dto, session);
     }
 
     @Post('/webhook-events')

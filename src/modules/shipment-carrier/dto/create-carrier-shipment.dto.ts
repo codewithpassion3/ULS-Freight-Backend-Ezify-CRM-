@@ -27,9 +27,9 @@ class SelectedRateDto {
   @IsString()
   currency!: string;
 
-  @IsNumber()
+  @IsString()
   @IsOptional()
-  transitDays?: number;
+  transitDays?: string;
 
   @IsString()
   @IsOptional()

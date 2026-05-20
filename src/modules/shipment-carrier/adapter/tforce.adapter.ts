@@ -500,9 +500,11 @@ export class TForceAdapter implements CarrierAdapter {
 
     if (!response.ok) {
       const errorText = await response.text();
+
       throw new Error(`TForce API error: ${response.status} - ${errorText}`);
     }
     const responseInJson = await response.json();
+
     return responseInJson;
   }
 
@@ -825,7 +827,7 @@ export class TForceAdapter implements CarrierAdapter {
         ],
       },
     };
-    console.dir(payload, { depth: null })
+
     // ── Call the Shipping API ─────────────────────────────────────────────────
     // Note: shipping uses a different base URL than rating
     const shippingBaseUrl = 'https://api.tforcefreight.com/shipping';

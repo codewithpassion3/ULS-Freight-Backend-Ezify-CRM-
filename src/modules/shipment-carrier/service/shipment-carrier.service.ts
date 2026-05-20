@@ -13,6 +13,8 @@ import { MockCarrierTrackingService } from "src/modules/mock-carrier-tracking/se
 import { Surcharge } from "src/entities/surcharge";
 import { getEnv } from "src/utils/getEnv";
 import { ENV } from "src/common/constants/env";
+import { PaymentService } from "src/modules/payment/service/payment.service";
+import { SessionData } from "express-session";
 
 @Injectable()
 export class ShipmentCarrierService {
@@ -22,10 +24,11 @@ export class ShipmentCarrierService {
         private readonly tstAdapter: TSTCFExpressAdapter,
         private readonly tforceAdapter: TForceAdapter,
         private readonly xpoAdapter: XPOAdapter,
-        private readonly mockTracking: MockCarrierTrackingService
+        private readonly mockTracking: MockCarrierTrackingService,
+        private readonly paymentService: PaymentService
     ) {}
     
-    async createShipment(dto: CreateCarrierShipmentDTO) {
+    async createShipment(dto: CreateCarrierShipmentDTO, session: SessionData) {
         let carrierResponse: any;
 
         // ✅ Add TFORCE to allowed carriers
@@ -59,6 +62,18 @@ export class ShipmentCarrierService {
             throw new BadRequestException("Convert quote into shipment to proceed further")
         }
 
+        if(quote?.shipment?.carrier){
+            throw new BadRequestException("Shipment already processed, create a new one")
+        }
+        
+        const selectedRateCharge = Number(dto.selectedRate.totalCharge);
+        
+        const walletBalance = await this.paymentService.getWalletBalance(session);
+        
+        if (walletBalance < selectedRateCharge) {
+            throw new BadRequestException(`Insufficient wallet balance. Required: ${selectedRateCharge.toFixed(2)}, Available: ${walletBalance.toFixed(2)}`)
+        }
+        
         let shipment = quote.shipment as Shipment;
 
         if (dto.carrier === Carrier.FEDEX) {
@@ -192,6 +207,25 @@ export class ShipmentCarrierService {
         this.em.persist([shipment, quote]);
         await this.em.flush();
 
+        const chargeAmount = shipment.totalNetCharge || shipment.totalCharge || 0;
+        if (chargeAmount > 0) {
+            try {
+                await this.paymentService.deductFromWallet(session, {
+                    amount: chargeAmount,
+                    description: `Shipment ${shipment.trackingNumber} via ${dto.carrier}`,
+                });
+            } catch (walletError: any) {
+                // IMPORTANT: The shipment is already live with the carrier at this point.
+                // Options:
+                // 1. Log and alert (allow shipment, handle payment async/offline)
+                // 2. Throw here so the API returns an error (shipment exists but user sees failure)
+                // 3. Implement a compensation/cancellation flow
+                console.error('Wallet deduction failed after shipment creation:', walletError);
+                // For now, re-throwing makes the failure visible:
+                // throw new BadRequestException(`Shipment created, but wallet deduction failed: ${walletError.message}`);
+            }
+        }
+
         await this.mockTracking.scheduleTrackingTimeline(
             dto.carrier,
             shipment.trackingNumber as string,
@@ -206,31 +240,34 @@ export class ShipmentCarrierService {
     }
 
     async getShipmentCarriersRates(dto: any) {
-        const [tstResult, fedexResult, tforceResult 
+        const [
+            // tstResult, 
+            fedexResult, 
+            // tforceResult 
             // xpoResult
         ] = await Promise.all([
-            this.getTSTRates(dto)
-                .then(r => ({ success: true as const, data: r }))
-                .catch(e => ({ success: false as const, error: e.message })),
+            // this.getTSTRates(dto)
+            //     .then(r => ({ success: true as const, data: r }))
+            //     .catch(e => ({ success: false as const, error: e.message })),
             this.getFedExRates(dto)
                 .then(r => ({ success: true as const, data: r }))
                 .catch(e => ({ success: false as const, error: e.message })),
-            this.getTForceRates(dto)
-                .then(r => ({ success: true as const, data: r }))
-                .catch(e => ({ success: false as const, error: e.message }))
+            // this.getTForceRates(dto)
+            //     .then(r => ({ success: true as const, data: r }))
+            //     .catch(e => ({ success: false as const, error: e.message }))
             // this.getXPORates(dto)
             //     .then(r => ({ success: true as const, data: r }))
             //     .catch(e => ({ success: false as const, error: e.message })),
         ]);
-        console.log({fedexResult})
+        // console.log({fedexResult})
         return {
             message: "Rates fetched",
             fedexQuotes: fedexResult.success ? fedexResult.data : null,
             fedexError: fedexResult.success ? null : fedexResult.error,
-            tstQuotes: tstResult.success ? tstResult.data : null,
-            tstError: tstResult.success ? null : tstResult.error,
-            tforceQuotes: tforceResult.success ? tforceResult.data : null,
-            tforceError: tforceResult.success ? null : tforceResult.error,
+            // tstQuotes: tstResult.success ? tstResult.data : null,
+            // tstError: tstResult.success ? null : tstResult.error,
+            // tforceQuotes: tforceResult.success ? tforceResult.data : null,
+            // tforceError: tforceResult.success ? null : tforceResult.error,
             // xpoQuotes: xpoResult.success ? xpoResult.data : null,
             // xpoError: xpoResult.success ? null : xpoResult.error,
         };
@@ -295,7 +332,7 @@ export class ShipmentCarrierService {
         };
 
         const rates = await this.tforceAdapter.getRates(tforceDto);
-        
+        console.dir({rates}, { depth: null})
         const normalizedRates = this.tforceAdapter.mapTForceToCarrierRate(rates);
         
         if(Array.isArray(normalizedRates)) return normalizedRates[0]
