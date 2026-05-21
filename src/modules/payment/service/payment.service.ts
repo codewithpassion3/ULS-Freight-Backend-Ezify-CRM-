@@ -10,6 +10,7 @@ import { Wallet } from 'src/entities/wallet.entity';
 import { WalletTransaction } from 'src/entities/wallet-transaction.entity';
 import Stripe from 'stripe';
 import { TransactionStatus, TransactionType } from 'src/common/enum/wallet';
+import { Company } from 'src/entities/company.entity';
 
 @Injectable()
 export class PaymentService {
@@ -109,6 +110,7 @@ export class PaymentService {
       stripeCustomerId: ctx.user.stripeCustomerId,
       brand: method.card!.brand,
       last4: method.card!.last4,
+      company: this.em.getReference(Company, session.companyId as number),
       expMonth: method.card!.exp_month,
       expYear: method.card!.exp_year,
     } as any);
