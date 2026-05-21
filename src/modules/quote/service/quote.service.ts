@@ -89,6 +89,7 @@ export class QuoteService {
         
         //5) Build validated quote
         quote = await quote.build();
+
         quote.company = session.companyId;
         quote.user = session.userId;
         quote.status = dto.status ? dto.status : QuoteStatus.DRAFT;

@@ -158,19 +158,20 @@ export abstract class BaseQuote {
         const bookIds = this.validatedData.addresses
             .filter((a: AddressData) => a.addressBookId)
             .map((a: AddressData) => a.addressBookId);
-                
-        const existingBooks = bookIds.length > 0 
+        
+            const existingBooks = bookIds.length > 0 
             ? await this.em.find(AddressBook, { id: { $in: bookIds } }, { populate: ['address'] })
             : [];
-
-        // if (existingBooks.length !== bookIds.length) {
-        //     const foundIds = new Set(existingBooks.map(b => b.id));
-        //     const missing = bookIds.filter(id => !foundIds.has(id));
-        //     throw new BadRequestException(`AddressBook IDs not found: ${missing.join(', ')}`);
-        // }
-
+   
+        const foundIds = new Set(existingBooks.map(b => b.id));
+        
+        const missing = bookIds.filter(id => !foundIds.has(id));
+        
+        if(missing.length > 0) {
+            throw new BadRequestException(`AddressBook with IDs not found: ${missing.join(', ')}`);
+        }
+        
         const bookMap = new Map(existingBooks.map(b => [b.id, b]));
-
         return Promise.all(this.validatedData.addresses.map(async (addrData: AddressData) => {
             const shippingAddress = new ShippingAddress();
             shippingAddress.type = addrData.type;
