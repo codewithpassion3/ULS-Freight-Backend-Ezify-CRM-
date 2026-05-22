@@ -241,20 +241,20 @@ export class ShipmentCarrierService {
 
     async getShipmentCarriersRates(dto: any) {
         const [
-            // tstResult, 
+            tstResult, 
             fedexResult, 
-            // tforceResult 
+            tforceResult 
             // xpoResult
         ] = await Promise.all([
-            // this.getTSTRates(dto)
-            //     .then(r => ({ success: true as const, data: r }))
-            //     .catch(e => ({ success: false as const, error: e.message })),
+            this.getTSTRates(dto)
+                .then(r => ({ success: true as const, data: r }))
+                .catch(e => ({ success: false as const, error: e.message })),
             this.getFedExRates(dto)
                 .then(r => ({ success: true as const, data: r }))
                 .catch(e => ({ success: false as const, error: e.message })),
-            // this.getTForceRates(dto)
-            //     .then(r => ({ success: true as const, data: r }))
-            //     .catch(e => ({ success: false as const, error: e.message }))
+            this.getTForceRates(dto)
+                .then(r => ({ success: true as const, data: r }))
+                .catch(e => ({ success: false as const, error: e.message }))
             // this.getXPORates(dto)
             //     .then(r => ({ success: true as const, data: r }))
             //     .catch(e => ({ success: false as const, error: e.message })),
@@ -264,10 +264,10 @@ export class ShipmentCarrierService {
             message: "Rates fetched",
             fedexQuotes: fedexResult.success ? fedexResult.data : null,
             fedexError: fedexResult.success ? null : fedexResult.error,
-            // tstQuotes: tstResult.success ? tstResult.data : null,
-            // tstError: tstResult.success ? null : tstResult.error,
-            // tforceQuotes: tforceResult.success ? tforceResult.data : null,
-            // tforceError: tforceResult.success ? null : tforceResult.error,
+            tstQuotes: tstResult.success ? tstResult.data : null,
+            tstError: tstResult.success ? null : tstResult.error,
+            tforceQuotes: tforceResult.success ? tforceResult.data : null,
+            tforceError: tforceResult.success ? null : tforceResult.error,
             // xpoQuotes: xpoResult.success ? xpoResult.data : null,
             // xpoError: xpoResult.success ? null : xpoResult.error,
         };

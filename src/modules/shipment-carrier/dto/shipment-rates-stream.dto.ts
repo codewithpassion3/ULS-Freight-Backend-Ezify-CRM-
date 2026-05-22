@@ -58,8 +58,9 @@ export enum Packaging {
 // ─── Address ─────────────────────────────────────
 
 class AddressDTO {
+  @IsOptional()
   @IsString()
-  name!: string;
+  name?: string;
 
   @IsString()
   address!: string;
