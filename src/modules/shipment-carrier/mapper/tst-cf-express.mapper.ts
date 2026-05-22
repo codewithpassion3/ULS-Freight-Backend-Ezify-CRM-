@@ -341,7 +341,7 @@ private formatCountry(country: string | undefined): string {
 
   private mapAddress(addr: any): TSTCFAddress {
     return {
-      name: addr?.name || '',
+      name: addr?.name || 'USER',
       address: addr?.streetAddress || addr?.address || '',
       zip: addr?.postalCode || '',
       city: addr?.city || '',
