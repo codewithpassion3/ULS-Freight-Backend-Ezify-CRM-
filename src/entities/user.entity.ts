@@ -8,6 +8,7 @@ import { LineItemUnit } from "./line-item-unit.entity";
 import { Reminder } from "./reminder.entity";
 import { Invoice } from "./invoice.entity";
 import { Shipment } from "./shipment.entity";
+import { Claim } from "./claim.entity";
 
 @Entity()
 export class User{
@@ -100,4 +101,7 @@ export class User{
 
     @OneToMany(() => Shipment, shipment => shipment.bookedBy, { hidden: true })
     shipments? = new Collection<Shipment>(this);
+
+    @OneToMany(() => Claim, claim => claim.submittedBy, { nullable: true })
+    claims? = new Collection<Claim>(this)
 }
