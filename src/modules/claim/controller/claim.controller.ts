@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   Session,
@@ -11,7 +12,6 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { CurrentUser } from 'src/decorators/currentUser.decorator';
 import { CreateClaimDto } from '../dto/create-claim.dto';
 import type { SessionData } from 'express-session';
 import { SessionAuthGuard } from 'src/guards/sessionAuth.guard';
@@ -21,8 +21,7 @@ import { Role } from "src/decorators/role.decorator";
 import { ClaimService } from '../service/claim.service';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { claimDocsMulterConfig } from 'src/config/multer.config';
-import { ENV } from 'src/common/constants/env';
-import { getEnv } from 'src/utils/getEnv';
+import { UpdateClaimStatusDto } from '../dto/update-claim-status.dto';
 
 
 @Controller('claims')
@@ -66,5 +65,16 @@ export class ClaimController {
         @Session() session: SessionData
     ) {
         return this.claimsService.findOne(id, session);
+    }
+
+    @UseGuards(SessionAuthGuard, RolesGuard)
+    @Role([ROLES.SUPER_ADMIN, ROLES.STAFF])
+    @Patch(':id/status')
+    async updateStatus(
+        @Param('id') id: number,
+        @Body() dto: UpdateClaimStatusDto,
+        @Session() session: SessionData,
+    ) {
+        return this.claimsService.updateStatus(id, dto, session);
     }
 }

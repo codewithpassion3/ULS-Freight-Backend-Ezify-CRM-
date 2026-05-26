@@ -17,6 +17,8 @@ import { Company } from 'src/entities/company.entity';
 import { buildQuery } from 'src/utils/api-query';
 import { RequestContextService } from 'src/utils/request-context-service';
 import { ClaimDocument } from 'src/entities/claim-document.entity';
+import { allowedTransitions } from 'src/common/constants/claim';
+import { UpdateClaimStatusDto } from '../dto/update-claim-status.dto';
 
 
 @Injectable()
@@ -44,6 +46,8 @@ export class ClaimService {
     additionalNotes: claim.additionalNotes,
     createdAt: claim.createdAt,
     updatedAt: claim.updatedAt,
+    statusUpdatedAt: claim.statusUpdatedAt,
+    statusUpdatedBy: `${claim.statusUpdatedBy?.firstName} ${claim.statusUpdatedBy?.lastName}`,
 
     // --- Shipment (with hidden quote override) ---
     shipment: claim.shipment
@@ -110,7 +114,7 @@ export class ClaimService {
       throw new BadRequestException('Invalid shipment id or you do not have required permissions');
     }
 
-    if (shipment?.company?.id !== ctx.company.id) {
+    if (shipment?.company?.id !== ctx?.company?.id) {
       throw new ForbiddenException('You do not own this shipment.');
     }
 
@@ -174,7 +178,9 @@ export class ClaimService {
 
     await this.em.persist(claim).flush();
 
-    return claim;
+    return {
+      message: "Successfully created claim"
+    };
   }
 
   async findAll(
@@ -269,6 +275,7 @@ export class ClaimService {
           'documents',
           'documents.uploadedBy',
           'submittedBy',
+          'statusUpdatedBy'
         ],
       },
     );
@@ -280,7 +287,7 @@ export class ClaimService {
     // 11) Return with pagination metadata
     return {
       message: 'Successfully retrieved claims',
-      serializedClaims,
+      claims: serializedClaims,
       pagination: {
         page: clampedPage,
         limit,
@@ -302,7 +309,8 @@ export class ClaimService {
           'shipment.bookedBy',
           'documents',
           'documents.uploadedBy',
-          'submittedBy'
+          'submittedBy',
+          'statusUpdatedBy'
         ] 
       },
     );
@@ -320,6 +328,64 @@ export class ClaimService {
     return {
       message: 'Claim retrieved successfully',
       claim: serializedClaim[0],
+    };
+  }
+
+  async updateStatus(
+    id: number,
+    dto: UpdateClaimStatusDto,
+    session: SessionData,
+  ) {
+    const ctx = await this.requestContextService.resolve({ session, em: this.em });
+
+    if (session.role !== ROLES.SUPER_ADMIN) {
+      throw new ForbiddenException('Admin access required.');
+    }
+
+    const claim = await this.em.findOne(
+      Claim,
+      { id },
+      {
+        populate: [
+          'shipment',
+          'shipment.quote',
+          'shipment.surcharges',
+          'shipment.quote.insurance',
+          'shipment.bookedBy',
+          'documents',
+          'documents.uploadedBy',
+          'submittedBy',
+        ],
+      },
+    );
+
+    if (!claim) {
+      throw new NotFoundException('Claim not found.');
+    }
+
+    const current = claim.status as ClaimStatus;
+    const next = dto.status;
+
+    if (!allowedTransitions[current]?.includes(next)) {
+      throw new BadRequestException(
+        `Cannot transition claim from "${current}" to "${next}".`,
+      );
+    }
+
+    claim.status = next;
+
+    if (dto.adminNotes && dto.status === ClaimStatus.REJECTED) {
+      claim.adminNotes = dto.adminNotes;
+    }
+
+    claim.statusUpdatedAt = new Date();
+    claim.statusUpdatedBy = ctx.user;
+
+    await this.em.persist(claim).flush();
+
+    return {
+      message: `Claim status updated to ${next}`,
+      claim: this.serializeClaim(claim),
     };
   }
 }

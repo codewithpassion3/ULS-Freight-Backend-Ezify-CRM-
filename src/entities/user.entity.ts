@@ -104,4 +104,7 @@ export class User{
 
     @OneToMany(() => Claim, claim => claim.submittedBy, { nullable: true })
     claims? = new Collection<Claim>(this)
+
+    @OneToMany(() => Claim, (claim) => claim.statusUpdatedBy, { nullable: true })
+    statusUpdatedClaims? = new Collection<Claim>(this);
 }

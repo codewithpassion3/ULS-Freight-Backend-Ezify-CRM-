@@ -6,6 +6,7 @@ import { ClaimDocument } from "./claim-document.entity";
 import { User } from "./user.entity";
 import { Company } from "./company.entity";
 import { randomBytes } from "crypto";
+import { Optional } from "@nestjs/common";
 
 @Entity()
 export class Claim {
@@ -40,6 +41,12 @@ export class Claim {
   @Enum(() => ClaimType)
   claimType!: ClaimType;
 
+  @Property({ nullable: true })
+  adminNotes?: string;
+
+  @Property({ nullable: true })
+  statusUpdatedAt?: Date
+
   // === Missing ===
   @Property({ type: 'text', nullable: true })
   goodsDescription?: string;
@@ -69,7 +76,7 @@ export class Claim {
   
   @Enum(() => ClaimDocumentType)
   documentType?: ClaimDocumentType;
-  
+
   // --- Documents ---
   @OneToMany(() => ClaimDocument, claimDocument=> claimDocument.claim, { cascade: [Cascade.ALL]})
   documents = new Collection<ClaimDocument>(this);
@@ -89,6 +96,9 @@ export class Claim {
 
   @ManyToOne(() => User)
   submittedBy!: User;
+
+  @ManyToOne(() => User, { nullable: true })
+  statusUpdatedBy?: User;
 
   @ManyToOne(() => Company)
   company!: Company;
